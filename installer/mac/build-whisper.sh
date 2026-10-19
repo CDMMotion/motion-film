@@ -46,6 +46,7 @@ codesign --force --sign - "$OUT/whisper-cli"
 lipo -info "$OUT/whisper-cli"
 otool -L "$OUT/whisper-cli"
 # Só bibliotecas do sistema podem aparecer (nada de /opt/homebrew etc.).
-if otool -L "$OUT/whisper-cli" | tail -n +2 | grep -v -E '^\s+(/usr/lib/|/System/Library/)'; then
+# (linhas sem recuo são cabeçalhos "(architecture ...)" do binário universal)
+if otool -L "$OUT/whisper-cli" | grep -E '^[[:space:]]' | grep -v -E '^[[:space:]]+(/usr/lib/|/System/Library/)'; then
   echo "whisper-cli depende de biblioteca fora do sistema"; exit 1
 fi

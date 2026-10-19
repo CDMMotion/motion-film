@@ -41,8 +41,9 @@ try {
 
   $exe = Join-Path $here "dist\Motion-Film-Setup-$version.exe"
   $rarFile = Join-Path $root "motion-film-v$version.rar"
-  if (-not $Notes) { $Notes = "Baixe Motion-Film-Setup-$version.exe, feche o After Effects e rode. Instala ou atualiza; Packs, cores e presets são mantidos." }
+  if (-not $Notes) { $Notes = "Feche o After Effects antes. Instala ou atualiza; Packs, cores e presets são mantidos." }
+  $Notes += "`n`n**Windows:** baixe ``Motion-Film-Setup-$version.exe`` e rode.`n**Mac:** baixe ``Motion-Film-Mac-$version.zip`` e abra o ``Instalar-Motion-Film-$version.pkg`` (instruções no INSTALAR-MAC.txt dentro do zip). O zip do Mac aparece aqui ~15 min depois da publicação, após passar no teste em Mac Apple Silicon e Intel."
   & $gh release create $tag $exe $rarFile --title "Mótion Film $version" --notes $Notes
   if ($LASTEXITCODE -ne 0) { throw "gh release create falhou" }
-  Write-Host "OK: release $tag publicada."
+  Write-Host "OK: release $tag publicada. O instalador Mac é montado e anexado pelo GitHub Actions (workflow 'Instalador Mac')."
 } finally { Pop-Location }
