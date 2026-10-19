@@ -294,6 +294,23 @@
     rootStyle.setProperty("--panel-deep", s.deep);
   }
 
+  // Default accent of every panel (user request 2026-10: green instead of
+  // the old purple #9f7aea). A colour the user picked is kept.
+  var DEFAULT_ACCENT = "#00f011";
+
+  // Write the accent family: --accent / --accent-bright (same colour),
+  // --accent-rgb ("r, g, b" for the translucent tints, rgba(var(--accent-rgb), .16))
+  // and --accent-ink (text on an accent fill: dark on bright accents).
+  function applyAccent(rootStyle, accentHex) {
+    var hex = normalizeHexInput(accentHex) || DEFAULT_ACCENT;
+    var c = hexToRgb255(hex);
+    var luma = (0.299 * c.r + 0.587 * c.g + 0.114 * c.b) / 255;
+    rootStyle.setProperty("--accent", hex);
+    rootStyle.setProperty("--accent-bright", hex);
+    rootStyle.setProperty("--accent-rgb", c.r + ", " + c.g + ", " + c.b);
+    rootStyle.setProperty("--accent-ink", luma > 0.6 ? "#111111" : "#ffffff");
+  }
+
   function rgb01ToHex(rgb) {
     return rgb255ToHex(
       Math.round(clamp(Number(rgb[0]) || 0, 0, 1) * 255),
@@ -313,6 +330,8 @@
     mixHex: mixHex,
     panelShades: panelShades,
     applyPanelShades: applyPanelShades,
+    DEFAULT_ACCENT: DEFAULT_ACCENT,
+    applyAccent: applyAccent,
     clamp: clamp
   };
 

@@ -2,14 +2,14 @@
 <ExtensionManifest
   Version="7.0"
   ExtensionBundleId="com.motionfilm.app"
-  ExtensionBundleVersion="0.9.8"
+  ExtensionBundleVersion="0.9.9"
   ExtensionBundleName="Mótion Film"
   xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
   <ExtensionList>
-    <Extension Id="com.motionfilm.app" Version="0.9.8" />
-    <Extension Id="com.motionfilm.palette" Version="0.9.8" />
-    <Extension Id="com.motionfilm.layers" Version="0.9.8" />
-    <Extension Id="com.motionfilm.figma" Version="0.9.8" />
+    <Extension Id="com.motionfilm.app" Version="0.9.9" />
+    <Extension Id="com.motionfilm.palette" Version="0.9.9" />
+    <Extension Id="com.motionfilm.layers" Version="0.9.9" />
+    <Extension Id="com.motionfilm.figma" Version="0.9.9" />
   </ExtensionList>
   <ExecutionEnvironment>
     <HostList>

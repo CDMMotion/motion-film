@@ -534,8 +534,7 @@
   function applyTheme(accent, panel) {
     var root = document.documentElement.style;
     if (accent) {
-      root.setProperty("--accent", accent);
-      root.setProperty("--accent-bright", accent);
+      window.MF.color.applyAccent(root, accent);
     }
     if (panel && window.MF && window.MF.color) {
       window.MF.color.applyPanelShades(root, panel);

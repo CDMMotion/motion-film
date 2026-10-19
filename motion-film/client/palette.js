@@ -143,8 +143,7 @@
   function applyTheme(accent, panel) {
     var root = document.documentElement.style;
     if (accent) {
-      root.setProperty("--accent", accent);
-      root.setProperty("--accent-bright", accent);
+      window.MF.color.applyAccent(root, accent);
     }
     if (panel) {
       // Same derivation the main panel uses -- the raised "card" tone and

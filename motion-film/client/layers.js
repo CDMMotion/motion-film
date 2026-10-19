@@ -137,8 +137,7 @@
   function applyTheme(accent, panel) {
     var root = document.documentElement.style;
     if (accent) {
-      root.setProperty("--accent", accent);
-      root.setProperty("--accent-bright", accent);
+      window.MF.color.applyAccent(root, accent);
     }
     if (panel) {
       window.MF.color.applyPanelShades(root, panel);
@@ -244,11 +243,8 @@
       createLayer("createShapeAdjustment", [], "Camada de ajuste");
     });
     $("aux-create-solid").addEventListener("click", function () {
-      var accent = "#9f7aea";
-      try {
-        accent = window.localStorage.getItem("motionfilm-accent") || accent;
-      } catch (readError) {}
-      createLayer("createShapeSolid", [window.MF.color.hexToRgb01(accent)], "Sólido");
+      // Always black (user request 2026-10; it used to take the accent).
+      createLayer("createShapeSolid", [[0, 0, 0]], "Sólido");
     });
   }
 

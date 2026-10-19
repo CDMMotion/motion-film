@@ -744,15 +744,6 @@
     return "#" + byte(rgb[0]) + byte(rgb[1]) + byte(rgb[2]);
   }
 
-  function hexToRgb(hex) {
-    var clean = String(hex).replace("#", "");
-    return [
-      parseInt(clean.substring(0, 2), 16) / 255,
-      parseInt(clean.substring(2, 4), 16) / 255,
-      parseInt(clean.substring(4, 6), 16) / 255
-    ];
-  }
-
   // ---------------------------------------------------------------
   // A smaller, search-less sibling of the font picker: a plain list of
   // fixed {value, label} options with a dot marking whichever one is
@@ -863,14 +854,17 @@
     });
   }
 
-  function applyAnchorPreset(fx, fy) {
-    hostCall("setAnchorPreset", [{ fx: fx, fy: fy }], function (result) {
+  // compFrame (Shift+click): the anchor goes to that point of the comp
+  // frame instead of the layer's bounds; the layer stays where it is.
+  function applyAnchorPreset(fx, fy, compFrame) {
+    hostCall("setAnchorPreset", [{ fx: fx, fy: fy, compFrame: !!compFrame }], function (result) {
       if (!result.ok) {
         setStatus(result.error, "error");
         return;
       }
       var skippedNote = result.skipped ? " (" + result.skipped + " layer" + (result.skipped === 1 ? "" : "s") + " skipped: " + result.skipReason + ")" : "";
-      setStatus("Anchor point moved on " + result.changed + " layer" + (result.changed === 1 ? "" : "s") + ", position compensated." + skippedNote, "success");
+      var whereNote = result.compFrame ? " to the comp frame" : "";
+      setStatus("Anchor point moved" + whereNote + " on " + result.changed + " layer" + (result.changed === 1 ? "" : "s") + ", position compensated." + skippedNote, "success");
     });
   }
 
@@ -952,7 +946,7 @@
   // Colour Palette satellite window can follow it (see host.jsx
   // setSharedTheme / palette.js). Cheap, fire-and-forget.
   function publishTheme() {
-    var accent = localStorage.getItem("motionfilm-accent") || "#9f7aea";
+    var accent = localStorage.getItem("motionfilm-accent") || window.MF.color.DEFAULT_ACCENT;
     var panel = localStorage.getItem("motionfilm-panel") || "#212121";
     hostCall("setSharedTheme", [JSON.stringify({ accent: accent, panel: panel })], function () {});
   }
@@ -1079,12 +1073,11 @@
   }
 
   function setupAppearance() {
-    var accentHex = localStorage.getItem("motionfilm-accent") || "#9f7aea";
+    var accentHex = localStorage.getItem("motionfilm-accent") || window.MF.color.DEFAULT_ACCENT;
     var panelHex = localStorage.getItem("motionfilm-panel") || "#212121";
 
     function applyAccent(hex, persist) {
-      document.documentElement.style.setProperty("--accent", hex);
-      document.documentElement.style.setProperty("--accent-bright", hex);
+      window.MF.color.applyAccent(document.documentElement.style, hex);
       if (persist) {
         localStorage.setItem("motionfilm-accent", hex);
         publishTheme();
@@ -1121,10 +1114,9 @@
     els.resetSettings.addEventListener("click", function () {
       localStorage.removeItem("motionfilm-accent");
       localStorage.removeItem("motionfilm-panel");
-      document.documentElement.style.setProperty("--accent", "#9f7aea");
-      document.documentElement.style.setProperty("--accent-bright", "#c4a7ff");
+      window.MF.color.applyAccent(document.documentElement.style, window.MF.color.DEFAULT_ACCENT);
       window.MF.color.applyPanelShades(document.documentElement.style, "#212121");
-      accentSwatch.setHex("#9f7aea");
+      accentSwatch.setHex(window.MF.color.DEFAULT_ACCENT);
       panelSwatch.setHex("#212121");
       publishTheme();
       drawCurve();
@@ -1397,7 +1389,9 @@
 
   // file:/// URL for <img>/<video> src (spaces, accents, # and ? escaped).
   function kitFileUrl(p) {
-    return "file:///" + encodeURI(String(p).replace(/\\/g, "/")).replace(/#/g, "%23").replace(/\?/g, "%3F");
+    // macOS paths already start with "/" -- drop it so the URL stays
+    // file:///Users/... and not file:////Users/...
+    return "file:///" + encodeURI(String(p).replace(/\\/g, "/").replace(/^\/+/, "")).replace(/#/g, "%23").replace(/\?/g, "%3F");
   }
 
   function kitReadJsonFile(p, fallback) {
@@ -4361,16 +4355,39 @@
     return req(name);
   }
 
+  // macOS: whisper.cpp publishes no Mac command-line build, so the Mac
+  // installer (.pkg, built on a GitHub Actions Mac -- see
+  // installer/mac/) ships its own whisper-cli, same whisper.cpp tag as the
+  // Windows zip above, inside the extension at bin/mac/. ffmpeg comes from
+  // ffmpeg-static's macOS builds (one gzipped binary per CPU). Downloaded
+  // by Node, so neither gets the quarantine flag that would block it.
+  var CAPTIONS_FFMPEG_MAC_URL = "https://github.com/eugeneware/ffmpeg-static/releases/download/b6.1.1/ffmpeg-darwin-";
+
+  function captionsIsMac() {
+    return nodeRequire("os").platform() === "darwin";
+  }
+
+  function captionsExtensionDir() {
+    var raw = "";
+    try { raw = window.__adobe_cep__.getSystemPath("extension"); } catch (e) {}
+    var p = decodeURIComponent(String(raw).replace(/^file:\/+/, ""));
+    if (!/^[A-Za-z]:/.test(p)) { p = "/" + p; } // macOS
+    return p;
+  }
+
   function captionsPaths() {
     var os = nodeRequire("os");
     var path = nodeRequire("path");
     var toolsDir = path.join(os.homedir(), "Documents", "Mótion Film Tools");
+    var mac = captionsIsMac();
     return {
       toolsDir: toolsDir,
       whisperDir: path.join(toolsDir, "whisper"),
-      whisperExe: path.join(toolsDir, "whisper", "whisper-cli.exe"),
+      whisperExe: mac
+        ? path.join(captionsExtensionDir(), "bin", "mac", "whisper-cli")
+        : path.join(toolsDir, "whisper", "whisper-cli.exe"),
       ffmpegDir: path.join(toolsDir, "ffmpeg"),
-      ffmpegExe: path.join(toolsDir, "ffmpeg", "ffmpeg.exe"),
+      ffmpegExe: path.join(toolsDir, "ffmpeg", mac ? "ffmpeg" : "ffmpeg.exe"),
       modelPath: path.join(toolsDir, "models", "ggml-small.bin"),
       tempDir: path.join(toolsDir, "temp")
     };
@@ -4506,6 +4523,10 @@
   // executable), so there's no separate encoding-prone process involved.
   // Only works on a path that already exists on disk.
   function toShortPath(longPath) {
+    // macOS has no 8.3 names and whisper-cli reads UTF-8 argv fine there.
+    if (nodeRequire("os").platform() !== "win32") {
+      return Promise.resolve(longPath);
+    }
     return new Promise(function (resolve, reject) {
       var cp = nodeRequire("child_process");
       var cmd = 'for %I in ("' + longPath + '") do @echo %~sI';
@@ -4602,6 +4623,11 @@
       progress.hidden = false;
     }
 
+    if (captionsIsMac()) {
+      setupCaptionsToolsMac(p, button);
+      return;
+    }
+
     var scratchDir = path.join(p.toolsDir, "_download-temp");
     fs.mkdirSync(scratchDir, { recursive: true });
     var whisperZip = path.join(scratchDir, "whisper-bin-x64.zip");
@@ -4649,6 +4675,50 @@
         fs.rmSync(scratchDir, { recursive: true, force: true });
       } catch (cleanupError) {
         // Non-fatal -- the tools themselves are already in place.
+      }
+      setCaptionsSetupStatus("Done! Ready to transcribe.", 1);
+      setStatus("Setup complete -- ready to transcribe.", "success");
+      showCaptionsMainUI();
+    }).catch(function (error) {
+      var message = String((error && error.message) || error);
+      setCaptionsSetupStatus("Setup failed: " + message, 0);
+      setStatus("Captions setup failed: " + message, "error");
+      if (button) {
+        button.disabled = false;
+      }
+    });
+  }
+
+  // Mac version of the one-time setup: whisper-cli already came with the
+  // installer, so only ffmpeg (for this CPU) and the model are downloaded.
+  function setupCaptionsToolsMac(p, button) {
+    var fs = nodeRequire("fs");
+    var path = nodeRequire("path");
+    var arch = nodeRequire("os").arch() === "arm64" ? "arm64" : "x64";
+    var gzPath = path.join(p.toolsDir, "_download-temp", "ffmpeg.gz");
+
+    Promise.resolve().then(function () {
+      if (!fs.existsSync(p.whisperExe)) {
+        throw new Error("whisper-cli is missing from the extension -- reinstall Mótion Film with the Mac installer (.pkg).");
+      }
+      setCaptionsSetupStatus("Downloading audio converter (~25MB)…", 0.02);
+      return downloadFile(CAPTIONS_FFMPEG_MAC_URL + arch + ".gz", gzPath, function (frac) {
+        setCaptionsSetupStatus("Downloading audio converter (~25MB)… " + Math.round(frac * 100) + "%", 0.02 + frac * 0.2);
+      });
+    }).then(function () {
+      setCaptionsSetupStatus("Extracting audio converter…", 0.23);
+      fs.mkdirSync(p.ffmpegDir, { recursive: true });
+      fs.writeFileSync(p.ffmpegExe, nodeRequire("zlib").gunzipSync(fs.readFileSync(gzPath)));
+      fs.chmodSync(p.ffmpegExe, 493); // 0755
+      setCaptionsSetupStatus("Downloading language model (~465MB, this is the big one)…", 0.25);
+      return downloadFile(CAPTIONS_MODEL_URL, p.modelPath, function (frac) {
+        setCaptionsSetupStatus("Downloading language model (~465MB, this is the big one)… " + Math.round(frac * 100) + "%", 0.25 + frac * 0.73);
+      });
+    }).then(function () {
+      try {
+        fs.rmSync(path.dirname(gzPath), { recursive: true, force: true });
+      } catch (cleanupError) {
+        // Non-fatal.
       }
       setCaptionsSetupStatus("Done! Ready to transcribe.", 1);
       setStatus("Setup complete -- ready to transcribe.", "success");
@@ -5895,8 +5965,9 @@
     var runId = String(Date.now());
 
     return toShortPath(p.tempDir).then(function (tempDirShort) {
-      var wavPath = tempDirShort + "\\audio-" + runId + ".wav";
-      var jsonOutBase = tempDirShort + "\\transcript-" + runId;
+      var path = nodeRequire("path");
+      var wavPath = path.join(tempDirShort, "audio-" + runId + ".wav");
+      var jsonOutBase = path.join(tempDirShort, "transcript-" + runId);
 
       // -ss/-to as INPUT options (before -i) trim to exactly the stretch
       // of the source the layer shows on the timeline -- respects
@@ -6563,10 +6634,10 @@
 
     var anchorButtons = document.querySelectorAll(".anchor-dot");
     for (var anchorIndex = 0; anchorIndex < anchorButtons.length; anchorIndex += 1) {
-      anchorButtons[anchorIndex].addEventListener("click", function () {
+      anchorButtons[anchorIndex].addEventListener("click", function (event) {
         var fx = parseFloat(this.getAttribute("data-fx"));
         var fy = parseFloat(this.getAttribute("data-fy"));
-        applyAnchorPreset(fx, fy);
+        applyAnchorPreset(fx, fy, event.shiftKey);
       });
     }
 
@@ -6621,9 +6692,9 @@
       createLayer("createShapeAdjustment", [], "Adjustment layer");
     });
     els.createSolid.addEventListener("click", function () {
-      // Reuse the panel accent so new solids match the current theme.
-      var accent = localStorage.getItem("motionfilm-accent") || "#9f7aea";
-      createLayer("createShapeSolid", [hexToRgb(accent)], "Solid");
+      // New solids are always black (user request 2026-10; it used to
+      // take the panel accent).
+      createLayer("createShapeSolid", [[0, 0, 0]], "Solid");
     });
 
     els.settingsToggle.addEventListener("click", function () {

@@ -1,0 +1,20 @@
+/* Same look as the CEP panel (client/styles.css defaults) and the
+   Windows installer: #212121 background, raised card with a hairline,
+   "01 / ..." kicker in the accent, version pill, dashed note box. */
+html, body { margin: 0; padding: 0; background: #212121; color: #f2f0f5; font: 13px/1.45 -apple-system, "Helvetica Neue", Arial, sans-serif; -webkit-font-smoothing: antialiased; }
+.wrap { padding: 16px 18px 18px; }
+.top { display: flex; align-items: center; gap: 10px; padding-bottom: 12px; margin-bottom: 14px; border-bottom: 1px solid #383838; }
+.top img { width: 22px; height: 22px; }
+.brand { color: #00f011; font-weight: 700; font-size: 15px; }
+.pill { margin-left: auto; padding: 2px 8px; border-radius: 9px; background: #292929; color: #60616c; font-size: 10px; font-weight: 700; }
+.card { border: 1px solid #383838; border-radius: 12px; background: #292929; }
+.kicker { padding: 11px 14px; border-bottom: 1px solid #383838; color: #00f011; font-size: 10px; font-weight: 700; letter-spacing: .16em; text-transform: uppercase; }
+.body { padding: 4px 14px 14px; }
+.lead { margin: 10px 0 2px; color: #91919f; }
+.step { display: flex; gap: 12px; margin-top: 12px; }
+.dot { flex: 0 0 22px; width: 22px; height: 22px; box-sizing: border-box; border: 1.5px solid #00f011; border-radius: 50%; background: #181818; color: #00f011; font-size: 11px; font-weight: 700; line-height: 19px; text-align: center; }
+.step b { display: block; color: #f2f0f5; }
+.step span { color: #91919f; }
+code { padding: 1px 5px; border-radius: 4px; background: #181818; color: #f2f0f5; font: 11.5px/1.5 Menlo, monospace; word-break: break-all; }
+.note { margin-top: 14px; padding: 10px 12px; border: 1px dashed #484848; border-radius: 8px; color: #91919f; text-align: center; font-size: 12px; }
+.note.ok { color: #00f011; }

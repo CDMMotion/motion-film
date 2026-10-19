@@ -1,0 +1,99 @@
+#!/bin/bash
+# Mótion Film -- postinstall do instalador Mac (.pkg). Roda como root.
+#
+# O .pkg só deixa os arquivos numa pasta de preparo; este script faz o
+# mesmo que o Installer.cs do Windows:
+#   - extensão CEP (todas as janelas) -> /Library/Application Support/
+#     Adobe/CEP/extensions/motion-film (para todos os usuários), trocando
+#     a pasta inteira (a versão antiga só sai depois que a nova está no
+#     lugar);
+#   - plugin do Figma -> /Users/Shared/Mótion Figma Layers/Plugin Figma
+#     (fora de Documentos: o macOS costuma barrar instaladores de gravar
+#     em Documentos; em /Users/Shared qualquer usuário acha e lê);
+#   - libera extensões não assinadas (PlayerDebugMode, CSXS 9..16);
+#   - remove cópia antiga instalada à mão na pasta do usuário.
+# Dados do usuário (Documentos/Mótion Film Packs) nunca são tocados.
+set -u
+
+STAGE="/Library/Application Support/Motion Film Installer"
+PAYLOAD="$STAGE/payload"
+EXT_DIR="/Library/Application Support/Adobe/CEP/extensions/motion-film"
+PLUGIN_PARENT="/Users/Shared/Mótion Figma Layers"
+PLUGIN_DIR="$PLUGIN_PARENT/Plugin Figma"
+
+log() { echo "Mótion Film: $*"; }
+
+# Usuário logado na tela (o Installer roda como root). Pelo Terminal
+# (sudo installer ...) cai no SUDO_USER.
+console_user() {
+  local u
+  u=$(stat -f%Su /dev/console 2>/dev/null || true)
+  case "$u" in ""|root|loginwindow|_mbsetupuser) u="${SUDO_USER:-}" ;; esac
+  echo "$u"
+}
+
+# Copia src para dst.new e só então troca: se algo falhar, a versão
+# anterior continua funcionando. Um link simbólico (modo desenvolvimento)
+# é mantido.
+replace_dir() {
+  local src="$1" dst="$2"
+  if [ -L "$dst" ]; then
+    log "$dst é um link (modo desenvolvimento) -- mantido"
+    return 0
+  fi
+  rm -rf "$dst.new" "$dst.old"
+  mkdir -p "$(dirname "$dst")" || return 1
+  ditto --noextattr --noqtn "$src" "$dst.new" || return 1
+  if [ -e "$dst" ]; then
+    mv "$dst" "$dst.old" || return 1
+  fi
+  if ! mv "$dst.new" "$dst"; then
+    [ -e "$dst.old" ] && mv "$dst.old" "$dst"
+    return 1
+  fi
+  rm -rf "$dst.old"
+}
+
+if [ ! -d "$PAYLOAD/motion-film" ] || [ ! -d "$PAYLOAD/figma-plugin" ]; then
+  log "arquivos do pacote não encontrados em $PAYLOAD"
+  exit 1
+fi
+
+replace_dir "$PAYLOAD/motion-film" "$EXT_DIR" || { log "falhou ao instalar a extensão"; exit 1; }
+chown -R root:wheel "$EXT_DIR" 2>/dev/null
+chmod -R a+rX "$EXT_DIR"
+chmod 755 "$EXT_DIR/bin/mac/whisper-cli" 2>/dev/null
+
+replace_dir "$PAYLOAD/figma-plugin" "$PLUGIN_DIR" || { log "falhou ao copiar o plugin do Figma"; exit 1; }
+chmod -R a+rX "$PLUGIN_PARENT"
+
+# Extensão não assinada: vale para todos os usuários (/Library/Preferences)
+# e, por garantia, também nas preferências do usuário logado.
+for v in 9 10 11 12 13 14 15 16; do
+  defaults write "/Library/Preferences/com.adobe.CSXS.$v" PlayerDebugMode 1
+done
+chmod 644 /Library/Preferences/com.adobe.CSXS.*.plist 2>/dev/null
+
+USER_NAME=$(console_user)
+if [ -n "$USER_NAME" ] && id "$USER_NAME" >/dev/null 2>&1; then
+  USER_UID=$(id -u "$USER_NAME")
+  USER_HOME=$(dscl . -read "/Users/$USER_NAME" NFSHomeDirectory 2>/dev/null | sed 's/^NFSHomeDirectory: //')
+  [ -n "$USER_HOME" ] || USER_HOME="/Users/$USER_NAME"
+  for v in 9 10 11 12 13 14 15 16; do
+    launchctl asuser "$USER_UID" sudo -u "$USER_NAME" defaults write "com.adobe.CSXS.$v" PlayerDebugMode 1 >/dev/null 2>&1 || true
+  done
+  # Cópia instalada à mão na pasta do usuário: o After Effects carregaria
+  # as duas e elas brigam. Link simbólico = desenvolvimento, fica.
+  OLD="$USER_HOME/Library/Application Support/Adobe/CEP/extensions/motion-film"
+  if [ -d "$OLD" ] && [ ! -L "$OLD" ]; then
+    rm -rf "$OLD" && log "cópia antiga removida: $OLD"
+  fi
+  # Igual ao botão "Abrir pasta do plugin" do Windows.
+  if [ -z "${MF_NO_FINDER:-}" ]; then
+    launchctl asuser "$USER_UID" sudo -u "$USER_NAME" open -R "$PLUGIN_DIR/manifest.json" >/dev/null 2>&1 || true
+  fi
+fi
+
+rm -rf "$STAGE"
+log "instalado em $EXT_DIR"
+exit 0

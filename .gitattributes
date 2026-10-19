@@ -1,0 +1,5 @@
+# Scripts que rodam no Mac (GitHub Actions / .pkg) precisam de LF
+*.sh text eol=lf
+installer/mac/** text eol=lf
+installer/mac/resources/*.png binary
+.github/** text eol=lf

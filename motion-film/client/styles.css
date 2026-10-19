@@ -18,8 +18,10 @@
   --text: #f2f0f5;
   --muted: #91919f;
   --dim: #60616c;
-  --accent: #9f7aea;
-  --accent-bright: #c4a7ff;
+  --accent: #00f011;
+  --accent-bright: #00f011;
+  --accent-rgb: 0, 240, 17;
+  --accent-ink: #111111;
   --danger: #d36d84;
   --shadow: rgba(0, 0, 0, 0.28);
 }
@@ -34,7 +36,7 @@ html, body {
   overflow: hidden;
   color: var(--text);
   background: var(--panel);
-  font: 12px/1.4 Inter, "Segoe UI", Arial, sans-serif;
+  font: 12px/1.4 Inter, "Segoe UI", -apple-system, BlinkMacSystemFont, "Helvetica Neue", Arial, sans-serif;
   -webkit-font-smoothing: antialiased;
   /* Without this, Chromium renders native widgets (scrollbars, spin
      buttons) with their light-OS-theme look wherever no author style
@@ -90,7 +92,7 @@ h1, p { margin: 0; }
    only while there's a message to show (see setStatus in panel.js). */
 .status { position: fixed; left: 14px; right: 14px; z-index: 40; padding: 8px 14px; border-radius: 8px; border: 1px solid var(--line-strong); background: var(--panel-raised); color: var(--muted); font-size: 10.5px; box-shadow: 0 10px 26px var(--shadow); opacity: 0; transform: translateY(-6px); pointer-events: none; transition: opacity .18s ease, transform .18s ease; }
 .status.is-visible { opacity: 1; transform: translateY(0); }
-.status.is-success { color: var(--accent-bright); border-color: rgba(159,122,234,.45); }
+.status.is-success { color: var(--accent-bright); border-color: rgba(var(--accent-rgb), .45); }
 .status.is-error { color: #f3a3b5; border-color: rgba(211,109,132,.5); }
 
 /* Visibility is driven entirely by the `hidden` attribute (toggled in
@@ -114,7 +116,7 @@ h1, p { margin: 0; }
 .kit-categories::-webkit-scrollbar-thumb, .kit-presets::-webkit-scrollbar-thumb { background: var(--panel-raised); border-radius: 10px; }
 .kit-category { padding: 8px 8px; border: 0; border-radius: 7px; background: transparent; color: var(--muted); font-size: 10.5px; font-weight: 650; text-align: left; }
 .kit-category:hover { color: var(--text); background: var(--panel-raised); }
-.kit-category.is-active { color: var(--accent-bright); background: rgba(159,122,234,.16); }
+.kit-category.is-active { color: var(--accent-bright); background: rgba(var(--accent-rgb), .16); }
 /* "+" at the bottom of the rail, appended after every category (see
    renderKitCategories) -- a small divider above it and centered icon
    (instead of left-aligned text like .kit-category) makes it read as
@@ -335,7 +337,7 @@ main::-webkit-scrollbar-thumb { background: var(--panel-raised); border-radius: 
    while only the small dot is drawn. */
 .anchor-dot { display: flex; align-items: center; justify-content: center; width: 100%; height: 100%; min-width: 0; min-height: 0; padding: 0; border: 0; border-radius: 6px; background: transparent; }
 .anchor-dot::before { content: ""; display: block; width: 10px; height: 10px; border: 1.5px solid var(--line-strong); border-radius: 50%; background: var(--panel-raised); transition: border-color .12s ease, background .12s ease, transform .12s ease; }
-.anchor-dot:hover::before { border-color: var(--accent-bright); background: rgba(159,122,234,.18); transform: scale(1.2); }
+.anchor-dot:hover::before { border-color: var(--accent-bright); background: rgba(var(--accent-rgb), .18); transform: scale(1.2); }
 .anchor-dot:active::before { transform: scale(.85); }
 .velocity-controls { display: grid; grid-template-columns: auto 1fr 1fr auto; align-items: center; gap: 9px; margin-top: 14px; }
 .velocity-input { display: flex; align-items: center; gap: 5px; min-width: 0; padding: 7px 8px; border: 1px solid var(--line); border-radius: 7px; background: var(--panel-raised); }
@@ -396,23 +398,23 @@ main::-webkit-scrollbar-thumb { background: var(--panel-raised); border-radius: 
 .action-button:disabled:hover { border-color: var(--line); color: var(--dim); transform: none; }
 
 .link-button { padding: 3px 5px; border: 0; border-radius: 4px; color: var(--accent-bright); background: transparent; font-size: 10px; font-weight: 650; }
-.link-button:hover { background: rgba(159,122,234,.16); }
+.link-button:hover { background: rgba(var(--accent-rgb), .16); }
 .empty-state { width: 100%; margin-top: 11px; padding: 13px; border: 1px dashed var(--line-strong); border-radius: 8px; color: var(--muted); font-size: 10px; text-align: center; }
 
 .transform-rows { display: flex; flex-direction: column; gap: 5px; margin-top: 12px; }
 .t-row { display: grid; grid-template-columns: 20px minmax(0, 74px) 16px minmax(0, 1fr); align-items: center; gap: 5px; }
 .t-row > .t-fields, .t-row > .t-label { color: var(--muted); font-size: 10px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .t-stopwatch { display: flex; align-items: center; justify-content: center; width: 20px; height: 20px; padding: 0; border: 1px solid transparent; border-radius: 5px; color: var(--dim); background: transparent; }
-.t-stopwatch:hover { color: var(--accent-bright); border-color: rgba(159,122,234,.45); }
-.t-stopwatch.is-animated { color: var(--accent-bright); border-color: var(--accent); background: rgba(159,122,234,.16); }
-.t-stopwatch.is-keyed { background: rgba(159,122,234,.34); }
+.t-stopwatch:hover { color: var(--accent-bright); border-color: rgba(var(--accent-rgb), .45); }
+.t-stopwatch.is-animated { color: var(--accent-bright); border-color: var(--accent); background: rgba(var(--accent-rgb), .16); }
+.t-stopwatch.is-keyed { background: rgba(var(--accent-rgb), .34); }
 .t-link { display: flex; align-items: center; justify-content: center; width: 16px; height: 16px; padding: 0; border: 0; border-radius: 4px; color: var(--dim); background: transparent; }
 .t-link:hover { color: var(--accent-bright); }
 .t-link.is-on { color: var(--accent-bright); }
 .t-link-spacer { display: block; width: 16px; }
 .t-fields { display: flex; min-width: 0; gap: 6px; }
 .t-field { position: relative; display: flex; align-items: center; flex: 0 0 auto; width: 76px; border: 1px solid var(--line); border-radius: 6px; background: var(--panel-raised); }
-.t-field:hover { border-color: rgba(159,122,234,.4); }
+.t-field:hover { border-color: rgba(var(--accent-rgb), .4); }
 .t-field:focus-within { border-color: var(--accent); }
 .t-input { width: 100%; min-width: 0; padding: 6px 2px 6px 6px; border: 0; border-radius: 6px; color: var(--accent-bright); background: transparent; font-size: 10px; cursor: ew-resize; user-select: none; }
 .t-input:focus { outline: 0; }
@@ -429,7 +431,7 @@ main::-webkit-scrollbar-thumb { background: var(--panel-raised); border-radius: 
 .fp-list::-webkit-scrollbar-thumb { background: var(--panel-raised); border-radius: 10px; }
 .fp-list::-webkit-scrollbar-thumb:hover { background: var(--line-strong); }
 .fp-item { display: flex; align-items: center; gap: 7px; padding: 6px 8px; border: 0; border-radius: 5px; color: var(--text); background: transparent; font-size: 11px; text-align: left; }
-.fp-item:hover { color: var(--accent-bright); background: rgba(159,122,234,.16); }
+.fp-item:hover { color: var(--accent-bright); background: rgba(var(--accent-rgb), .16); }
 .fp-item-dot { flex-shrink: 0; width: 4px; height: 4px; border-radius: 50%; background: var(--accent-bright); visibility: hidden; }
 .fp-item.is-selected .fp-item-dot { visibility: visible; }
 .fp-empty { padding: 8px; color: var(--muted); font-size: 10px; text-align: center; }
@@ -438,7 +440,7 @@ main::-webkit-scrollbar-thumb { background: var(--panel-raised); border-radius: 
 .option-picker-add { display: flex; gap: 4px; margin-top: 6px; padding-top: 6px; border-top: 1px solid var(--line); }
 .option-picker-add-input { flex: 1 1 auto; min-width: 0; padding: 5px 7px; border: 1px solid var(--line); border-radius: 6px; color: var(--text); background: var(--panel-deep); font-size: 10px; }
 .option-picker-add-input:focus { outline: 0; border-color: var(--accent); }
-.option-picker-add-button { flex: 0 0 auto; padding: 5px 8px; border: 0; border-radius: 6px; color: var(--accent-bright); background: rgba(159,122,234,.16); font-size: 10px; font-weight: 650; }
+.option-picker-add-button { flex: 0 0 auto; padding: 5px 8px; border: 0; border-radius: 6px; color: var(--accent-bright); background: rgba(var(--accent-rgb), .16); font-size: 10px; font-weight: 650; }
 .option-picker-add-button:hover { filter: brightness(1.15); }
 .option-picker-add--standalone { margin-top: 0; padding-top: 0; border-top: 0; }
 
@@ -509,7 +511,7 @@ main::-webkit-scrollbar-thumb { background: var(--panel-raised); border-radius: 
 .style-preset-row-input { flex: 1 1 auto; min-width: 0; padding: 5px 7px; border: 1px solid var(--line); border-radius: 6px; color: var(--text); background: var(--panel-deep); font-size: 11px; }
 .style-preset-row-input:focus { outline: 0; border-color: var(--accent); }
 .style-preset-row button { flex: 0 0 auto; padding: 5px 8px; border: 0; border-radius: 6px; color: var(--muted); background: transparent; font-size: 10px; font-weight: 650; }
-.style-preset-row button:hover { color: var(--accent-bright); background: rgba(159,122,234,.16); }
+.style-preset-row button:hover { color: var(--accent-bright); background: rgba(var(--accent-rgb), .16); }
 .style-preset-row .style-preset-row-delete:hover { color: #f3a3b5; background: rgba(211,109,132,.16); }
 .style-presets-empty { padding: 20px 10px; text-align: center; color: var(--muted); font-size: 10.5px; }
 
@@ -576,7 +578,7 @@ main::-webkit-scrollbar-thumb { background: var(--panel-raised); border-radius: 
 .segmented { display: flex; border: 1px solid var(--line); border-radius: 7px; overflow: hidden; }
 .segmented-option { flex: 1 1 0; padding: 7px 4px; border: 0; border-right: 1px solid var(--line); color: var(--muted); background: var(--panel-soft); font-size: 10px; font-weight: 650; text-align: center; }
 .segmented-option:last-child { border-right: 0; }
-.segmented-option.is-active { color: var(--accent-bright); background: rgba(159,122,234,.16); }
+.segmented-option.is-active { color: var(--accent-bright); background: rgba(var(--accent-rgb), .16); }
 .segmented-option:hover:not(.is-active) { color: var(--text); }
 .secondary-button { width: 100%; margin-top: 12px; padding: 7px; color: var(--text); background: var(--panel-soft); }
 /* Icon + short label side by side, centered as a unit -- Captions tab

@@ -69,7 +69,7 @@
 }
 .mfl-seg button + button { border-left: 1px solid var(--line); }
 .mfl-seg button:hover { color: var(--accent-bright); }
-.mfl-seg button.is-on { background: var(--accent); color: #fff; }
+.mfl-seg button.is-on { background: var(--accent); color: var(--accent-ink); }
 
 .mfl-conn {
   flex: 0 0 auto;

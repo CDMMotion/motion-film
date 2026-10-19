@@ -5078,6 +5078,29 @@ usuário: aplicar + mover, sem crash.
   as janelas) + plugin do Figma; detecta versão instalada à mão; remove
   cópia manual antiga em Program Files (UAC quando precisa).
 - RAR só com o .exe + INSTALAR.txt (sem pastas pra copiar).
-- Repositório privado `CDMMotion/motion-film`; cada versão vira uma
-  Release com o .exe (`installer\release.ps1`). Acesso por convite
-  (Settings > Collaborators).
+- Repositório público `CDMMotion/motion-film`; cada versão vira uma
+  Release com o .exe (`installer\release.ps1`).
+
+## Changelog -- v0.9.9: verde padrão, sólido preto, âncora na comp, instalador
+
+- Cor padrão (accent) dos painéis e do plugin do Figma: `#00f011` (era o
+  roxo `#9f7aea`). Uma cor escolhida pelo usuário continua valendo; o
+  Reset volta pro verde. `MF.color.applyAccent` (shared-core.js) seta
+  `--accent`, `--accent-bright`, `--accent-rgb` e `--accent-ink`; os
+  ~15 tons translúcidos que eram `rgba(159,122,234,x)` fixo (ficavam
+  roxos mesmo com outra cor escolhida) agora são `rgba(var(--accent-rgb),x)`.
+  Texto sobre fundo accent usa `--accent-ink` (escuro em cor clara).
+- Sólido (painel principal e MF - Camadas): sempre preto (antes pegava a
+  cor accent).
+- Ponto âncora: Shift+clique num dos 9 pontos leva a âncora até aquele
+  ponto do QUADRO DA COMP (não da camada), e a camada fica onde está --
+  ex.: texto na borda com âncora no centro da tela. A conversão comp ->
+  espaço da camada usa `fromComp()` do próprio AE num Point Control
+  temporário (removido em seguida, dentro do mesmo undo), então parent,
+  escala, rotação e posição animada saem exatos (testado: canto do texto
+  não mexe em t=0/1/2 s com parent girado/escalado).
+- Instalador com o visual do painel: fundo #212121, cartão arredondado
+  com "01 / INSTALAR" em verde, selo de versão, caixa tracejada de status,
+  botões arredondados (principal verde com texto escuro), barra de título
+  escura; ícone verde. Layout conferido com um build `/define:PREVIEW`
+  (só mostra a tela, nunca instala).

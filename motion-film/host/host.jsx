@@ -1155,7 +1155,34 @@
     return { left: left, top: top, width: right - left, height: bottom - top };
   }
 
-  function applyAnchorPresetToLayer(layer, comp, fx, fy) {
+  // Comp-space point -> this layer's own (anchor) space at the current
+  // time, through parents, scale, rotation and the anchor itself. Done by
+  // AE's own fromComp() on a throw-away Point Control so every transform
+  // case is handled exactly; the control is removed right after (inside
+  // the caller's undo group, so it never shows up on its own).
+  function compPointToLayerSpace(layer, comp, x, y) {
+    var parade = layer.property("ADBE Effect Parade");
+    if (!parade || !parade.canAddProperty("ADBE Point Control")) {
+      throw new Error("This layer type can't take a comp-frame anchor.");
+    }
+    var control = parade.addProperty("ADBE Point Control");
+    try {
+      var point = control.property(1);
+      point.expression = "var p = fromComp([" + x + ", " + y + "]); [p[0], p[1]];";
+      if (point.expressionError) {
+        throw new Error(point.expressionError);
+      }
+      var value = point.valueAtTime(comp.time, false);
+      return [Number(value[0]), Number(value[1])];
+    } finally {
+      try { control.remove(); } catch (removeError) {}
+    }
+  }
+
+  // fx/fy pick one of the 9 grid points; normally of the layer's own
+  // bounds, with toCompFrame (Shift+click) of the composition frame
+  // instead -- e.g. text at the edge with its anchor at the frame centre.
+  function applyAnchorPresetToLayer(layer, comp, fx, fy, toCompFrame) {
     var transform = layer.property("ADBE Transform Group");
     if (!transform) {
       throw new Error("Layer has no transform properties.");
@@ -1168,13 +1195,18 @@
       throw new Error("Anchor Point or Position property not found on this layer.");
     }
 
-    var rect = maskAwareSourceRect(layer, layer.sourceRectAtTime(comp.time, false));
     var is3D = !!layer.threeDLayer;
     var currentAnchor = cloneValue(anchorProp.value);
-    var targetAnchor = [
-      rect.left + rect.width * fx,
-      rect.top + rect.height * fy
-    ];
+    var targetAnchor;
+    if (toCompFrame) {
+      targetAnchor = compPointToLayerSpace(layer, comp, comp.width * fx, comp.height * fy);
+    } else {
+      var rect = maskAwareSourceRect(layer, layer.sourceRectAtTime(comp.time, false));
+      targetAnchor = [
+        rect.left + rect.width * fx,
+        rect.top + rect.height * fy
+      ];
+    }
     if (is3D) {
       targetAnchor.push(currentAnchor[2] || 0);
     }
@@ -1231,6 +1263,8 @@
       fy = 0.5;
     }
 
+    var toCompFrame = !!payload.compFrame;
+
     var changed = 0;
     var alreadyThere = 0;
     var firstError = null;
@@ -1238,7 +1272,7 @@
     app.beginUndoGroup("Mótion Film: Anchor point");
     for (var i = 0; i < layers.length; i += 1) {
       try {
-        if (applyAnchorPresetToLayer(layers[i], comp, fx, fy)) {
+        if (applyAnchorPresetToLayer(layers[i], comp, fx, fy, toCompFrame)) {
           changed += 1;
         } else {
           alreadyThere += 1;
@@ -1257,7 +1291,7 @@
       }
       return stringify({ ok: false, error: "Layer(s) already at that anchor position." });
     }
-    var result = { ok: true, changed: changed };
+    var result = { ok: true, changed: changed, compFrame: toCompFrame };
     if (failedLayers) {
       result.skipped = failedLayers;
       result.skipReason = firstError;

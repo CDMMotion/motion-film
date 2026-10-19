@@ -1,0 +1,32 @@
+#!/bin/bash
+# Mótion Film -- "Desinstalar" do Mac (.pkg sem arquivos, só este script,
+# roda como root). Remove a extensão e o plugin do Figma; NÃO apaga
+# Documentos/Mótion Film Packs (Packs, cores e presets), igual ao Windows.
+set -u
+
+EXT_DIR="/Library/Application Support/Adobe/CEP/extensions/motion-film"
+PLUGIN_PARENT="/Users/Shared/Mótion Figma Layers"
+
+log() { echo "Mótion Film: $*"; }
+
+remove_dir() {
+  if [ -L "$1" ]; then
+    log "$1 é um link (modo desenvolvimento) -- mantido"
+  elif [ -e "$1" ]; then
+    rm -rf "$1" && log "removido: $1"
+  fi
+}
+
+remove_dir "$EXT_DIR"
+remove_dir "$PLUGIN_PARENT/Plugin Figma"
+rmdir "$PLUGIN_PARENT" 2>/dev/null
+
+u=$(stat -f%Su /dev/console 2>/dev/null || true)
+case "$u" in ""|root|loginwindow|_mbsetupuser) u="${SUDO_USER:-}" ;; esac
+if [ -n "$u" ] && id "$u" >/dev/null 2>&1; then
+  home=$(dscl . -read "/Users/$u" NFSHomeDirectory 2>/dev/null | sed 's/^NFSHomeDirectory: //')
+  [ -n "$home" ] && remove_dir "$home/Library/Application Support/Adobe/CEP/extensions/motion-film"
+fi
+
+pkgutil --forget com.motionfilm.extension >/dev/null 2>&1 || true
+exit 0

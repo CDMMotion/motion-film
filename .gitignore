@@ -14,3 +14,6 @@ palette_shot.png
 motion-film/client/assets/kit-assets/
 motion-film/client/assets/kit-previews/*
 !motion-film/client/assets/kit-previews/README.md
+
+# Mac: whisper-cli compilado no GitHub Actions (installer/mac/build-whisper.sh)
+motion-film/bin/

@@ -106,7 +106,7 @@ body.palette-dragging * { user-select: none; }
 }
 .palette-icon-btn:hover { background: var(--panel-soft); color: var(--accent-bright); }
 .palette-icon-btn.danger:hover { color: #eaa0b1; }
-.palette-icon-btn.is-active { background: rgba(159, 122, 234, 0.16); color: var(--accent-bright); }
+.palette-icon-btn.is-active { background: rgba(var(--accent-rgb), 0.16); color: var(--accent-bright); }
 
 /* Horizontal strip of colour cubes — Adobe "colour theme" style. One
    strip per palette; a group can hold several. */

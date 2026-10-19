@@ -1,0 +1,73 @@
+MÓTION FILM v__VERSION__ PARA MAC — extensão para After Effects + plugin do Figma
+================================================================================
+
+INSTALAR OU ATUALIZAR (é o mesmo arquivo)
+-----------------------------------------
+1. Feche o After Effects.
+2. Dê dois cliques em "Instalar-Motion-Film-__VERSION__.pkg" e siga as telas
+   (o Mac pede a senha do computador no fim — é normal).
+
+   >> Na PRIMEIRA vez o Mac pode dizer que não conseguiu verificar o
+      instalador (ele não é assinado pela Apple). Para liberar:
+      a) clique em "OK" / "Concluído" no aviso;
+      b) abra Ajustes do Sistema > Privacidade e Segurança;
+      c) role até o fim e clique em "Abrir Mesmo Assim" ao lado do nome
+         do instalador; confirme com a senha;
+      d) o instalador abre normalmente.
+      (Em macOS mais antigos: botão direito no .pkg > Abrir > Abrir.)
+
+   >> Alternativa sem esse aviso, pelo Terminal (copie a linha inteira):
+      curl -fsSL https://raw.githubusercontent.com/CDMMotion/motion-film/main/installer/mac/get.sh | bash
+      Ele baixa a versão mais nova e instala (pede a senha do Mac).
+
+O instalador faz tudo sozinho, sem copiar pastas:
+- instala ou atualiza a extensão Mótion Film no After Effects, com todas
+  as janelas (Mótion Film, MF - Paleta de Cores, MF - Camadas e
+  Mótion Figma Layers), para todos os usuários do Mac;
+- remove uma cópia antiga instalada à mão na sua pasta de usuário;
+- libera extensões não assinadas no After Effects;
+- copia o plugin do Figma para
+  /Users/Shared/Mótion Figma Layers/Plugin Figma
+  (no Finder: Macintosh HD > Usuários > Compartilhado).
+
+Atualizar NÃO apaga nada seu. Tudo fica em Documentos/Mótion Film Packs:
+   packs/           -> seus Packs (com as mídias)
+   settings.json    -> cores, paletas, presets de legenda e de estilo,
+                       tamanho do Null e layout das abas
+Trocando de computador (inclusive Windows <-> Mac): copie essa pasta
+inteira para o computador novo antes de abrir o After Effects lá.
+
+Para remover: dê dois cliques em "Desinstalar-Motion-Film.pkg" (seus
+Packs, cores e presets em Documentos continuam lá).
+
+
+DEPOIS DE INSTALAR
+------------------
+After Effects:
+   Window > Extensions > Mótion Film
+   (As janelas "MF - Paleta de Cores", "MF - Camadas" e
+   "Mótion Figma Layers" ficam no mesmo menu.)
+   Se o After Effects estava aberto durante a instalação, feche e abra.
+
+Figma — precisa do aplicativo FIGMA DESKTOP (pelo navegador não funciona).
+Só na PRIMEIRA instalação, importe o plugin:
+   Com um arquivo de design aberto: botão direito no canvas > Plugins >
+   Development > Import plugin from manifest...
+   Na janela de escolher arquivo aperte Cmd+Shift+G, cole
+   /Users/Shared/Mótion Figma Layers/Plugin Figma/manifest.json
+   e confirme. (O instalador já abre essa pasta no Finder no fim.)
+Nas atualizações não precisa importar de novo.
+
+
+ABA CAPTIONS (LEGENDAS) NO MAC
+------------------------------
+O motor de transcrição já vem no instalador. Na primeira vez que usar a
+aba, clique em "Download & Set Up": ela baixa o conversor de áudio
+(~25MB) e o modelo de idioma (~465MB) para Documentos/Mótion Film Tools.
+Funciona em Mac com Apple Silicon (M1, M2...) e com Intel.
+
+
+O RESTO É IGUAL AO WINDOWS
+--------------------------
+Abas Packs, Icons, Mótion Figma Layers etc.: veja o INSTALAR.txt da
+versão Windows ou o README do repositório — o funcionamento é o mesmo.

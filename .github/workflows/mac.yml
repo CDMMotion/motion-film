@@ -1,0 +1,82 @@
+# Instalador Mac: compila o whisper-cli, monta o .pkg num Mac, testa a
+# instalação em Mac Apple Silicon e Intel e, numa Release, anexa o zip.
+#
+# - Release publicada (installer\release.ps1 no Windows) -> build + teste
+#   + anexa Motion-Film-Mac-<v>.zip na mesma Release.
+# - push no branch "mac" ou "Run workflow" -> build + teste (sem Release);
+#   o zip fica em Artifacts para baixar.
+name: Instalador Mac
+
+on:
+  release:
+    types: [published]
+  push:
+    branches: [mac]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+env:
+  # Mesmo tag do whisper.cpp que o Windows baixa (client/panel.js).
+  WHISPER_TAG: b4938
+
+jobs:
+  build:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.release.tag_name || github.ref }}
+
+      - name: Cache do whisper-cli
+        id: whisper-cache
+        uses: actions/cache@v4
+        with:
+          path: whisper-out
+          key: whisper-cli-${{ env.WHISPER_TAG }}-universal-${{ hashFiles('installer/mac/build-whisper.sh') }}
+
+      - name: Compilar whisper-cli (universal)
+        if: steps.whisper-cache.outputs.cache-hit != 'true'
+        run: bash installer/mac/build-whisper.sh "$WHISPER_TAG" whisper-out
+
+      - name: Montar o .pkg
+        run: bash installer/mac/build-pkg.sh whisper-out/whisper-cli dist
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: mac-installer
+          path: dist/*.zip
+          if-no-files-found: error
+
+  test:
+    needs: build
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-15, macos-15-intel]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.release.tag_name || github.ref }}
+      - uses: actions/download-artifact@v4
+        with:
+          name: mac-installer
+          path: dist
+      - name: Instalar, atualizar, legendas e desinstalar
+        run: bash installer/mac/test-install.sh dist/Motion-Film-Mac-*.zip
+
+  release:
+    if: github.event_name == 'release'
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: mac-installer
+          path: dist
+      - name: Anexar na Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload "${{ github.event.release.tag_name }}" dist/*.zip --clobber --repo "${{ github.repository }}"

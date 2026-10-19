@@ -54,8 +54,8 @@ $pngs = foreach ($s in $sizes) {
   $w = $s - 1
   $path.AddArc(0, 0, $r, $r, 180, 90); $path.AddArc($w - $r, 0, $r, $r, 270, 90)
   $path.AddArc($w - $r, $w - $r, $r, $r, 0, 90); $path.AddArc(0, $w - $r, $r, $r, 90, 90); $path.CloseFigure()
-  $g.FillPath((New-Object System.Drawing.SolidBrush ([System.Drawing.Color]::FromArgb(159, 122, 234))), $path)
-  $pen = New-Object System.Drawing.Pen ([System.Drawing.Color]::White), ([Math]::Max(1.5, 16 * $k))
+  $g.FillPath((New-Object System.Drawing.SolidBrush ([System.Drawing.Color]::FromArgb(0, 240, 17))), $path)
+  $pen = New-Object System.Drawing.Pen ([System.Drawing.Color]::FromArgb(17, 17, 17)), ([Math]::Max(1.5, 18 * $k))
   $pen.LineJoin = 'Round'
   foreach ($dy in 0, 44, 88) {
     $pts = @(

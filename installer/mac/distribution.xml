@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Instalador Mac (productbuild). __TITLE__/__VERSION__/__PKGID__/__PKG__/
+     __WELCOME__ são preenchidos por build-pkg.sh. hostArchitectures evita
+     o Mac com Apple Silicon pedir o Rosetta. -->
+<installer-gui-script minSpecVersion="2">
+  <title>__TITLE__</title>
+  <welcome file="__WELCOME__" mime-type="text/html"/>
+  __CONCLUSION__
+  <options customize="never" require-scripts="false" hostArchitectures="arm64,x86_64"/>
+  <domains enable_anywhere="false" enable_currentUserHome="false" enable_localSystem="true"/>
+  <choices-outline>
+    <line choice="default">
+      <line choice="__PKGID__"/>
+    </line>
+  </choices-outline>
+  <choice id="default"/>
+  <choice id="__PKGID__" visible="false">
+    <pkg-ref id="__PKGID__"/>
+  </choice>
+  <pkg-ref id="__PKGID__" version="__VERSION__" onConclusion="none">__PKG__</pkg-ref>
+</installer-gui-script>
