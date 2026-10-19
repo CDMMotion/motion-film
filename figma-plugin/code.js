@@ -638,6 +638,30 @@ function unionBounds(nodes) {
   return { x: x0, y: y0, w: x1 - x0, h: y1 - y0 };
 }
 
+// Onde um frame importado como comp fica: transform (origem = canto
+// superior esquerdo, como as outras camadas) e caixa no espaço do frame de
+// topo em que ele está -- ou da página, se ele mesmo é de topo. Assim o AE
+// põe cada comp no mesmo lugar do Figma, mesmo importando um frame por vez
+// (antes todas entravam centralizadas, uma em cima da outra).
+function framePlacement(node) {
+  var top = topFrameOf(node);
+  var C = top ? inv(top.absoluteTransform) : IDENTITY;
+  var M = mul(C, node.absoluteTransform);
+  var corners = [[0, 0], [node.width, 0], [node.width, node.height], [0, node.height]];
+  var x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+  for (var i = 0; i < corners.length; i++) {
+    var px = M[0][0] * corners[i][0] + M[0][1] * corners[i][1] + M[0][2];
+    var py = M[1][0] * corners[i][0] + M[1][1] * corners[i][1] + M[1][2];
+    x0 = Math.min(x0, px); y0 = Math.min(y0, py); x1 = Math.max(x1, px); y1 = Math.max(y1, py);
+  }
+  return {
+    key: top ? String(top.id || ("frame:" + top.name)) : "__page__",
+    container: top ? { name: top.name, w: r4(top.width), h: r4(top.height) } : null,
+    xf: decompose(M),
+    bounds: { x: r4(x0), y: r4(y0), w: r4(x1 - x0), h: r4(y1 - y0) }
+  };
+}
+
 async function extract(mode, options) {
   options = options || {};
   var scale = [1, 2, 3, 4].indexOf(Number(options.scale)) >= 0 ? Number(options.scale) : 2;
@@ -681,7 +705,13 @@ async function extract(mode, options) {
       var bg = await frameBackground(node, IDENTITY, ctx);
       if (bg) { layers.push(bg); }
       layers = layers.concat(await convertChildren(node, Ci, ctx));
-      groups.push({ kind: "comp", name: node.name, w: r4(node.width), h: r4(node.height), layers: layers });
+      groups.push({
+        kind: "comp", name: node.name, w: r4(node.width), h: r4(node.height), layers: layers,
+        place: framePlacement(node),
+        // Cantos arredondados de um frame que recorta: no AE viram uma Mask
+        // na camada da comp (a silhueta do Figma).
+        clipRadius: node.clipsContent !== false ? radiiOf(node) : 0
+      });
       continue;
     }
     var container = (mode === "raster" && isFrameLike(node) && !topFrameOf(node)) ? node : topFrameOf(node);

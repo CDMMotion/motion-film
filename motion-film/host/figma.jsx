@@ -480,6 +480,15 @@
     return s;
   }
 
+  // Cantos arredondados do frame do Figma como Mask na camada da comp.
+  function addCornerMask(layer, w, h, radii) {
+    try {
+      var m = layer.property("ADBE Mask Parade").addProperty("ADBE Mask Atom");
+      m.property("ADBE Mask Shape").setValue(roundedRectShape(w, h, radii));
+      m.name = "Cantos";
+    } catch (maskError) {}
+  }
+
   function hasRadius(radii) {
     if (typeof radii === "number") { return radii > 0; }
     if (radii && radii.length) {
@@ -531,11 +540,7 @@
       buildList(sub, d.children || [], ctx, [0, 0], 1);
       layer = comp.layers.add(sub);
       if (hasRadius(d.clipRadius)) {
-        try {
-          var m = layer.property("ADBE Mask Parade").addProperty("ADBE Mask Atom");
-          m.property("ADBE Mask Shape").setValue(roundedRectShape(d.w, d.h, d.clipRadius));
-          m.name = "Cantos";
-        } catch (maskError) {}
+        addCornerMask(layer, d.w, d.h, d.clipRadius);
       }
     } else {
       return null;
@@ -655,6 +660,35 @@
     ctx.assetFolder = ctx.batchFolder;
     ctx.precompFolder = ctx.batchFolder;
 
+    // Frames importados como comp: caixa total por frame de topo (ou página)
+    // de onde vieram, pra manter o layout do Figma (ver placeOffset).
+    var placeUnion = {};
+    for (var pu = 0; pu < groups.length; pu += 1) {
+      var pg = groups[pu].place;
+      if (groups[pu].kind !== "comp" || !pg || !pg.bounds) { continue; }
+      var u = placeUnion[pg.key] || { x0: Infinity, y0: Infinity, x1: -Infinity, y1: -Infinity };
+      u.x0 = Math.min(u.x0, pg.bounds.x); u.y0 = Math.min(u.y0, pg.bounds.y);
+      u.x1 = Math.max(u.x1, pg.bounds.x + pg.bounds.w); u.y1 = Math.max(u.y1, pg.bounds.y + pg.bounds.h);
+      placeUnion[pg.key] = u;
+    }
+    // Comp ativa do tamanho do frame de topo (ex.: o "quadro" já importado
+    // ou criado com o botão Comp): mesma posição do Figma. Comp de outro
+    // tamanho: o frame de topo fica centralizado e cada frame cai onde
+    // estaria dentro dele -- importar um por vez dá o mesmo resultado que
+    // todos juntos. Frames soltos na página (sem frame de topo): o conjunto
+    // vai pro centro, mantendo a posição de um em relação ao outro.
+    function placeOffset(place, target) {
+      var c = place.container;
+      if (c) {
+        if (Math.abs(target.width - c.w) < 1 && Math.abs(target.height - c.h) < 1) {
+          return [0, 0];
+        }
+        return [(target.width - c.w) / 2, (target.height - c.h) / 2];
+      }
+      var un = placeUnion[place.key];
+      return [target.width / 2 - (un.x0 + un.x1) / 2, target.height / 2 - (un.y0 + un.y1) / 2];
+    }
+
     var created = [];
     var placedInto = null;
     var toOpen = null;
@@ -672,10 +706,16 @@
           buildList(comp, grp.layers || [], ctx, [0, 0], 1);
           created.push(comp.name);
           if (active) {
-            // Frame vira comp e entra como camada na comp ativa
-            // (centralizada, posição padrão do AE); o usuário continua
-            // na comp em que estava.
+            // Frame vira comp e entra como camada na comp ativa, no lugar
+            // em que está no Figma (placeOffset); o usuário continua na
+            // comp em que estava. Payload antigo, sem `place`: centralizada.
             var frameLayer = active.layers.add(comp);
+            if (grp.place && grp.place.xf) {
+              applyTransform(frameLayer, grp.place.xf, placeOffset(grp.place, active), [0, 0], 1);
+            }
+            if (hasRadius(grp.clipRadius)) {
+              addCornerMask(frameLayer, grp.w, grp.h, grp.clipRadius);
+            }
             arrivals.push(frameLayer);
             arrivalComp = active;
             placedInto = active.name;

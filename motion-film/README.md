@@ -5128,3 +5128,24 @@ pack novo idênticos byte a byte ao original (Save Layers e Save Comp);
 o caminho antigo (JSON) diferia em 38-65% dos pixels. Salvar 0,26 s,
 aplicar 0,35 s.
 
+## Changelog -- Mótion Figma Layers: frames na posição do Figma + cantos como Mask
+
+Feedback do usuário:
+1. Importando frames de dentro de um "quadro" um por vez, cada comp
+   entrava centralizada na comp ativa -- todas uma em cima da outra.
+   Agora o plugin manda `place` (transform e caixa do frame no espaço do
+   frame de topo, ou da página se ele mesmo é de topo) e o AE põe a camada
+   da comp no lugar: comp ativa do tamanho do frame de topo = posição
+   exata do Figma; outro tamanho = o frame de topo fica centralizado e
+   cada frame cai onde estaria dentro dele (um por vez ou todos juntos dá
+   o mesmo resultado); frames soltos na página = o conjunto centralizado
+   mantendo a posição relativa.
+2. Cantos arredondados de um frame que recorta (clip content) se perdiam
+   no frame importado (os aninhados já tinham). Agora a camada da comp
+   ganha a Mask "Cantos" com o raio de cada canto do Figma.
+Sem comp aberta, a comp só é criada (não há camada para posicionar nem
+para receber a mask). Payload de plugin antigo (sem `place`) continua
+centralizado. Testado com Figma simulado + AE: sub-frames em (20,160) e
+(230,110) exatos numa comp 400x320, masks de raio 12/30/24, e alinhados
+ao quadro centralizado numa comp 1920x1080.
+
