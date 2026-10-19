@@ -1,0 +1,205 @@
+/* Colour Palette satellite window — layout only. Tokens and shared
+   components (.status, .cp-popover, .fp-popover/.fp-list/.fp-item,
+   main) come from styles.css. Deliberately compact: no topbar, no
+   footer. */
+
+/* Actively-drawn canvas that helped diagnose this window's rendering.
+   Kept in the layout (not display:none) but visually inert. */
+#paint-keepalive {
+  position: fixed;
+  left: 0;
+  bottom: 0;
+  width: 8px;
+  height: 8px;
+  opacity: 0.02;
+  pointer-events: none;
+  z-index: 0;
+  will-change: transform;
+  transform: translateZ(0);
+}
+
+/* position: relative so cards' offsetParent is the list -- the drag
+   reorder measures card offsetTop against it (transform-immune). */
+.palette-list { position: relative; display: flex; flex-direction: column; gap: 8px; }
+
+.palette-group {
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: var(--panel-raised);
+  padding: 8px 9px 9px;
+}
+/* The dragged card while it is being reordered. transform is driven
+   inline by the drag code (follow the pointer, then FLIP-settle); no CSS
+   transition here so the pointer-follow stays instant. */
+.palette-group.is-dragging {
+  position: relative;
+  z-index: 5;
+  opacity: 0.92;
+  border-color: var(--accent);
+  box-shadow: 0 10px 26px var(--shadow);
+  will-change: transform;
+}
+/* Suppress hover reactions and text selection anywhere while a drag is
+   in progress. */
+body.palette-dragging { cursor: grabbing; }
+body.palette-dragging * { user-select: none; }
+
+.palette-group-head {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-bottom: 7px;
+}
+
+/* Grab handle at the left of the header — hold and drag to reorder the
+   group in the list. Faint until the card is hovered. */
+.palette-drag-handle {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 22px;
+  padding: 0;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--dim);
+  cursor: grab;
+  opacity: 0.3;
+  transition: opacity .12s ease;
+  touch-action: none;
+}
+.palette-group:hover .palette-drag-handle { opacity: 0.75; }
+.palette-drag-handle:hover { opacity: 1; color: var(--muted); }
+.palette-group.is-dragging .palette-drag-handle { cursor: grabbing; opacity: 1; }
+.palette-group-name {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 3px 5px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--text);
+  font-size: 11px;
+  font-weight: 650;
+  text-align: left;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.palette-group-name:hover { background: var(--panel-soft); color: var(--accent-bright); }
+.palette-group-count { flex: 0 0 auto; color: var(--dim); font-size: 9px; font-weight: 650; white-space: nowrap; }
+
+.palette-group-actions { display: flex; align-items: center; gap: 2px; }
+.palette-icon-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--muted);
+}
+.palette-icon-btn:hover { background: var(--panel-soft); color: var(--accent-bright); }
+.palette-icon-btn.danger:hover { color: #eaa0b1; }
+.palette-icon-btn.is-active { background: rgba(159, 122, 234, 0.16); color: var(--accent-bright); }
+
+/* Horizontal strip of colour cubes — Adobe "colour theme" style. One
+   strip per palette; a group can hold several. */
+.palette-swatches { display: flex; flex-wrap: wrap; gap: 4px; }
+.palette-swatches + .palette-swatches { margin-top: 6px; }
+
+.palette-swatch {
+  position: relative;
+  width: 34px;
+  height: 34px;
+  flex: 0 0 auto;
+  padding: 0;
+  border: 1px solid var(--line-strong);
+  border-radius: 6px;
+  cursor: pointer;
+}
+.palette-swatch:hover { border-color: var(--accent); }
+
+/* Per-cube edit/remove controls: hidden by default, shown only while the
+   group is in edit mode (.palette-group.is-editing). No hover-reveal --
+   that made it too easy to delete a colour by accident. */
+.palette-swatch-mini {
+  position: absolute;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  width: 15px;
+  height: 15px;
+  padding: 0;
+  border: 0;
+  border-radius: 4px;
+  background: rgba(0, 0, 0, 0.6);
+  color: #fff;
+  font-size: 10px;
+  line-height: 1;
+}
+.palette-group.is-editing .palette-swatch-mini { display: flex; }
+.palette-swatch-mini:hover { background: rgba(0, 0, 0, 0.85); }
+.palette-swatch-remove { top: 2px; right: 2px; }
+.palette-swatch-edit { bottom: 2px; right: 2px; }
+
+.palette-swatch-add {
+  width: 34px;
+  height: 34px;
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 1px dashed var(--line-strong);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--muted);
+}
+.palette-swatch-add:hover { border-color: var(--accent); color: var(--accent-bright); }
+
+/* Trash button at the end of a palette strip — removes that whole strip.
+   Only rendered in edit mode when the group has more than one palette. */
+.palette-row-remove { color: var(--dim); }
+.palette-row-remove:hover { border-color: var(--danger); color: #eaa0b1; }
+
+/* "Adicionar paleta" — adds another colour strip to this group. Only in
+   edit mode, sits below the group's strips inside the card. */
+.palette-add-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: 100%;
+  margin-top: 8px;
+  padding: 6px;
+  border: 1px dashed var(--line);
+  border-radius: 7px;
+  background: transparent;
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 650;
+}
+.palette-add-row:hover { border-color: var(--accent); color: var(--accent-bright); background: var(--panel-soft); }
+.palette-add-row svg { display: block; flex-shrink: 0; }
+
+/* "+" at the bottom of the list — like the Kit tab's category-add row. */
+.palette-add {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  margin-top: 6px;
+  padding: 8px;
+  border: 1px dashed var(--line);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--muted);
+}
+.palette-add:hover { border-color: var(--accent); color: var(--accent-bright); background: var(--panel-raised); }
+.palette-add svg { display: block; }

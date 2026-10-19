@@ -1,0 +1,185 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ExtensionManifest
+  Version="7.0"
+  ExtensionBundleId="com.motionfilm.app"
+  ExtensionBundleVersion="0.9.8"
+  ExtensionBundleName="Mótion Film"
+  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+  <ExtensionList>
+    <Extension Id="com.motionfilm.app" Version="0.9.8" />
+    <Extension Id="com.motionfilm.palette" Version="0.9.8" />
+    <Extension Id="com.motionfilm.layers" Version="0.9.8" />
+    <Extension Id="com.motionfilm.figma" Version="0.9.8" />
+  </ExtensionList>
+  <ExecutionEnvironment>
+    <HostList>
+      <Host Name="AEFT" Version="[18.0,99.9]" />
+    </HostList>
+    <LocaleList>
+      <Locale Code="All" />
+    </LocaleList>
+    <RequiredRuntimeList>
+      <RequiredRuntime Name="CSXS" Version="7.0" />
+    </RequiredRuntimeList>
+  </ExecutionEnvironment>
+  <DispatchInfoList>
+    <Extension Id="com.motionfilm.app">
+      <DispatchInfo>
+        <Resources>
+          <MainPath>./client/index.html</MainPath>
+          <ScriptPath>./host/host.jsx</ScriptPath>
+          <CEFCommandLine>
+            <Parameter>--enable-nodejs</Parameter>
+            <Parameter>--allow-file-access-from-files</Parameter>
+            <Parameter>--disable-http-cache</Parameter>
+            <Parameter>--disk-cache-size=0</Parameter>
+          </CEFCommandLine>
+        </Resources>
+        <Lifecycle>
+          <AutoVisible>true</AutoVisible>
+        </Lifecycle>
+        <UI>
+          <Type>Panel</Type>
+          <Menu>Mótion Film</Menu>
+          <Geometry>
+            <Size>
+              <Height>720</Height>
+              <Width>360</Width>
+            </Size>
+            <MinSize>
+              <Height>420</Height>
+              <Width>280</Width>
+            </MinSize>
+          </Geometry>
+        </UI>
+      </DispatchInfo>
+    </Extension>
+
+    <!-- Satellite window: Colour Palette. Built as a structural clone of
+         the main panel (index.html) so it goes through the same render
+         path: same shell, same styles.css, same script load order, and
+         it carries an actively-drawn canvas like the main panel's curve
+         editor.
+
+         AutoVisible is TRUE, same as the main panel. When it was false,
+         this panel's CEF view never acquired a compositing surface in
+         this CEP build: DOM and JS ran (confirmed over the debug bridge)
+         but nothing painted, so the panel showed blank with the host
+         tab bar smearing through. AE only composites a panel it created
+         and showed itself at startup. Trade-off: the panel opens with AE
+         every launch instead of purely on demand; the user can close it
+         and it stays closed for that session.
+
+         Geometry and CEF flags are identical to the main panel. -->
+    <Extension Id="com.motionfilm.palette">
+      <DispatchInfo>
+        <Resources>
+          <MainPath>./client/palette.html</MainPath>
+          <ScriptPath>./host/host.jsx</ScriptPath>
+          <CEFCommandLine>
+            <Parameter>--enable-nodejs</Parameter>
+            <Parameter>--allow-file-access-from-files</Parameter>
+            <Parameter>--disable-http-cache</Parameter>
+            <Parameter>--disk-cache-size=0</Parameter>
+          </CEFCommandLine>
+        </Resources>
+        <Lifecycle>
+          <AutoVisible>true</AutoVisible>
+        </Lifecycle>
+        <UI>
+          <Type>Panel</Type>
+          <Menu>MF - Paleta de Cores</Menu>
+          <Geometry>
+            <Size>
+              <Height>620</Height>
+              <Width>360</Width>
+            </Size>
+            <MinSize>
+              <Height>260</Height>
+              <Width>280</Width>
+            </MinSize>
+          </Geometry>
+        </UI>
+      </DispatchInfo>
+    </Extension>
+
+    <!-- Satellite window: "MF - Camadas". Same structural clone
+         approach as the Paleta window above (shared shell / styles.css /
+         script load order / paint keep alive canvas), same forced
+         AutoVisible true for the same rendering reason.
+
+         Purpose: an optional home for the layer creation buttons (Null /
+         Adjustment / Solid) that normally sit in the main panel footer.
+         A toggle in the main panel settings moves them here; the state
+         travels through host.jsx setAuxLayersEnabled / getAuxLayersEnabled
+         on the shared ExtendScript global, same channel as the theme. -->
+    <Extension Id="com.motionfilm.layers">
+      <DispatchInfo>
+        <Resources>
+          <MainPath>./client/layers.html</MainPath>
+          <ScriptPath>./host/host.jsx</ScriptPath>
+          <CEFCommandLine>
+            <Parameter>--enable-nodejs</Parameter>
+            <Parameter>--allow-file-access-from-files</Parameter>
+            <Parameter>--disable-http-cache</Parameter>
+            <Parameter>--disk-cache-size=0</Parameter>
+          </CEFCommandLine>
+        </Resources>
+        <Lifecycle>
+          <AutoVisible>true</AutoVisible>
+        </Lifecycle>
+        <UI>
+          <Type>Panel</Type>
+          <Menu>MF - Camadas</Menu>
+          <Geometry>
+            <Size>
+              <Height>240</Height>
+              <Width>360</Width>
+            </Size>
+            <MinSize>
+              <Height>120</Height>
+              <Width>240</Width>
+            </MinSize>
+          </Geometry>
+        </UI>
+      </DispatchInfo>
+    </Extension>
+    <!-- Satellite window: "Mótion Figma Layers". Same structural clone
+         approach as the windows above, same forced AutoVisible true.
+         It also hosts the local bridge server (Node http on 127.0.0.1
+         port 47811) that the Figma plugin in figma-plugin/ talks to, so
+         the bridge only works while this window is open. Builder code
+         lives in host/figma.jsx, loaded by the window itself. -->
+    <Extension Id="com.motionfilm.figma">
+      <DispatchInfo>
+        <Resources>
+          <MainPath>./client/figma.html</MainPath>
+          <ScriptPath>./host/host.jsx</ScriptPath>
+          <CEFCommandLine>
+            <Parameter>--enable-nodejs</Parameter>
+            <Parameter>--allow-file-access-from-files</Parameter>
+            <Parameter>--disable-http-cache</Parameter>
+            <Parameter>--disk-cache-size=0</Parameter>
+          </CEFCommandLine>
+        </Resources>
+        <Lifecycle>
+          <AutoVisible>true</AutoVisible>
+        </Lifecycle>
+        <UI>
+          <Type>Panel</Type>
+          <Menu>Mótion Figma Layers</Menu>
+          <Geometry>
+            <Size>
+              <Height>170</Height>
+              <Width>300</Width>
+            </Size>
+            <MinSize>
+              <Height>120</Height>
+              <Width>200</Width>
+            </MinSize>
+          </Geometry>
+        </UI>
+      </DispatchInfo>
+    </Extension>
+  </DispatchInfoList>
+</ExtensionManifest>

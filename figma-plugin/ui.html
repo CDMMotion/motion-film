@@ -1,0 +1,380 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8" />
+<style>
+  /* Mesmos tokens da extensão do After Effects (motion-film/client/
+     styles.css). --accent e --panel* são sobrescritos pelo tema que o AE
+     manda em cada /poll (mesma conta do MF.color.panelShades). */
+  :root {
+    --panel: #212121;
+    --panel-soft: #252525;
+    --panel-raised: #2a2a2a;
+    --panel-deep: #181818;
+    --line: rgba(255, 255, 255, 0.09);
+    --line-strong: rgba(255, 255, 255, 0.16);
+    --text: #f2f0f5;
+    --muted: #91919f;
+    --dim: #60616c;
+    --accent: #9f7aea;
+    --accent-bright: #c4a7ff;
+    --on-accent: #ffffff;
+    --danger: #d36d84;
+    --ok: #3dd68c;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; overflow: hidden; }
+  body {
+    background: var(--panel);
+    color: var(--text);
+    font: 11px/1.4 Inter, "Segoe UI", system-ui, -apple-system, sans-serif;
+    display: flex;
+    flex-direction: column;
+    user-select: none;
+  }
+
+  .actions { flex: 1; display: flex; gap: 6px; padding: 10px 10px 8px; min-height: 0; }
+  .act {
+    flex: 1; display: flex; align-items: center; justify-content: center;
+    min-height: 44px; padding: 0; border: 1px solid var(--line); border-radius: 6px;
+    background: var(--panel-raised); color: var(--muted); cursor: pointer; font: inherit;
+    transition: border-color .15s ease, color .15s ease, opacity .2s ease, filter .2s ease;
+  }
+  .act:hover { border-color: var(--accent); color: var(--accent-bright); }
+  .act:active { transform: scale(.97); }
+  .act svg { display: block; }
+  .act.is-busy { border-color: var(--accent); color: var(--accent-bright); }
+  .act.is-busy svg { animation: pulse 1s ease-in-out infinite; }
+  @keyframes pulse { 50% { opacity: .35; } }
+
+  .foot {
+    flex: 0 0 auto; display: flex; align-items: center; gap: 8px;
+    height: 28px; padding: 0 10px; border-top: 1px solid var(--line); background: var(--panel-deep);
+  }
+  .gear {
+    flex: none; display: grid; place-items: center; width: 20px; height: 20px; padding: 0;
+    border: 0; border-radius: 4px; background: transparent; color: var(--dim); cursor: pointer;
+  }
+  .gear:hover, .gear.is-open { color: var(--accent-bright); }
+  .msg {
+    flex: 1; min-width: 0; color: var(--dim); font-size: 10px;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    opacity: 0; transition: opacity .2s ease;
+  }
+  .msg.is-on { opacity: 1; }
+  .msg.is-ok { color: var(--muted); }
+  .msg.is-ok::before { content: "✓ "; color: var(--ok); }
+  .msg.is-bad { color: var(--danger); }
+  .msg.is-hint { color: var(--muted); }
+
+  /* Desconectado: tudo cinza e sem clique (o hover ainda mostra a dica). */
+  body.is-off .act, body.is-off .gear { filter: grayscale(1); opacity: .35; cursor: default; }
+  body.is-off .act:hover { border-color: var(--line); color: var(--muted); }
+  body.is-off .act:active { transform: none; }
+  body.is-off .gear:hover { color: var(--dim); }
+
+  .pop {
+    position: absolute; left: 8px; bottom: 34px; display: none; align-items: center; gap: 8px;
+    padding: 6px 8px; border: 1px solid var(--line-strong); border-radius: 6px;
+    background: var(--panel-raised); color: var(--muted); font-size: 10px;
+    box-shadow: 0 8px 20px rgba(0, 0, 0, .35);
+  }
+  .pop.is-open { display: flex; }
+  .seg { display: inline-flex; border: 1px solid var(--line); border-radius: 5px; overflow: hidden; }
+  .seg button { border: 0; background: transparent; color: var(--muted); padding: 2px 7px; font: inherit; font-size: 10px; cursor: pointer; }
+  .seg button + button { border-left: 1px solid var(--line); }
+  .seg button:hover { color: var(--accent-bright); }
+  .seg button.is-on { background: var(--accent); color: var(--on-accent); }
+</style>
+</head>
+<body class="is-off">
+  <div class="actions">
+    <button id="btn-layers" class="act" type="button" aria-label="Importar camadas" data-hint="Importar camadas">
+      <svg width="22" height="22" viewBox="0 0 28 28" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"><path d="M14 4 3.5 9.5 14 15l10.5-5.5z"/><path d="m3.5 14 10.5 5.5L24.5 14"/><path d="m3.5 18.5 10.5 5.5 10.5-5.5"/></svg>
+    </button>
+    <button id="btn-raster" class="act" type="button" aria-label="Rasterizar seleção" data-hint="Rasterizar seleção">
+      <svg width="22" height="22" viewBox="0 0 28 28" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"><rect x="4" y="5" width="20" height="18" rx="2.5"/><circle cx="10" cy="11" r="2"/><path d="m4.5 20 6-6 4 4 3-3 6 6"/></svg>
+    </button>
+    <button id="btn-comp" class="act" type="button" aria-label="Criar composição" data-hint="Criar composição">
+      <svg width="22" height="22" viewBox="0 0 28 28" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round" stroke-linecap="round"><rect x="4.5" y="6.5" width="19" height="15" rx="2"/><path d="M8.5 6.5v15M19.5 6.5v15M4.5 11h4M4.5 17h4M19.5 11h4M19.5 17h4"/></svg>
+    </button>
+  </div>
+
+  <div class="foot">
+    <button id="gear" class="gear" type="button" aria-label="Configurações" data-hint="Configurações">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>
+    </button>
+    <div id="msg" class="msg"></div>
+  </div>
+
+  <div id="pop" class="pop">
+    <span>PNG</span>
+    <div class="seg" id="scale">
+      <button type="button" data-v="1">1x</button><button type="button" data-v="2">2x</button><button type="button" data-v="3">3x</button><button type="button" data-v="4">4x</button>
+    </div>
+  </div>
+
+<script>
+(function () {
+  "use strict";
+  // Só "localhost": o manifesto do Figma não aceita IP em allowedDomains
+  // (e o CSP bloquearia qualquer endereço fora da lista). O painel do AE
+  // escuta em 127.0.0.1 e ::1, então localhost resolve para os dois.
+  var BASE = "http://localhost:47811";
+  var HINT_DELAY = 1000;
+  var settings = { scale: 2, theme: null };
+  var connected = false;
+  var busy = false;
+  var selection = { count: 0 };
+  var pending = {};
+  var reqCounter = 0;
+
+  function $(id) { return document.getElementById(id); }
+  function post(msg) { parent.postMessage({ pluginMessage: msg }, "*"); }
+  function sleep(ms) { return new Promise(function (r) { setTimeout(r, ms); }); }
+
+  // ---------------------------------------------------------------
+  // Rodapé: uma linha só. Dica do hover tem prioridade sobre a última
+  // mensagem (que some sozinha depois de alguns segundos).
+  // ---------------------------------------------------------------
+  var footer = { text: "", kind: "", title: "", timer: null };
+  var hint = { text: "", timer: null };
+
+  function renderFooter() {
+    var el = $("msg");
+    var showHint = !!hint.text;
+    var text = showHint ? hint.text : footer.text;
+    el.textContent = text;
+    el.title = showHint ? "" : footer.title;
+    el.className = "msg" + (text ? " is-on" : "") + (showHint ? " is-hint" : (footer.kind ? " is-" + footer.kind : ""));
+  }
+
+  function say(text, kind, holdMs, title) {
+    footer.text = text || "";
+    footer.kind = kind || "";
+    footer.title = title || "";
+    if (footer.timer) { clearTimeout(footer.timer); footer.timer = null; }
+    if (holdMs) {
+      footer.timer = setTimeout(function () { footer.text = ""; footer.kind = ""; footer.title = ""; renderFooter(); }, holdMs);
+    }
+    renderFooter();
+  }
+
+  function wireHint(el) {
+    el.addEventListener("mouseenter", function () {
+      clearTimeout(hint.timer);
+      hint.timer = setTimeout(function () {
+        hint.text = connected ? el.getAttribute("data-hint") : "Abra a janela no After Effects";
+        renderFooter();
+      }, HINT_DELAY);
+    });
+    el.addEventListener("mouseleave", function () {
+      clearTimeout(hint.timer);
+      hint.text = "";
+      renderFooter();
+    });
+  }
+
+  // ---------------------------------------------------------------
+  // Tema vindo do AE (mesmas contas de MF.color.panelShades)
+  // ---------------------------------------------------------------
+  function hexToRgb(hex) {
+    var c = String(hex || "").replace("#", "");
+    if (c.length === 3) { c = c.charAt(0) + c.charAt(0) + c.charAt(1) + c.charAt(1) + c.charAt(2) + c.charAt(2); }
+    if (!/^[0-9a-fA-F]{6}$/.test(c)) { return null; }
+    return { r: parseInt(c.substring(0, 2), 16), g: parseInt(c.substring(2, 4), 16), b: parseInt(c.substring(4, 6), 16) };
+  }
+  function mixHex(a, b, t) {
+    var ca = hexToRgb(a), cb = hexToRgb(b);
+    function h(v) { var s = Math.round(Math.max(0, Math.min(255, v))).toString(16); return s.length === 1 ? "0" + s : s; }
+    return "#" + h(ca.r + (cb.r - ca.r) * t) + h(ca.g + (cb.g - ca.g) * t) + h(ca.b + (cb.b - ca.b) * t);
+  }
+  function applyTheme(theme) {
+    if (!theme) { return; }
+    var root = document.documentElement.style;
+    if (hexToRgb(theme.accent)) {
+      root.setProperty("--accent", theme.accent);
+      root.setProperty("--accent-bright", theme.accent);
+      // Texto sobre o destaque: escuro se a cor for clara (ex.: verde neon).
+      var c = hexToRgb(theme.accent);
+      var lum = (0.299 * c.r + 0.587 * c.g + 0.114 * c.b) / 255;
+      root.setProperty("--on-accent", lum > 0.6 ? "#141414" : "#ffffff");
+    }
+    if (hexToRgb(theme.panel)) {
+      root.setProperty("--panel", theme.panel);
+      root.setProperty("--panel-soft", mixHex(theme.panel, "#ffffff", 0.02));
+      root.setProperty("--panel-raised", mixHex(theme.panel, "#ffffff", 0.04));
+      root.setProperty("--panel-deep", mixHex(theme.panel, "#000000", 0.28));
+    }
+  }
+  function receiveTheme(theme) {
+    if (!theme) { return; }
+    var cur = settings.theme || {};
+    if (cur.accent === theme.accent && cur.panel === theme.panel) { return; }
+    settings.theme = { accent: theme.accent || null, panel: theme.panel || null };
+    applyTheme(settings.theme);
+    post({ type: "save-settings", settings: settings });
+  }
+
+  // ---------------------------------------------------------------
+  function setConnected(on) {
+    connected = on;
+    document.body.classList.toggle("is-off", !on);
+    if (!on) { closePop(); }
+  }
+
+  function setBusy(mode, on) {
+    busy = on;
+    $("btn-layers").classList.toggle("is-busy", on && mode === "layers");
+    $("btn-raster").classList.toggle("is-busy", on && mode === "raster");
+    $("btn-comp").classList.toggle("is-busy", on && mode === "comp");
+  }
+
+  function renderScale() {
+    var btns = $("scale").querySelectorAll("button");
+    for (var i = 0; i < btns.length; i++) {
+      btns[i].classList.toggle("is-on", Number(btns[i].getAttribute("data-v")) === Number(settings.scale));
+    }
+  }
+
+  function closePop() { $("pop").classList.remove("is-open"); $("gear").classList.remove("is-open"); }
+
+  function toBase64(bytes) {
+    var chunk = 0x8000, parts = [];
+    for (var i = 0; i < bytes.length; i += chunk) {
+      parts.push(String.fromCharCode.apply(null, bytes.subarray(i, i + chunk)));
+    }
+    return btoa(parts.join(""));
+  }
+
+  function extract(mode, options) {
+    return new Promise(function (resolve, reject) {
+      reqCounter += 1;
+      var id = "r" + reqCounter;
+      pending[id] = { resolve: resolve, reject: reject };
+      post({ type: "extract", mode: mode, options: options, requestId: id });
+    });
+  }
+
+  // text/plain = requisição "simples", sem preflight CORS.
+  function postJSON(path, obj) {
+    return fetch(BASE + path, { method: "POST", headers: { "Content-Type": "text/plain;charset=UTF-8" }, body: JSON.stringify(obj) })
+      .then(function (r) { return r.json(); });
+  }
+
+  async function send(mode, commandId, options) {
+    if (busy) {
+      if (commandId) { try { await postJSON("/push", { commandId: commandId, error: "O plugin do Figma ainda está enviando o pedido anterior." }); } catch (e) {} }
+      return;
+    }
+    setBusy(mode, true);
+    say(mode === "raster" ? "Rasterizando…" : (mode === "comp" ? "Criando composição…" : "Lendo camadas…"), "");
+    var scale = (options && options.scale) || settings.scale;
+    try {
+      var result = await extract(mode, { scale: scale });
+      say("Enviando ao After Effects…", "");
+      var assets = result.assets.map(function (a) { return { id: a.id, name: a.name, data: toBase64(a.bytes) }; });
+      var res = await postJSON("/push", { commandId: commandId || null, payload: result.payload, assets: assets });
+      var notes = ((res && res.warnings) || []).concat(result.payload.notes || []);
+      if (res && res.ok) {
+        var text = res.message || "Importado no After Effects";
+        if (notes.length) { text += "  ·  ⚠ " + notes.length; }
+        say(text, "ok", 8000, notes.join("\n"));
+      } else {
+        say((res && res.error) || "O After Effects não conseguiu importar.", "bad", 9000);
+      }
+    } catch (err) {
+      var msg = err && err.message ? err.message : String(err);
+      say(msg, "bad", 9000);
+      if (commandId) {
+        try { await postJSON("/push", { commandId: commandId, error: msg }); } catch (e) {}
+      }
+    } finally {
+      setBusy(mode, false);
+    }
+  }
+
+  function clickAction(mode) {
+    if (!connected || busy) { return; }
+    if (!selection.count) {
+      say("Selecione um frame ou camada no Figma", "bad", 3500);
+      return;
+    }
+    send(mode, null);
+  }
+
+  // Long-poll: o painel do AE segura a requisição até ter um comando (um
+  // clique nos botões de lá) ou ~15s. Também é o sinal de "conectado".
+  async function pollLoop() {
+    while (true) {
+      try {
+        if (!connected) {
+          // /poll fica preso até 15s; o /ping responde na hora, então os
+          // botões acendem assim que o AE é encontrado.
+          var pr = await fetch(BASE + "/ping", { cache: "no-store" });
+          var pj = await pr.json();
+          setConnected(true);
+          receiveTheme(pj.theme);
+        }
+        var r = await fetch(BASE + "/poll", { cache: "no-store" });
+        var j = await r.json();
+        if (!connected) { setConnected(true); }
+        receiveTheme(j.theme);
+        if (j.command) { send(j.command.mode, j.command.id, j.command.options); }
+      } catch (err) {
+        if (connected) { setConnected(false); }
+        await sleep(1500);
+      }
+    }
+  }
+
+  window.onmessage = function (event) {
+    var msg = event.data && event.data.pluginMessage;
+    if (!msg) { return; }
+    if (msg.type === "selection") {
+      selection = msg;
+    } else if (msg.type === "settings") {
+      var s = msg.settings || {};
+      if (s.scale) { settings.scale = s.scale; }
+      if (s.theme) { settings.theme = s.theme; applyTheme(s.theme); }
+      renderScale();
+    } else if (msg.type === "payload" || msg.type === "extract-error") {
+      var p = pending[msg.requestId];
+      if (!p) { return; }
+      delete pending[msg.requestId];
+      if (msg.type === "payload") { p.resolve({ payload: msg.payload, assets: msg.assets }); }
+      else { p.reject(new Error(msg.error)); }
+    }
+  };
+
+  $("btn-layers").addEventListener("click", function () { clickAction("layers"); });
+  $("btn-raster").addEventListener("click", function () { clickAction("raster"); });
+  $("btn-comp").addEventListener("click", function () { clickAction("comp"); });
+  $("gear").addEventListener("click", function (e) {
+    e.stopPropagation();
+    if (!connected) { return; }
+    var open = !$("pop").classList.contains("is-open");
+    $("pop").classList.toggle("is-open", open);
+    $("gear").classList.toggle("is-open", open);
+  });
+  $("pop").addEventListener("click", function (e) { e.stopPropagation(); });
+  document.addEventListener("click", closePop);
+  $("scale").addEventListener("click", function (e) {
+    var v = e.target && e.target.getAttribute("data-v");
+    if (!v) { return; }
+    settings.scale = Number(v);
+    renderScale();
+    post({ type: "save-settings", settings: settings });
+  });
+  wireHint($("btn-layers"));
+  wireHint($("btn-raster"));
+  wireHint($("btn-comp"));
+  wireHint($("gear"));
+
+  renderScale();
+  post({ type: "ready" });
+  pollLoop();
+}());
+</script>
+</body>
+</html>

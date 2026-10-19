@@ -1,0 +1,98 @@
+MÓTION FILM v__VERSION__ — extensão para After Effects + plugin do Figma
+=======================================================================
+
+INSTALAR OU ATUALIZAR (é o mesmo arquivo)
+-----------------------------------------
+1. Feche o After Effects.
+2. Dê dois cliques em "Motion-Film-Setup-__VERSION__.exe".
+   >> Se o Windows mostrar "O Windows protegeu o computador", clique em
+      "Mais informações" > "Executar assim mesmo" (o instalador não é
+      assinado digitalmente, por isso o aviso).
+3. Clique em "Instalar" (ou "Atualizar", se já tiver uma versão).
+
+O instalador faz tudo sozinho, sem copiar pastas:
+- instala ou atualiza a extensão Mótion Film no After Effects, com todas
+  as janelas (Mótion Film, MF - Paleta de Cores, MF - Camadas e
+  Mótion Figma Layers);
+- se existir uma cópia antiga instalada à mão em
+  C:\Program Files (x86)\Common Files\Adobe\CEP\extensions\motion-film,
+  ele remove (o Windows pede permissão de administrador uma vez);
+- libera extensões não assinadas no After Effects;
+- copia o plugin do Figma para Documentos\Mótion Figma Layers\Plugin Figma.
+
+Atualizar NÃO apaga nada seu. Tudo fica em Documentos\Mótion Film Packs:
+   packs\           -> seus Packs (com as mídias)
+   settings.json    -> cores, paletas, presets de legenda e de estilo,
+                       tamanho do Null e layout das abas
+Trocando de computador: copie essa pasta inteira para o computador novo
+(antes de abrir o After Effects lá) e tudo vem junto.
+
+Para remover: rode o .exe de novo e clique em "Desinstalar" (seus Packs,
+cores e presets em Documentos continuam lá).
+
+
+DEPOIS DE INSTALAR
+------------------
+After Effects:
+   Window > Extensions > Mótion Film
+   (As janelas "MF - Paleta de Cores", "MF - Camadas" e
+   "Mótion Figma Layers" ficam no mesmo menu.)
+
+Figma — precisa do aplicativo FIGMA DESKTOP (pelo navegador não funciona).
+Só na PRIMEIRA instalação, importe o plugin:
+   Com um arquivo de design aberto: botão direito no canvas > Plugins >
+   Development > Import plugin from manifest...
+   e escolha Documentos\Mótion Figma Layers\Plugin Figma\manifest.json
+   (o instalador tem os botões "Abrir pasta do plugin" e "Copiar caminho").
+Nas atualizações não precisa importar de novo.
+
+
+ABA PACKS — COMO USAR
+---------------------
+Tudo funciona só com as CAMADAS SELECIONADAS na timeline.
+- Save Layers: salva as camadas selecionadas. Ao aplicar, elas entram
+  soltas na comp aberta, na posição da agulha.
+- Save Comp: salva as camadas selecionadas como UMA composição. Ao
+  aplicar, entra uma comp na posição da agulha.
+- O Null de parentesco e a matte das camadas selecionadas vão junto
+  automaticamente.
+- O Pack guarda CÓPIA de todas as mídias (imagens, vídeos, áudios,
+  PSDs). Ao aplicar, as mídias são copiadas para a pasta "Pack Assets"
+  ao lado do seu .aep (salve o projeto antes para ficarem lá).
+- Export: gera um .zip com o Pack e todas as mídias para mandar para
+  outra pessoa. Import: abre esse .zip.
+- Delete: segure 3 segundos em cima do Pack. Apaga o Pack e as mídias
+  dele do disco (projetos que já usaram o Pack não são afetados).
+
+
+MÓTION FIGMA LAYERS — COMO USAR
+-------------------------------
+- No After Effects deixe a janela "Mótion Figma Layers" aberta.
+- No Figma abra o plugin: botão direito no canvas > Plugins >
+  Development > Mótion Figma Layers. Deixe a janela dele aberta.
+- Os botões do plugin ficam cinza até ele encontrar o After Effects;
+  quando acendem, está conectado.
+- Selecione um frame no Figma e clique num dos 3 botões (no plugin do
+  Figma ou na janela do AE). Parando o mouse 1 segundo em cima de um
+  botão aparece o que ele faz:
+    * Camadas — o frame vira composição com camadas separadas, formas
+      e textos editáveis. Se houver uma comp aberta no AE, ela entra
+      dentro dessa comp.
+    * Rasterizar — cada item selecionado vira um PNG (resolução 1x a
+      4x na engrenagem). Entra na comp aberta no AE.
+    * Comp — cria uma composição vazia com o nome e o tamanho em
+      pixels do frame, e abre ela.
+
+
+OBSERVAÇÕES
+-----------
+- A aba Icons precisa de internet (os ícones vêm do Iconify). Os ícones
+  já vistos ficam guardados em Documentos\Mótion Film Tools\ e não são
+  baixados de novo.
+- A aba Captions baixa as ferramentas de transcrição na primeira vez que
+  for usada (também em Documentos\Mótion Film Tools\).
+- Mótion Figma Layers: gradientes e imagens chegam como PNG. Fontes
+  que não estiverem instaladas no computador viram a fonte padrão (o
+  aviso no fim da importação mostra quais faltaram).
+- Se a extensão não aparecer no menu Window > Extensions, reinicie o
+  After Effects.

@@ -1,0 +1,16 @@
+# Builds -- the .exe/.rar go to GitHub Releases, not into the repo
+installer/obj/
+installer/dist/
+*.rar
+
+# Local / dev-only
+.claude/
+motion-film/.debug
+reveal-effect-plugin/
+palette_shot.png
+
+# Media of packs from the old in-extension store (packs now live in
+# Documents\Mótion Film Packs) -- never commit someone's pack media
+motion-film/client/assets/kit-assets/
+motion-film/client/assets/kit-previews/*
+!motion-film/client/assets/kit-previews/README.md

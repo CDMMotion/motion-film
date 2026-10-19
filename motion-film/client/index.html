@@ -1,0 +1,441 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Mótion Film</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <!-- One row: page tabs on the left, version + settings on the right
+           (the "Mótion Film" wordmark row was removed to free height). -->
+      <header class="topbar">
+      <nav class="page-tabs" role="tablist" aria-label="Extension pages">
+        <button id="page-tab-home" class="page-tab is-active" type="button" role="tab" aria-selected="true" aria-controls="page-home" data-page="home">
+          <svg class="page-tab-icon" viewBox="0 0 20 20" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M3 9.5 10 3.5l7 6" stroke-linecap="round" stroke-linejoin="round"/><path d="M5 8.5V16a1 1 0 0 0 1 1h3v-4.5h2V17h3a1 1 0 0 0 1-1V8.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          <span class="page-tab-label"><span>Home</span></span>
+        </button>
+        <button id="page-tab-kit" class="page-tab" type="button" role="tab" aria-selected="false" aria-controls="page-kit" data-page="kit">
+          <svg class="page-tab-icon" viewBox="0 0 20 20" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="3" y="3" width="6" height="6" rx="1.3"/><rect x="11" y="3" width="6" height="6" rx="1.3"/><rect x="3" y="11" width="6" height="6" rx="1.3"/><rect x="11" y="11" width="6" height="6" rx="1.3"/></svg>
+          <span class="page-tab-label"><span>Kit</span></span>
+        </button>
+        <button id="page-tab-icons" class="page-tab" type="button" role="tab" aria-selected="false" aria-controls="page-icons" data-page="icons">
+          <svg class="page-tab-icon" viewBox="0 0 20 20" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="10" cy="10" r="6.5"/><path d="M10 6.8v6.4M6.8 10h6.4" stroke-linecap="round"/></svg>
+          <span class="page-tab-label"><span>Icons</span></span>
+        </button>
+        <button id="page-tab-captions" class="page-tab" type="button" role="tab" aria-selected="false" aria-controls="page-captions" data-page="captions">
+          <svg class="page-tab-icon" viewBox="0 0 20 20" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="2.5" y="4.5" width="15" height="11" rx="1.6"/><path d="M5.5 12.5h5M5.5 9.5h9" stroke-linecap="round"/></svg>
+          <span class="page-tab-label"><span>Captions</span></span>
+        </button>
+        <button id="page-tab-effects" class="page-tab" type="button" role="tab" aria-selected="false" aria-controls="page-effects" data-page="effects">
+          <svg class="page-tab-icon" viewBox="-1 -3 20 21" width="15" height="16"><text x="-0.5" y="14" font-size="16" font-weight="700" font-style="italic" fill="currentColor">fx</text></svg>
+          <span class="page-tab-label"><span>Effects</span></span>
+        </button>
+      </nav>
+        <div class="topbar-tools">
+          <span id="version-tag">v0.9.8</span>
+          <button id="settings-toggle" class="icon-button" type="button" aria-label="Open settings">•••</button>
+        </div>
+      </header>
+
+      <div id="status" class="status" role="status" aria-live="polite" hidden></div>
+
+      <div id="page-home" class="page">
+      <main>
+        <section class="section velocity-section" data-section-id="curves">
+          <div class="section-tab" role="button" tabindex="0" aria-expanded="true">
+            <div class="section-heading">
+              <div>
+                <div class="section-kicker">01 / CURVES</div>
+              </div>
+            </div>
+            <svg class="section-chevron" viewBox="0 0 12 12" width="10" height="10" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M2.5 4.5L6 8l3.5-3.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </div>
+          <div class="section-body">
+          <div class="motion-row">
+            <div class="curve-editor" id="curve-editor">
+              <canvas id="curve-canvas" width="640" height="390" aria-label="Interactive velocity curve editor"></canvas>
+              <div class="curve-axis axis-x">TIME</div>
+            </div>
+            <div class="anchor-panel">
+              <div class="anchor-grid" id="anchor-grid" role="group" aria-label="Anchor point preset">
+                <button class="anchor-dot" data-fx="0" data-fy="0" type="button" aria-label="Top left" title="Top left"></button>
+                <button class="anchor-dot" data-fx="0.5" data-fy="0" type="button" aria-label="Top center" title="Top center"></button>
+                <button class="anchor-dot" data-fx="1" data-fy="0" type="button" aria-label="Top right" title="Top right"></button>
+                <button class="anchor-dot" data-fx="0" data-fy="0.5" type="button" aria-label="Middle left" title="Middle left"></button>
+                <button class="anchor-dot" data-fx="0.5" data-fy="0.5" type="button" aria-label="Center" title="Center"></button>
+                <button class="anchor-dot" data-fx="1" data-fy="0.5" type="button" aria-label="Middle right" title="Middle right"></button>
+                <button class="anchor-dot" data-fx="0" data-fy="1" type="button" aria-label="Bottom left" title="Bottom left"></button>
+                <button class="anchor-dot" data-fx="0.5" data-fy="1" type="button" aria-label="Bottom center" title="Bottom center"></button>
+                <button class="anchor-dot" data-fx="1" data-fy="1" type="button" aria-label="Bottom right" title="Bottom right"></button>
+              </div>
+            </div>
+          </div>
+          <div class="velocity-controls">
+            <label class="velocity-input">
+              <span>IN</span>
+                <input id="in-value" type="number" min="1" max="99" value="64" />
+            </label>
+            <input id="in-slider" type="range" min="1" max="99" value="64" aria-label="IN influence" />
+            <input id="out-slider" type="range" min="1" max="99" value="64" aria-label="OUT influence" />
+            <label class="velocity-input output">
+              <span>OUT</span>
+                <input id="out-value" type="number" min="1" max="99" value="64" />
+            </label>
+          </div>
+          <div class="action-row">
+            <button id="apply-curve" class="action-button" type="button" title="Apply the current curve to the selected keyframes">
+              <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.7">
+                <path d="M3 19C7.5 19 8 5 12 5s4.5 14 9 14" stroke-linecap="round"/>
+                <circle cx="12" cy="5" r="1.9" fill="currentColor" stroke="none"/>
+              </svg>
+            </button>
+            <button class="action-button" data-utility="reposition" type="button" title="Move the selected keyframes to each layer's start">
+              <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.7">
+                <path d="M5 4.5v15" stroke-linecap="round"/>
+                <path d="M20 12H9.5M13 7.8 8.8 12l4.2 4.2" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+            </button>
+            <button id="copy-keyframe-curves" class="action-button" type="button" title="Copy the easing curve of each selected keyframe (any number of them), in order">
+              <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.7">
+                <rect x="8" y="8" width="12" height="12" rx="1.5"/>
+                <path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+            </button>
+            <button id="paste-keyframe-curves" class="action-button" type="button" title="Paste the copied easing curves onto the newly selected keyframes, in order" disabled>
+              <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.7">
+                <rect x="6" y="4" width="12" height="17" rx="1.5"/>
+                <path d="M9 4V3a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v1" stroke-linecap="round" stroke-linejoin="round"/>
+                <path d="M9 11h6M9 15h6" stroke-linecap="round"/>
+              </svg>
+            </button>
+          </div>
+          </div>
+        </section>
+
+        <section class="section transform-section" data-section-id="layer">
+          <div class="section-tab" role="button" tabindex="0" aria-expanded="true">
+            <div class="section-heading compact">
+              <div>
+                <div class="section-kicker">03 / LAYER</div>
+              </div>
+              <button id="transform-reset" class="link-button" type="button">Reset</button>
+            </div>
+            <svg class="section-chevron" viewBox="0 0 12 12" width="10" height="10" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M2.5 4.5L6 8l3.5-3.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </div>
+          <div class="section-body">
+          <div id="transform-empty" class="empty-state">Select a layer in the timeline.</div>
+          <div id="transform-rows" class="transform-rows" hidden></div>
+          </div>
+        </section>
+
+      </main>
+
+      <footer class="footer">
+        <div class="footer-resizer" id="footer-resizer-home" role="separator" aria-orientation="horizontal" aria-label="Resize the action bar" tabindex="0"></div>
+        <div class="footer-actions">
+          <button id="create-null" class="footer-button" type="button" title="Null from selection — created at the average anchor point, with the selected layers parented to it. A layer that already had a parent now follows the null, and the null follows that old parent. If a selected layer is 3D (or is a camera/light), the null is created in 3D. Shift+click: create at the comp centre">
+            <svg viewBox="0 0 28 28" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.7">
+              <rect x="6.5" y="6.5" width="15" height="15" rx="1.5" stroke-dasharray="3.4 2.6"/>
+              <path d="M14 10.6v6.8M10.6 14h6.8" stroke-linecap="round"/>
+            </svg>
+          </button>
+          <button id="create-adjustment" class="footer-button" type="button" title="Adjustment layer that re-fits automatically when the composition size changes">
+            <svg viewBox="0 0 28 28" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.7">
+              <circle cx="14" cy="14" r="8"/>
+              <path d="M14 6a8 8 0 0 1 0 16z" fill="currentColor" stroke="none"/>
+            </svg>
+          </button>
+          <button id="create-solid" class="footer-button" type="button" title="Solid that re-fits automatically when the composition size changes">
+            <svg viewBox="0 0 28 28" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.7">
+              <path d="M6 9.5V6.5h3M19 6.5h3v3M22 18.5v3h-3M9 21.5H6v-3" stroke-linecap="round" stroke-linejoin="round"/>
+              <rect x="10" y="10" width="8" height="8" rx="1" fill="currentColor" stroke="none"/>
+            </svg>
+          </button>
+        </div>
+      </footer>
+      </div>
+
+      <div id="page-kit" class="page" hidden>
+        <div class="kit-layout">
+          <nav class="kit-categories" id="kit-categories" aria-label="Preset categories"></nav>
+          <div class="kit-resizer" id="kit-resizer" role="separator" aria-orientation="vertical" aria-label="Resize category list" tabindex="0"></div>
+          <div class="kit-presets" id="kit-presets"></div>
+        </div>
+        <footer class="footer">
+          <div class="footer-resizer" id="footer-resizer-kit" role="separator" aria-orientation="horizontal" aria-label="Resize the action bar" tabindex="0"></div>
+          <div class="footer-actions">
+            <button id="kit-save-layers" class="footer-button footer-button-labeled" type="button" data-tooltip="Save Layers as Pack">
+              <svg viewBox="0 0 28 28" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.7">
+                <rect x="5.5" y="9.5" width="13" height="10" rx="1.4"/>
+                <rect x="9.5" y="5.5" width="13" height="10" rx="1.4"/>
+              </svg>
+            </button>
+            <button id="kit-save-comp" class="footer-button footer-button-labeled" type="button" data-tooltip="Save Comp as Pack">
+              <svg viewBox="0 0 28 28" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.7">
+                <rect x="5" y="5" width="18" height="18" rx="1.8"/>
+                <rect x="9.5" y="9.5" width="9" height="9" rx="1" fill="currentColor" stroke="none"/>
+              </svg>
+            </button>
+            <button id="kit-export-preset" class="footer-button footer-button-labeled" type="button" data-tooltip="Export Pack (.zip with all media)">
+              <svg viewBox="0 0 28 28" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.7">
+                <path d="M14 4v13" stroke-linecap="round"/>
+                <path d="M9 8.5 14 4l5 4.5" stroke-linecap="round" stroke-linejoin="round"/>
+                <path d="M6 16v5.5a1.5 1.5 0 0 0 1.5 1.5h13a1.5 1.5 0 0 0 1.5-1.5V16" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+            </button>
+            <button id="kit-import-preset" class="footer-button footer-button-labeled" type="button" data-tooltip="Import Pack">
+              <svg viewBox="0 0 28 28" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.7">
+                <path d="M14 4v10" stroke-linecap="round"/>
+                <path d="M9 9.5 14 14l5-4.5" stroke-linecap="round" stroke-linejoin="round"/>
+                <path d="M6 16v5.5a1.5 1.5 0 0 0 1.5 1.5h13a1.5 1.5 0 0 0 1.5-1.5V16" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+            </button>
+            <button id="kit-delete-preset" class="footer-button footer-button-labeled danger" type="button" data-tooltip="Delete Pack">
+              <svg viewBox="0 0 28 28" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.7">
+                <path d="M6 8h16M11.5 8V6.2h5V8M9.5 8l1 15h7l1-15" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+            </button>
+          </div>
+        </footer>
+      </div>
+
+      <div id="page-icons" class="page" hidden>
+        <div class="icons-layout">
+          <div class="icons-search-row">
+            <input id="icons-search" class="icons-search" type="search" spellcheck="false" placeholder="Search icons (e.g. arrow, play, star)" />
+          </div>
+          <p class="icons-hint" id="icons-hint">Search thousands of free, openly-licensed icons (via Iconify) and import any of them straight into this project -- needs an internet connection.</p>
+          <div class="icons-grid" id="icons-grid"></div>
+        </div>
+      </div>
+
+      <div id="page-captions" class="page" hidden>
+        <div class="captions-layout">
+          <div id="captions-setup" class="captions-setup" hidden>
+            <p class="captions-hint">Transcription runs entirely on your own computer (via whisper.cpp + ffmpeg) -- no account, no per-use cost, no internet needed once this one-time setup finishes.</p>
+            <p class="captions-hint">One-time download, saved to your Documents folder: a speech-recognition engine, an audio converter, and a language model (~620MB total).</p>
+            <button id="captions-setup-button" class="secondary-button" type="button">Download &amp; Set Up (~620MB)</button>
+            <div id="captions-setup-progress" class="captions-progress" hidden>
+              <div class="captions-progress-track"><div id="captions-progress-fill" class="captions-progress-fill"></div></div>
+              <div id="captions-setup-status" class="captions-step">
+                <span class="captions-spinner" aria-hidden="true"></span>
+                <span id="captions-setup-status-text" class="captions-step-text"></span>
+              </div>
+            </div>
+          </div>
+          <main id="captions-main" class="captions-main" hidden>
+            <section class="section" data-section-id="captions-transcription">
+              <div class="section-tab" role="button" tabindex="0" aria-expanded="true">
+                <div class="section-heading">
+                  <div>
+                    <div class="section-kicker">01 / TRANSCRIPTION</div>
+                  </div>
+                </div>
+                <svg class="section-chevron" viewBox="0 0 12 12" width="10" height="10" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M2.5 4.5L6 8l3.5-3.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              </div>
+              <div class="section-body captions-section-body">
+                <div class="button-row">
+                  <button id="captions-transcribe-button" class="secondary-button secondary-button-icon" type="button" data-tooltip="Select a video or audio layer in the timeline (one with a real file behind it -- not a solid, shape, text or precomp), then click Transcribe. Only the stretch of it visible on the timeline gets transcribed.">
+                    <svg viewBox="0 0 28 28" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.7">
+                      <path d="M5 11v6" stroke-linecap="round"/>
+                      <path d="M9.5 8v12" stroke-linecap="round"/>
+                      <path d="M14 5v18" stroke-linecap="round"/>
+                      <path d="M18.5 9v10" stroke-linecap="round"/>
+                      <path d="M23 12v4" stroke-linecap="round"/>
+                    </svg>
+                    <span>Transcribe</span>
+                  </button>
+                  <button id="captions-import-srt-button" class="secondary-button secondary-button-icon" type="button" data-tooltip="Captions already timed and adjusted by someone else? Import their .srt file directly -- keeps their exact timing and line breaks as-is (no re-splitting), and applies your current Style Preset if one is selected. Times in the file are treated as composition time (0:00 = start of the timeline).">
+                    <svg viewBox="0 0 28 28" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.7">
+                      <path d="M14 4v10" stroke-linecap="round"/>
+                      <path d="M9 9.5 14 14l5-4.5" stroke-linecap="round" stroke-linejoin="round"/>
+                      <path d="M6 16v5.5a1.5 1.5 0 0 0 1.5 1.5h13a1.5 1.5 0 0 0 1.5-1.5V16" stroke-linecap="round" stroke-linejoin="round"/>
+                    </svg>
+                    <span>Import SRT</span>
+                  </button>
+                </div>
+                <div id="captions-run-status" class="captions-step" hidden>
+                  <span class="captions-spinner" aria-hidden="true"></span>
+                  <span id="captions-run-status-text" class="captions-step-text"></span>
+                </div>
+                <input type="file" id="captions-import-srt-input" accept=".srt,.vtt,text/plain" hidden />
+              </div>
+            </section>
+
+            <section class="section" data-section-id="captions-style">
+              <div class="section-tab" role="button" tabindex="0" aria-expanded="true">
+                <div class="section-heading">
+                  <div>
+                    <div class="section-kicker">02 / STYLE</div>
+                  </div>
+                </div>
+                <svg class="section-chevron" viewBox="0 0 12 12" width="10" height="10" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M2.5 4.5L6 8l3.5-3.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              </div>
+              <div class="section-body captions-section-body">
+                <p class="captions-hint">Already styled a caption by hand (font, position, effects, animators, an entrance animation)? Select that text layer and save it as a Style Preset -- every future caption can get the same setup, each one re-timed to its own start.</p>
+                <div class="button-row">
+                  <button id="captions-save-style-button" class="secondary-button secondary-button-icon" type="button">
+                    <svg viewBox="0 0 28 28" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.7">
+                      <path d="M7 5h14a1 1 0 0 1 1 1v17l-8-5-8 5V6a1 1 0 0 1 1-1Z" stroke-linejoin="round"/>
+                    </svg>
+                    <span>Save Preset</span>
+                  </button>
+                  <button id="captions-manage-styles-button" class="secondary-button secondary-button-icon" type="button">
+                    <svg viewBox="0 0 28 28" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.7">
+                      <path d="M9 8h13" stroke-linecap="round"/>
+                      <path d="M9 14h13" stroke-linecap="round"/>
+                      <path d="M9 20h13" stroke-linecap="round"/>
+                      <circle cx="5" cy="8" r="1.1" fill="currentColor" stroke="none"/>
+                      <circle cx="5" cy="14" r="1.1" fill="currentColor" stroke="none"/>
+                      <circle cx="5" cy="20" r="1.1" fill="currentColor" stroke="none"/>
+                    </svg>
+                    <span>Manage</span>
+                  </button>
+                  <button id="captions-change-style-button" class="secondary-button secondary-button-icon" type="button" data-tooltip="Select one or more already-generated/imported caption layers, then pick a different Style Preset here -- clears their current animation and applies the new preset instead. No need to retype the text or re-transcribe the video just to change how it looks.">
+                    <svg viewBox="0 0 28 28" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.7">
+                      <path d="M6 10a8 8 0 0 1 14-4.5M22 5v5h-5" stroke-linecap="round" stroke-linejoin="round"/>
+                      <path d="M22 18a8 8 0 0 1-14 4.5M6 23v-5h5" stroke-linecap="round" stroke-linejoin="round"/>
+                    </svg>
+                    <span>Change Style</span>
+                  </button>
+                </div>
+              </div>
+            </section>
+          </main>
+        </div>
+      </div>
+
+      <div id="page-effects" class="page" hidden>
+        <main>
+          <section class="section" data-section-id="effects-manager">
+            <div class="section-tab" role="button" tabindex="0" aria-expanded="true">
+              <div class="section-heading">
+                <div>
+                  <div class="section-kicker">01 / EFFECTS</div>
+                </div>
+              </div>
+              <svg class="section-chevron" viewBox="0 0 12 12" width="10" height="10" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M2.5 4.5L6 8l3.5-3.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </div>
+            <div class="section-body">
+              <div id="effects-manager-empty" class="empty-state">Select one or more layers in the timeline to see every effect applied across them.</div>
+              <div id="effects-manager-content" hidden>
+                <div class="effects-manager-summary">
+                  <span id="effects-manager-total" class="effects-manager-total">TOTAL EFFECTS: 0</span>
+                  <button type="button" id="effects-master-toggle" class="effects-master-toggle" role="switch" aria-checked="false" aria-label="Toggle all effects on the selected layers">
+                    <span class="effects-master-toggle-thumb"></span>
+                  </button>
+                </div>
+                <div id="effects-manager-list" class="effects-manager-list"></div>
+              </div>
+            </div>
+          </section>
+        </main>
+      </div>
+
+      <div id="captions-settings-overlay" class="modal-overlay" hidden>
+        <div class="modal-panel">
+          <div class="popover-heading"><span>Caption Settings</span><button id="captions-settings-close" type="button">×</button></div>
+
+          <label class="modal-label">Caption Length</label>
+          <div class="segmented" id="captions-length-segmented" role="tablist">
+            <button type="button" class="segmented-option" data-value="1-line">1 Line</button>
+            <button type="button" class="segmented-option" data-value="2-lines">2 Lines</button>
+            <button type="button" class="segmented-option" data-value="word">Word by word</button>
+          </div>
+
+          <label class="modal-label" for="captions-charlimit-input">Character limit (per line)</label>
+          <input id="captions-charlimit-input" class="modal-number-input" type="number" min="8" max="200" step="1" />
+
+          <label class="modal-label">Caption Preset</label>
+          <button type="button" id="captions-preset-button" class="modal-picker-button"></button>
+
+          <label class="modal-label">Style Preset</label>
+          <button type="button" id="captions-style-preset-button" class="modal-picker-button"></button>
+
+          <label class="modal-label">Language</label>
+          <button type="button" id="captions-language-button" class="modal-picker-button"></button>
+
+          <button type="button" id="captions-settings-confirm" class="primary-button">Transcribe</button>
+        </div>
+      </div>
+
+      <div id="style-presets-manage-overlay" class="modal-overlay" hidden>
+        <div class="modal-panel">
+          <div class="popover-heading"><span>Manage Style Presets</span><button id="style-presets-manage-close" type="button">×</button></div>
+          <div class="button-row">
+            <button type="button" id="style-presets-import-button" class="secondary-button">Import</button>
+            <button type="button" id="style-presets-export-all-button" class="secondary-button">Export All</button>
+          </div>
+          <input type="file" id="style-presets-import-input" accept=".json,application/json" multiple hidden />
+          <div id="style-presets-list" class="style-presets-list"></div>
+        </div>
+      </div>
+
+      <!-- Covers the whole Kit "render a preview" cycle (see
+           generateKitPresetPreview/playKitMascotConfirmation, panel.js)
+           -- same dim+blur backdrop as the other .modal-overlay panels
+           above, but no dialog box. Two phases, same overlay staying up
+           continuously across both (no flicker/re-blur at the handoff):
+           (1) shown the moment rendering starts, with
+           #kit-render-spinner-wrap (same spinner look as the Captions
+           tab's own .captions-spinner, just bigger) as the only visible
+           content; (2) once the render+poster finish successfully, the
+           spinner hides and #kit-render-mascot (a <canvas>) takes over,
+           playing the one-shot mascot confirmation clip. The overlay
+           itself only hides at the very end of phase 2, or immediately
+           if phase 1 ends in an error (no mascot to show for a failed
+           render).
+
+           The <video> that feeds the canvas stays invisible (see
+           .kit-render-mascot-source in styles.css). Frames are drawn
+           onto the canvas with a real per-pixel alpha channel computed
+           by hand (alpha = brightest of the pixel's own R/G/B, so
+           genuinely black pixels become genuinely transparent) -- NOT
+           CSS mix-blend-mode. Confirmed live, twice, that mix-blend-mode
+           simply isn't compositing at all in this CEP build's Chromium
+           (not a video- or backdrop-filter-specific quirk -- a plain
+           white test div with mix-blend-mode: difference rendered as
+           flat unblended white both inside this overlay and completely
+           on its own elsewhere on the page), so nothing here depends on
+           it anymore. No `loop` on the source -- plays exactly once;
+           the confirmation hides the overlay once the clip ends. Not
+           dismissible by the user. -->
+      <div id="kit-render-overlay" class="modal-overlay" hidden>
+        <div id="kit-render-spinner-wrap" class="kit-render-spinner-wrap">
+          <span class="kit-render-spinner" aria-hidden="true"></span>
+          <span class="kit-render-spinner-text">Rendering preview…</span>
+        </div>
+        <video id="kit-render-mascot-source" class="kit-render-mascot-source" src="assets/mascot-loading.mp4" muted playsinline preload="auto"></video>
+        <canvas id="kit-render-mascot" class="kit-render-mascot" hidden></canvas>
+      </div>
+
+      <div id="settings-popover" class="settings-popover" hidden>
+        <div class="popover-heading"><span>Settings</span><button id="settings-close" type="button">×</button></div>
+        <div class="settings-colors">
+          <label>Accent <span class="color-with-picker" id="accent-color-wrap"></span></label>
+          <label>Panel <span class="color-with-picker" id="panel-color-wrap"></span></label>
+        </div>
+        <button id="reset-settings" class="secondary-button" type="button">Reset colors</button>
+        <div class="settings-divider"></div>
+        <div class="settings-row">
+          <span>Botões de camada em painel separado</span>
+          <button id="aux-layers-toggle" class="mf-switch" type="button" role="switch" aria-checked="false" aria-label="Mostrar os botões de camada numa janela separada"><span class="mf-switch-thumb"></span></button>
+        </div>
+        <p class="settings-note">Move os botões de Null / Camada de ajuste / Sólido para a janela “MF - Camadas” (abre pelo menu do After Effects; pode exigir reiniciar o AE na primeira vez).</p>
+        <div class="settings-divider"></div>
+        <div class="settings-row">
+          <span>Tamanho do Null (px)</span>
+          <input id="null-marker-size" class="settings-number-input" type="number" min="4" max="2000" step="1" value="44" aria-label="Tamanho do quadrado do Null em pixels" />
+        </div>
+      </div>
+    </div>
+    <!-- ?v bumped on every panel.js/shared-core.js change: CEF's Code
+         Cache (compiled-JS bytecode) in cep_cache can otherwise serve
+         stale script for a whole AE session even after the file on disk
+         changed. Changing the URL forces a fresh fetch + recompile. -->
+    <script src="shared-core.js?v=0970c"></script>
+    <script src="panel.js?v=0980a"></script>
+  </body>
+</html>

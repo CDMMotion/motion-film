@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>MF - Camadas</title>
+    <link rel="stylesheet" href="styles.css" />
+    <link rel="stylesheet" href="layers.css" />
+  </head>
+  <body>
+    <!-- Structural clone of palette.html: minimal shell, the
+         #paint-keepalive canvas (same compositing keep-alive reason as
+         the Paleta window), a status toast, and the three layer buttons
+         reusing the main panel's own .footer / .footer-button classes so
+         they look identical. Exactly one of #layers-main (the hint) and
+         #layers-actions (the buttons) is shown, and whichever it is
+         fills the whole window -- no spacer/footer split, so there is no
+         empty band above the buttons. Toggled by the main panel's "layer
+         buttons in a separate panel" switch (host.jsx getAuxLayersEnabled). -->
+    <div class="app-shell">
+      <canvas id="paint-keepalive" width="8" height="8" aria-hidden="true"></canvas>
+
+      <div id="status" class="status" role="status" aria-live="polite" hidden></div>
+
+      <div id="layers-main" class="layers-main">
+        <p class="captions-hint">
+          Ative <strong>“Botões de camada em painel separado”</strong> nas
+          configurações (botão <strong>•••</strong>) do painel Mótion Film para
+          usar os botões de camada aqui.
+        </p>
+      </div>
+
+      <div class="footer" id="layers-actions" hidden>
+        <div class="footer-actions">
+          <button id="aux-create-null" class="footer-button" type="button" title="Null a partir da seleção — criado no ponto de âncora médio, com as camadas selecionadas parenteadas a ele. Camada que já tinha parent passa a seguir o null, e o null passa a seguir esse parent antigo. Se a camada for 3D (ou câmera/luz), o null já nasce em 3D. Shift+clique: cria no centro da comp">
+            <svg viewBox="0 0 28 28" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.7">
+              <rect x="6.5" y="6.5" width="15" height="15" rx="1.5" stroke-dasharray="3.4 2.6"/>
+              <path d="M14 10.6v6.8M10.6 14h6.8" stroke-linecap="round"/>
+            </svg>
+          </button>
+          <button id="aux-create-adjustment" class="footer-button" type="button" title="Camada de ajuste que se re-encaixa sozinha quando o tamanho da composição muda">
+            <svg viewBox="0 0 28 28" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.7">
+              <circle cx="14" cy="14" r="8"/>
+              <path d="M14 6a8 8 0 0 1 0 16z" fill="currentColor" stroke="none"/>
+            </svg>
+          </button>
+          <button id="aux-create-solid" class="footer-button" type="button" title="Sólido que se re-encaixa sozinho quando o tamanho da composição muda">
+            <svg viewBox="0 0 28 28" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.7">
+              <path d="M6 9.5V6.5h3M19 6.5h3v3M22 18.5v3h-3M9 21.5H6v-3" stroke-linecap="round" stroke-linejoin="round"/>
+              <rect x="10" y="10" width="8" height="8" rx="1" fill="currentColor" stroke="none"/>
+            </svg>
+          </button>
+        </div>
+      </div>
+    </div>
+    <!-- ?v bumped on every layers.js/shared-core.js change -- same CEF
+         Code Cache reason noted in index.html / palette.html. -->
+    <script src="shared-core.js?v=0970c"></script>
+    <script src="layers.js?v=0949i"></script>
+  </body>
+</html>

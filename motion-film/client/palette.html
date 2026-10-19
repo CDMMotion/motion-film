@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>MF - Paleta de Cores</title>
+    <link rel="stylesheet" href="styles.css" />
+    <link rel="stylesheet" href="palette.css" />
+  </head>
+  <body>
+    <!-- Deliberately minimal: no topbar, no footer, no settings popover.
+         Appearance (accent/panel colour) is controlled only from the
+         main panel and mirrored here via host.jsx getSharedTheme. The
+         one non-obvious element is #paint-keepalive: an actively-drawn
+         canvas kept from the debugging of this window's rendering (see
+         palette.js startPaintKeepAlive) -- harmless, left in place. -->
+    <div class="app-shell">
+      <canvas id="paint-keepalive" width="8" height="8" aria-hidden="true"></canvas>
+
+      <div id="status" class="status" role="status" aria-live="polite" hidden></div>
+
+      <main>
+        <div id="palette-list" class="palette-list"></div>
+        <button id="palette-add" class="palette-add" type="button" aria-label="Adicionar paleta" title="Adicionar paleta">
+          <svg viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.8">
+            <path d="M8 3v10M3 8h10" stroke-linecap="round" />
+          </svg>
+        </button>
+      </main>
+
+      <input type="file" id="palette-import-input" accept=".json,application/json" multiple hidden />
+    </div>
+    <!-- ?v bumped on every palette.js/shared-core.js change -- see the
+         same note in index.html (CEF Code Cache serves stale script for
+         a whole AE session otherwise). -->
+    <script src="shared-core.js?v=0970c"></script>
+    <script src="palette.js?v=0949i"></script>
+  </body>
+</html>

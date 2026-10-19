@@ -1,0 +1,615 @@
+/* A CSS display rule beats the UA stylesheet's [hidden] { display: none },
+   so elements like .transform-rows (display: flex) stayed visible even
+   while marked hidden. This guard restores the expected behaviour. */
+[hidden] { display: none !important; }
+
+:root {
+  /* --panel is the one surface tone the user picks in appearance
+     settings; -deep / -raised / -soft are derived from it at runtime by
+     MF.color.applyPanelShades (shared-core.js) so every box tracks the
+     background. These literals are just the first-paint fallback for the
+     default #212121 and must stay in step with that derivation. */
+  --panel: #212121;
+  --panel-deep: #181818;
+  --panel-raised: #2a2a2a;
+  --panel-soft: #252525;
+  --line: rgba(255, 255, 255, 0.09);
+  --line-strong: rgba(255, 255, 255, 0.16);
+  --text: #f2f0f5;
+  --muted: #91919f;
+  --dim: #60616c;
+  --accent: #9f7aea;
+  --accent-bright: #c4a7ff;
+  --danger: #d36d84;
+  --shadow: rgba(0, 0, 0, 0.28);
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  width: 100%;
+  min-width: 280px;
+  height: 100%;
+  margin: 0;
+  overflow: hidden;
+  color: var(--text);
+  background: var(--panel);
+  font: 12px/1.4 Inter, "Segoe UI", Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  /* Without this, Chromium renders native widgets (scrollbars, spin
+     buttons) with their light-OS-theme look wherever no author style
+     covers them -- the light default scrollbar inside .fp-list, for
+     instance, reads as a stray white box against the dark panel. */
+  color-scheme: dark;
+}
+
+button, input { font: inherit; }
+button { cursor: pointer; }
+button:focus-visible, input:focus-visible { outline: 1px solid var(--accent-bright); outline-offset: 2px; }
+
+.app-shell { position: relative; display: flex; flex-direction: column; height: 100%; min-height: 0; overflow: hidden; }
+/* Single top row: page tabs + (version, settings). The "Mótion Film"
+   wordmark row above the tabs was removed to give the pages more height;
+   the row's bottom border lives here and the active tab's underline
+   overlaps it (negative margin on .page-tab). */
+.topbar { display: flex; flex: 0 0 auto; align-items: stretch; padding-top: 4px; border-bottom: 1px solid var(--line); }
+.topbar-tools { display: flex; flex-shrink: 0; align-items: center; gap: 6px; padding: 0 14px 0 8px; }
+.section-kicker { color: var(--accent-bright); font-size: 9px; font-weight: 700; letter-spacing: .16em; }
+h1, p { margin: 0; }
+/* Visible from every tab, next to the settings button. */
+#version-tag { padding: 2px 6px; border-radius: 9px; background: var(--panel-raised); color: var(--dim); font-size: 9px; font-weight: 650; line-height: 1.4; white-space: nowrap; }
+.icon-button { display: flex; align-items: center; justify-content: center; width: 28px; height: 28px; padding: 0; border: 1px solid var(--line); border-radius: 9px; color: var(--muted); background: var(--panel-raised); font-size: 13px; line-height: 1; letter-spacing: 1px; }
+.icon-button:hover { border-color: var(--accent); color: var(--text); }
+
+/* Page tabs: switching pages swaps the whole screen (only the active
+   .page is shown) rather than overlaying a side panel. */
+.page-tabs { display: flex; flex: 1 1 auto; min-width: 0; gap: 4px; padding: 0 0 0 14px; }
+.page-tab { display: flex; align-items: center; padding: 9px 9px; border: 0; border-bottom: 2px solid transparent; margin-bottom: -1px; background: transparent; color: var(--muted); font-size: 11px; font-weight: 650; transition: color .15s ease, border-color .15s ease; }
+.page-tab:hover { color: var(--text); }
+.page-tab.is-active { color: var(--accent-bright); border-bottom-color: var(--accent); }
+.page-tab-icon { flex-shrink: 0; }
+/* Only the active tab shows its label -- the rest stay icon-only.
+   Width itself is NOT animated here (deliberately no `transition` on
+   width/margin-left below) -- two CSS-only attempts at that (max-width,
+   then grid-template-columns 0fr->1fr) both looked janky in this CEP
+   build's Chromium, and grid-template-columns with fr units confirmed
+   live to not interpolate there at all (every sampled frame read the
+   exact same final value via getComputedStyle, no in-between steps).
+   The width instead snaps instantly, and initPageTabs' FLIP-technique
+   animateTabLayoutChange() (panel.js) smooths out the resulting icon
+   shift with a transform, which stays on the compositor regardless of
+   how old the rendering engine is. Only opacity is transitioned here --
+   that's the "name appearing" part of the effect, and opacity
+   transitions are reliably smooth everywhere. */
+.page-tab-label { display: inline-block; width: 0; margin-left: 0; opacity: 0; overflow: hidden; transition: opacity .15s ease; }
+.page-tab-label > span { display: block; white-space: nowrap; }
+.page-tab.is-active .page-tab-label { width: auto; margin-left: 6px; opacity: 1; transition: opacity .28s ease .1s; }
+
+/* .status used to be a permanently-reserved strip; it's now a transient
+   toast that overlays the page instead of taking up layout space, shown
+   only while there's a message to show (see setStatus in panel.js). */
+.status { position: fixed; left: 14px; right: 14px; z-index: 40; padding: 8px 14px; border-radius: 8px; border: 1px solid var(--line-strong); background: var(--panel-raised); color: var(--muted); font-size: 10.5px; box-shadow: 0 10px 26px var(--shadow); opacity: 0; transform: translateY(-6px); pointer-events: none; transition: opacity .18s ease, transform .18s ease; }
+.status.is-visible { opacity: 1; transform: translateY(0); }
+.status.is-success { color: var(--accent-bright); border-color: rgba(159,122,234,.45); }
+.status.is-error { color: #f3a3b5; border-color: rgba(211,109,132,.5); }
+
+/* Visibility is driven entirely by the `hidden` attribute (toggled in
+   panel.js, same pattern as els.textSection.hidden etc. elsewhere) --
+   not a class -- because the global `[hidden] { display: none
+   !important }` guard up top would otherwise beat a `.page.is-active {
+   display: flex }` class rule and keep an "active" page stuck hidden. */
+.page { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; }
+
+/* Kit tab: a category rail on the left (like the page-tabs above it, but
+   vertical) and a preview grid on the right, split by a draggable
+   .kit-resizer handle instead of a fixed border -- dragging it resizes
+   .kit-categories (an inline width set by initKitResizer in panel.js)
+   while .kit-presets, being flex:1, just fills whatever space is left.
+   Presets are built once from KIT_PRESETS in panel.js and just
+   re-filtered by category on click -- no rebuild needed when switching
+   categories. */
+.kit-layout { flex: 1 1 auto; min-height: 0; display: flex; }
+.kit-categories { flex: 0 0 auto; width: 92px; display: flex; flex-direction: column; gap: 2px; padding: 10px 6px; overflow-y: auto; }
+.kit-categories::-webkit-scrollbar, .kit-presets::-webkit-scrollbar { width: 5px; }
+.kit-categories::-webkit-scrollbar-thumb, .kit-presets::-webkit-scrollbar-thumb { background: var(--panel-raised); border-radius: 10px; }
+.kit-category { padding: 8px 8px; border: 0; border-radius: 7px; background: transparent; color: var(--muted); font-size: 10.5px; font-weight: 650; text-align: left; }
+.kit-category:hover { color: var(--text); background: var(--panel-raised); }
+.kit-category.is-active { color: var(--accent-bright); background: rgba(159,122,234,.16); }
+/* "+" at the bottom of the rail, appended after every category (see
+   renderKitCategories) -- a small divider above it and centered icon
+   (instead of left-aligned text like .kit-category) makes it read as
+   an action, not one more group in the list. */
+.kit-category-add { display: flex; align-items: center; justify-content: center; margin-top: 4px; padding: 7px 8px; border: 0; border-top: 1px solid var(--line); border-radius: 7px; background: transparent; color: var(--muted); }
+.kit-category-add:hover { color: var(--accent-bright); background: var(--panel-raised); }
+.kit-resizer { flex: 0 0 auto; width: 9px; margin: 0 -4px; position: relative; cursor: ew-resize; touch-action: none; z-index: 1; }
+.kit-resizer::after { content: ""; position: absolute; top: 0; bottom: 0; left: 4px; width: 1px; background: var(--line); transition: background .15s ease, width .15s ease, left .15s ease; }
+.kit-resizer:hover::after, .kit-resizer.is-dragging::after { width: 2px; left: 3.5px; background: var(--accent); }
+/* Fixed 128px columns, 2 per row at this panel's usual content width
+   (~263px: 2*128 + 8px gap ≈ 264px, confirmed live). Went 128 -> 205
+   (+60%, one column only) -> back to 128 -- the 205px version looked
+   too big in practice once real video content was actually in there;
+   the user asked for small enough that 2 fit side by side again, which
+   this exact width already did before that +60% pass. Not going back
+   to `repeat(2, 1fr)` (the pre-205px CSS) though: `auto-fill` at a
+   fixed 128px keeps a wider dock/floating panel gaining more same-sized
+   columns automatically, matching the same reasoning the 205px version
+   used, rather than 2 fixed columns stretching to fill whatever width
+   is available. */
+.kit-presets { flex: 1 1 auto; min-width: 0; min-height: 0; overflow-y: auto; padding: 10px; display: grid; grid-template-columns: repeat(auto-fill, 128px); gap: 8px; align-content: start; }
+.kit-preset-tile { display: flex; flex-direction: column; padding: 0; border: 1px solid var(--line); border-radius: 9px; background: var(--panel-raised); overflow: hidden; text-align: left; transition: border-color .15s ease; }
+.kit-preset-tile:hover { border-color: var(--accent); }
+/* aspect-ratio (not a fixed px height) so the preview scales with the
+   grid's own column width instead of looking cropped/stretched at
+   whatever size a real thumbnail/video ends up being. width:100% is
+   NOT redundant with the flex column parent's default align-items:
+   stretch here -- confirmed live that once .kit-swatch (the only
+   normal-flow child once real media has loaded, see :not(.no-thumb)
+   below -- thumb/video are position:absolute, out of flow) gets
+   display:none, aspect-ratio has no definite width to derive a height
+   from via stretch alone and the whole box collapses to 0x0, even
+   though it visually looks like it should stretch. An explicit
+   width:100% gives aspect-ratio a definite value regardless of
+   content/flex resolution order. */
+.kit-preset-preview { position: relative; width: 100%; aspect-ratio: 16 / 9; display: flex; align-items: center; justify-content: center; background: var(--panel-deep); overflow: hidden; }
+.kit-preset-label { padding: 6px 8px; color: var(--text); font-size: 10px; font-weight: 650; }
+.kit-empty { grid-column: 1 / -1; padding: 22px 10px; text-align: center; color: var(--muted); font-size: 10.5px; }
+
+/* Delete mode (armed by the footer's "Delete preset" button): a tile
+   being held turns its border red and shakes its label the whole time
+   it's held, as the wind-up before the 3-second timer actually deletes
+   it (see renderKitPresets in panel.js) -- released early just removes
+   this class again, nothing happens. */
+.kit-preset-tile.is-deleting-armed { border-color: var(--danger); }
+.kit-preset-tile.is-deleting-armed .kit-preset-label { color: var(--danger); animation: kitPresetShake .32s linear infinite; }
+@keyframes kitPresetShake {
+  0%, 100% { transform: translateX(0); }
+  20% { transform: translateX(-2px); }
+  40% { transform: translateX(2px); }
+  60% { transform: translateX(-1.5px); }
+  80% { transform: translateX(1.5px); }
+}
+
+.kit-swatch { width: 30px; height: 30px; border-radius: 6px; background: var(--accent-bright); }
+.kit-swatch.kit-anim-fade-in { animation: kitPreviewFadeIn 1.8s ease-in-out infinite; }
+@keyframes kitPreviewFadeIn {
+  0% { opacity: 0; }
+  35%, 75% { opacity: 1; }
+  100% { opacity: 0; }
+}
+
+/* Generic placeholder for any user-saved "Preset comp" (kind: "comp") --
+   a whole frame scaling/fading in, standing in for "a composition gets
+   inserted", same idea as kit-anim-fade-in is the generic placeholder
+   for user-saved "Preset layers". Outline only (not filled) since this
+   represents a comp/frame, not a solid shape. */
+.kit-swatch.kit-anim-comp-insert { width: 26px; height: 26px; background: none; border: 2px solid var(--accent-bright); border-radius: 4px; animation: kitPreviewCompInsert 1.8s ease-in-out infinite; }
+@keyframes kitPreviewCompInsert {
+  0% { opacity: 0; transform: scale(.7); }
+  35%, 75% { opacity: 1; transform: scale(1); }
+  100% { opacity: 0; transform: scale(.7); }
+}
+
+/* Real preview media, by convention: assets/kit-previews/<preset id>.jpg
+   (poster, shown at rest) + .mp4 (plays on hover, muted+looped). Both
+   sit on TOP of .kit-swatch (the CSS-animation placeholder), so a
+   preset without real media yet falls straight back to the placeholder
+   -- the .kit-preset-preview.no-thumb/no-video classes below get set
+   the moment the matching file 404s, no author bookkeeping needed
+   per preset. See HANDOFF.md for the exact filenames to drop in. */
+/* Thumb sits underneath (painted first in the DOM, see panel.js) and
+   stays fully opaque the whole time once loaded -- it is NOT faded out
+   while the video plays. Only the video's own opacity toggles with
+   .is-playing, painting over the poster when hovering and fading back
+   off it on mouseleave. This is deliberate, not an oversight: an
+   earlier version faded BOTH opacities in opposite directions at once
+   (poster out, video in, and back), which left a real window -- longer
+   on a heavier/slower-to-decode clip -- where neither was fully opaque,
+   showing the plain dark .kit-preset-preview background as a "goes
+   gray" flash on mouseleave. With the poster unconditionally opaque
+   underneath, that state can no longer exist: there's always something
+   fully visible under the video regardless of its own fade progress. */
+.kit-preset-thumb, .kit-preset-video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; opacity: 0; transition: opacity .15s ease; }
+.kit-preset-preview:not(.no-thumb) .kit-preset-thumb { opacity: 1; }
+.kit-preset-preview.is-playing:not(.no-video) .kit-preset-video { opacity: 1; }
+.kit-preset-preview:not(.no-thumb) .kit-swatch, .kit-preset-preview.is-playing:not(.no-video) .kit-swatch { display: none; }
+
+
+/* Icons tab: search box + a grid of results from Iconify (no key needed,
+   aggregates 150+ openly-licensed icon sets). Each tile's preview is an
+   <img> with a data: URI SVG built in panel.js from batched, disk-cached
+   icon data, with the panel's text colour baked in (an <img> can't
+   inherit currentColor). Import builds a white 512px SVG from the same
+   data and hands it to host.jsx to save + import into the project. */
+.icons-layout { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; padding: 10px 12px; gap: 8px; }
+.icons-search { width: 100%; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; color: var(--text); background: var(--panel-raised); font-size: 11px; }
+.icons-search:focus { outline: 0; border-color: var(--accent); }
+.icons-search::placeholder { color: var(--dim); }
+/* Native type="search" clear (X) button -- Chromium hides it until there
+   is text and renders it near-black on this dark field, so force it on
+   and tint it to something visible. */
+.icons-search::-webkit-search-cancel-button { -webkit-appearance: none; appearance: none; width: 12px; height: 12px; margin-left: 6px; cursor: pointer; background: var(--muted); -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath d='M2 2l8 8M10 2l-8 8' stroke='black' stroke-width='2' stroke-linecap='round'/%3E%3C/svg%3E") center / contain no-repeat; }
+.icons-search::-webkit-search-cancel-button:hover { background: var(--text); }
+.icons-hint { flex: 0 0 auto; margin: 0; color: var(--muted); font-size: 10px; line-height: 1.4; }
+.icons-grid { flex: 1 1 auto; min-height: 0; overflow-y: auto; display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; align-content: start; }
+.icons-tile { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 0; padding: 10px 2px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel-raised); cursor: pointer; transition: border-color .15s ease, opacity .15s ease; }
+.icons-tile:hover { border-color: var(--accent); }
+.icons-tile:disabled { opacity: .5; cursor: default; }
+.icons-tile img { width: 22px; height: 22px; pointer-events: none; }
+.icons-status { grid-column: 1 / -1; padding: 20px 10px; text-align: center; color: var(--muted); font-size: 10.5px; }
+.icons-note { grid-column: 1 / -1; margin: 0 0 2px; padding-bottom: 6px; border-bottom: 1px solid var(--line); color: var(--muted); font-size: 10px; font-style: italic; line-height: 1.4; }
+.icons-footer { padding: 10px 10px 4px; font-size: 10px; }
+
+/* Captions tab: a one-time local setup step (download whisper.cpp +
+   ffmpeg + a language model, all free/unlimited/offline -- see
+   host.jsx's getSelectedLayerAudioInfo/createCaptionLayers and
+   panel.js's initCaptionsTools for the actual pipeline), then a single
+   button that transcribes whichever layer is selected. */
+/* .captions-main is now an actual <main> -- same element the Home tab
+   uses -- so it picks up that tag's own scroll/padding rule (below,
+   "main { ... }") for free instead of duplicating it here, and its
+   .section children get the collapsible-box treatment automatically
+   (initCollapsibleSections matches "main > .section[data-section-id]").
+   .captions-layout itself no longer scrolls on its own -- it's just a
+   thin flex pass-through, exactly like .page is for every other tab --
+   so #captions-setup (shown instead of <main>, before the one-time
+   whisper/ffmpeg download finishes) carries its own padding/gap below
+   since it can't inherit it from the layout wrapper anymore. */
+.captions-layout { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; }
+#captions-setup { display: flex; flex-direction: column; gap: 10px; padding: 10px 12px; }
+.captions-section-body { display: flex; flex-direction: column; gap: 10px; }
+.captions-hint { margin: 0; color: var(--muted); font-size: 10px; line-height: 1.5; }
+.captions-hint--spaced { margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--line); }
+.captions-progress { display: flex; flex-direction: column; gap: 6px; margin-top: 2px; }
+.captions-progress-track { width: 100%; height: 5px; border-radius: 4px; background: var(--panel-raised); overflow: hidden; }
+.captions-progress-fill { height: 100%; width: 0%; background: var(--accent); border-radius: 4px; transition: width .2s ease; }
+/* The step/status line (what's happening right now -- downloading,
+   extracting audio, transcribing...) needs to read at a glance, unlike
+   the static instructional .captions-hint paragraphs around it, so it
+   gets the theme's accent colour, a larger size, and a spinner. */
+.captions-step { display: flex; align-items: center; gap: 8px; margin: 10px 0 0; }
+.captions-step-text { color: var(--accent-bright); font-size: 12px; font-weight: 650; line-height: 1.4; }
+.captions-spinner { flex: 0 0 auto; width: 13px; height: 13px; border-radius: 50%; border: 2px solid var(--panel-raised); border-top-color: var(--accent-bright); animation: captionsSpin .7s linear infinite; }
+@keyframes captionsSpin { to { transform: rotate(360deg); } }
+/* Same thin-scrollbar look as `main` on the Home/Text pages, for visual
+   consistency across every custom-scrolling area in the panel. */
+.icons-grid::-webkit-scrollbar { width: 5px; }
+.icons-grid::-webkit-scrollbar-thumb { background: var(--panel-raised); border-radius: 10px; }
+
+main { flex: 1 1 auto; min-height: 0; overflow-y: auto; padding: 10px 12px 4px; }
+main::-webkit-scrollbar { width: 5px; }
+main::-webkit-scrollbar-thumb { background: var(--panel-raised); border-radius: 10px; }
+
+/* Each .section is a self-contained "folder": .section-tab is the
+   clickable label sitting on top (rounded top corners only),
+   .section-body is the card underneath it (rounded bottom corners),
+   sharing a border colour so the seam between them reads as one
+   continuous outline when expanded.
+
+   A diagonally-notched version of the tab (kicker in a manila-folder-
+   style cut corner, title/controls in a separate flat bar) was tried
+   here across three attempts -- two with CSS clip-path, one with an
+   inline SVG path for the notch shape -- and reverted: all three looked
+   right in a standalone browser but wrong inside the actual CEP panel in
+   After Effects. Back to this plain rounded-tab version, which is the
+   one that was actually confirmed working there. */
+.section { margin-bottom: 10px; border-radius: 12px; box-shadow: 0 4px 14px rgba(0,0,0,.22); }
+.section:last-child { margin-bottom: 0; }
+.section.is-collapsed { box-shadow: none; }
+.section-heading { display: flex; flex: 1; min-width: 0; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.section-heading.compact { align-items: center; }
+
+.section-tab { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 11px 14px; border: 1px solid var(--line-strong); border-radius: 12px 12px 0 0; background: var(--panel-raised); cursor: pointer; user-select: none; transition: border-color .15s ease; }
+.section-tab:hover { border-color: var(--accent); }
+.section-tab:focus-visible { outline: 1px solid var(--accent-bright); outline-offset: -2px; }
+.section.is-collapsed .section-tab { border-radius: 12px; }
+.section-chevron { flex-shrink: 0; color: var(--dim); transition: transform .18s ease; }
+.section.is-collapsed .section-chevron { transform: rotate(-90deg); }
+
+.section-body { overflow: hidden; padding: 15px 14px; border: 1px solid var(--line); border-top: 0; border-radius: 0 0 12px 12px; background: var(--panel-raised); transition: max-height .22s ease, padding .22s ease, border-color .18s ease, opacity .18s ease; }
+.section.is-collapsed .section-body { padding-top: 0; padding-bottom: 0; border-width: 0; border-color: transparent; opacity: 0; }
+.section.no-transition .section-body { transition: none; }
+
+.primary-button, .secondary-button {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  color: var(--text);
+  background: var(--panel-raised);
+  font-size: 10px;
+  font-weight: 700;
+  transition: transform .16s ease, filter .16s ease, background .16s ease, border-color .16s ease;
+}
+.primary-button { padding: 9px 11px; white-space: nowrap; }
+.primary-button:hover, .secondary-button:hover { border-color: var(--accent); filter: brightness(1.1); transform: translateY(-1px); }
+
+.curve-editor { position: relative; height: 224px; margin-top: 15px; overflow: hidden; border: 1px solid var(--line); border-radius: 12px; background: var(--panel-deep); touch-action: none; cursor: crosshair; }
+#curve-canvas { display: block; width: 100%; height: 100%; }
+.curve-axis { position: absolute; color: var(--dim); font-size: 8px; font-weight: 700; letter-spacing: .13em; pointer-events: none; }
+.axis-x { right: 9px; bottom: 7px; }
+/* First thing in the Curves card: no top margin, so the space above it
+   is just .section-body's 15px padding -- same as below the action row. */
+.motion-row { display: flex; align-items: flex-start; gap: 10px; }
+.motion-row .curve-editor { flex: 1 1 auto; min-width: 0; margin-top: 0; height: auto; }
+.anchor-panel { display: flex; flex-direction: column; flex: 0 0 auto; padding: 9px; border: 1px solid var(--line); border-radius: 12px; background: var(--panel-deep); }
+.anchor-grid { flex: 1; display: grid; grid-template-columns: repeat(3, 1fr); grid-template-rows: repeat(3, 1fr); gap: 0; }
+/* The button covers its entire cell so the whole third is clickable,
+   while only the small dot is drawn. */
+.anchor-dot { display: flex; align-items: center; justify-content: center; width: 100%; height: 100%; min-width: 0; min-height: 0; padding: 0; border: 0; border-radius: 6px; background: transparent; }
+.anchor-dot::before { content: ""; display: block; width: 10px; height: 10px; border: 1.5px solid var(--line-strong); border-radius: 50%; background: var(--panel-raised); transition: border-color .12s ease, background .12s ease, transform .12s ease; }
+.anchor-dot:hover::before { border-color: var(--accent-bright); background: rgba(159,122,234,.18); transform: scale(1.2); }
+.anchor-dot:active::before { transform: scale(.85); }
+.velocity-controls { display: grid; grid-template-columns: auto 1fr 1fr auto; align-items: center; gap: 9px; margin-top: 14px; }
+.velocity-input { display: flex; align-items: center; gap: 5px; min-width: 0; padding: 7px 8px; border: 1px solid var(--line); border-radius: 7px; background: var(--panel-raised); }
+.velocity-input span { color: var(--dim); font-size: 8px; font-weight: 800; letter-spacing: .08em; }
+.velocity-input input { width: 34px; min-width: 0; border: 0; color: var(--text); background: transparent; font-size: 12px; text-align: right; }
+.velocity-input input:focus { outline: 0; }
+.velocity-controls input[type="range"] { width: 100%; accent-color: var(--accent); }
+
+.footer-actions { display: flex; align-items: stretch; flex: 1; min-width: 0; gap: 6px; }
+/* height:100% + min-height keeps the buttons at their old 38px when the
+   bar is at its natural height, and lets them grow to fill it once the
+   bar has been dragged taller (see .footer-resizer / initFooterResizer). */
+.footer-button { display: flex; align-items: center; justify-content: center; flex: 1; min-width: 0; height: 100%; min-height: 38px; padding: 0; border: 1px solid var(--line); border-radius: 6px; color: var(--muted); background: var(--panel-raised); transition: border-color .15s ease, color .15s ease; }
+.footer-button:hover { border-color: var(--accent); color: var(--accent-bright); }
+.footer-button:active { transform: scale(.97); }
+.footer-button svg { display: block; }
+/* Kit's footer buttons (Preset layers/comp, Export/Delete preset) --
+   originally had a text label next to the icon, but with 4 of them
+   side by side the labels wrapped and felt cramped (user feedback,
+   screenshot). Icon-only now, same as Home's footer; the label text
+   moved to a custom delayed tooltip (see .footer-tooltip below and
+   initFooterTooltips in panel.js) instead of disappearing outright. */
+.footer-button-labeled svg { flex-shrink: 0; }
+.footer-button.danger:hover { border-color: var(--danger); color: #eaa0b1; }
+
+/* Custom hover tooltip: native `title` pops up instantly with no
+   styling control. This one waits for the mouse to sit still over the
+   trigger for ~1s (initFooterTooltips in panel.js) before fading in, a
+   small dark bubble above the button -- less abrupt, and themed to
+   match the rest of the panel instead of the OS's plain tooltip box. */
+.footer-tooltip {
+  position: fixed;
+  z-index: 60;
+  max-width: 220px;
+  padding: 6px 9px;
+  border-radius: 6px;
+  border: 1px solid var(--line);
+  background: var(--panel-raised);
+  color: var(--text);
+  font-size: 10.5px;
+  font-weight: 500;
+  line-height: 1.4;
+  text-align: left;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, .35);
+  pointer-events: none;
+  opacity: 0;
+  transform: translateY(2px);
+  transition: opacity .12s ease, transform .12s ease;
+}
+.footer-tooltip.is-visible { opacity: 1; transform: translateY(0); }
+
+.action-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin-top: 12px; }
+.action-button { display: flex; align-items: center; justify-content: center; height: 34px; padding: 0; border: 1px solid var(--line); border-radius: 8px; color: var(--muted); background: var(--panel-raised); transition: border-color .15s ease, color .15s ease, transform .15s ease; }
+.action-button:hover { border-color: var(--accent); color: var(--accent-bright); transform: translateY(-1px); }
+.action-button:active { transform: translateY(0); }
+.action-button svg { display: block; }
+.action-button:disabled { color: var(--dim); cursor: default; opacity: .5; }
+.action-button:disabled:hover { border-color: var(--line); color: var(--dim); transform: none; }
+
+.link-button { padding: 3px 5px; border: 0; border-radius: 4px; color: var(--accent-bright); background: transparent; font-size: 10px; font-weight: 650; }
+.link-button:hover { background: rgba(159,122,234,.16); }
+.empty-state { width: 100%; margin-top: 11px; padding: 13px; border: 1px dashed var(--line-strong); border-radius: 8px; color: var(--muted); font-size: 10px; text-align: center; }
+
+.transform-rows { display: flex; flex-direction: column; gap: 5px; margin-top: 12px; }
+.t-row { display: grid; grid-template-columns: 20px minmax(0, 74px) 16px minmax(0, 1fr); align-items: center; gap: 5px; }
+.t-row > .t-fields, .t-row > .t-label { color: var(--muted); font-size: 10px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.t-stopwatch { display: flex; align-items: center; justify-content: center; width: 20px; height: 20px; padding: 0; border: 1px solid transparent; border-radius: 5px; color: var(--dim); background: transparent; }
+.t-stopwatch:hover { color: var(--accent-bright); border-color: rgba(159,122,234,.45); }
+.t-stopwatch.is-animated { color: var(--accent-bright); border-color: var(--accent); background: rgba(159,122,234,.16); }
+.t-stopwatch.is-keyed { background: rgba(159,122,234,.34); }
+.t-link { display: flex; align-items: center; justify-content: center; width: 16px; height: 16px; padding: 0; border: 0; border-radius: 4px; color: var(--dim); background: transparent; }
+.t-link:hover { color: var(--accent-bright); }
+.t-link.is-on { color: var(--accent-bright); }
+.t-link-spacer { display: block; width: 16px; }
+.t-fields { display: flex; min-width: 0; gap: 6px; }
+.t-field { position: relative; display: flex; align-items: center; flex: 0 0 auto; width: 76px; border: 1px solid var(--line); border-radius: 6px; background: var(--panel-raised); }
+.t-field:hover { border-color: rgba(159,122,234,.4); }
+.t-field:focus-within { border-color: var(--accent); }
+.t-input { width: 100%; min-width: 0; padding: 6px 2px 6px 6px; border: 0; border-radius: 6px; color: var(--accent-bright); background: transparent; font-size: 10px; cursor: ew-resize; user-select: none; }
+.t-input:focus { outline: 0; }
+.t-input.is-scrubbing { color: var(--text); }
+.t-input.is-typing { color: var(--text); cursor: text; user-select: text; }
+.t-suffix { padding-right: 6px; color: var(--dim); font-size: 9px; pointer-events: none; }
+
+.fp-popover { position: fixed; z-index: 60; width: 220px; padding: 8px; border: 1px solid var(--line-strong); border-radius: 10px; background: var(--panel-soft); box-shadow: 0 14px 36px var(--shadow); }
+.fp-search { width: 100%; margin-bottom: 6px; padding: 6px 8px; border: 1px solid var(--line); border-radius: 6px; color: var(--text); background: var(--panel-raised); font-size: 11px; }
+.fp-search:focus { outline: 0; border-color: var(--accent); }
+.fp-list { display: flex; flex-direction: column; gap: 1px; max-height: 200px; overflow-y: auto; }
+.fp-list::-webkit-scrollbar { width: 5px; }
+.fp-list::-webkit-scrollbar-track { background: transparent; }
+.fp-list::-webkit-scrollbar-thumb { background: var(--panel-raised); border-radius: 10px; }
+.fp-list::-webkit-scrollbar-thumb:hover { background: var(--line-strong); }
+.fp-item { display: flex; align-items: center; gap: 7px; padding: 6px 8px; border: 0; border-radius: 5px; color: var(--text); background: transparent; font-size: 11px; text-align: left; }
+.fp-item:hover { color: var(--accent-bright); background: rgba(159,122,234,.16); }
+.fp-item-dot { flex-shrink: 0; width: 4px; height: 4px; border-radius: 50%; background: var(--accent-bright); visibility: hidden; }
+.fp-item.is-selected .fp-item-dot { visibility: visible; }
+.fp-empty { padding: 8px; color: var(--muted); font-size: 10px; text-align: center; }
+.fp-item-remove { margin-left: auto; padding: 0 3px; color: var(--muted); font-size: 12px; line-height: 1; }
+.fp-item-remove:hover { color: #f3a3b5; }
+.option-picker-add { display: flex; gap: 4px; margin-top: 6px; padding-top: 6px; border-top: 1px solid var(--line); }
+.option-picker-add-input { flex: 1 1 auto; min-width: 0; padding: 5px 7px; border: 1px solid var(--line); border-radius: 6px; color: var(--text); background: var(--panel-deep); font-size: 10px; }
+.option-picker-add-input:focus { outline: 0; border-color: var(--accent); }
+.option-picker-add-button { flex: 0 0 auto; padding: 5px 8px; border: 0; border-radius: 6px; color: var(--accent-bright); background: rgba(159,122,234,.16); font-size: 10px; font-weight: 650; }
+.option-picker-add-button:hover { filter: brightness(1.15); }
+.option-picker-add--standalone { margin-top: 0; padding-top: 0; border-top: 0; }
+
+.t-color { width: 26px; height: 26px; flex: 0 0 auto; padding: 0; border: 1px solid var(--line-strong); border-radius: 5px; cursor: pointer; }
+.t-color:hover { border-color: var(--accent); }
+
+.cp-popover { position: fixed; z-index: 60; width: 208px; padding: 9px; border: 1px solid var(--line-strong); border-radius: 10px; background: var(--panel-soft); box-shadow: 0 14px 36px var(--shadow); }
+.cp-top { display: flex; gap: 8px; }
+.cp-sv { position: relative; flex: 1; height: 132px; border-radius: 6px; cursor: crosshair; touch-action: none; }
+.cp-sv-dot { position: absolute; width: 11px; height: 11px; margin: -5.5px 0 0 -5.5px; border: 2px solid #fff; border-radius: 50%; box-shadow: 0 0 0 1px rgba(0,0,0,.5); pointer-events: none; }
+.cp-hue { position: relative; width: 16px; height: 132px; border-radius: 5px; cursor: ns-resize; touch-action: none;
+  background: linear-gradient(to bottom, #f00 0%, #ff0 17%, #0f0 33%, #0ff 50%, #00f 67%, #f0f 83%, #f00 100%); }
+.cp-hue-dot { position: absolute; left: -2px; right: -2px; height: 4px; margin-top: -2px; border: 1.5px solid #fff; border-radius: 3px; box-shadow: 0 0 0 1px rgba(0,0,0,.5); pointer-events: none; }
+.cp-bottom { display: flex; align-items: center; gap: 6px; margin-top: 9px; }
+.cp-drop { display: flex; align-items: center; justify-content: center; width: 26px; height: 26px; flex-shrink: 0; padding: 0; border: 1px solid var(--line); border-radius: 6px; color: var(--muted); background: var(--panel-raised); }
+.cp-drop:hover { border-color: var(--accent); color: var(--accent-bright); }
+.cp-hex-wrap { display: flex; align-items: center; flex: 1; min-width: 0; height: 26px; padding: 0 7px; border: 1px solid var(--line); border-radius: 6px; background: var(--panel-raised); }
+.cp-hex-wrap span { color: var(--dim); font-size: 10px; }
+.cp-hex { width: 100%; min-width: 0; border: 0; color: var(--text); background: transparent; font-family: monospace; font-size: 11px; letter-spacing: .04em; text-transform: uppercase; }
+.cp-hex:focus { outline: 0; }
+.cp-preview { width: 26px; height: 26px; flex-shrink: 0; border: 1px solid var(--line-strong); border-radius: 6px; }
+
+.settings-popover { position: absolute; z-index: 3; top: 44px; right: 14px; width: 190px; padding: 12px; border: 1px solid var(--line-strong); border-radius: 10px; background: var(--panel-raised); box-shadow: 0 12px 32px var(--shadow); }
+.popover-heading { display: flex; align-items: center; justify-content: space-between; margin-bottom: 11px; color: var(--text); font-size: 11px; font-weight: 700; }
+.popover-heading button { border: 0; color: var(--muted); background: transparent; font-size: 17px; line-height: 1; }
+.settings-popover label + label { margin-top: 9px; }
+/* Accent and Panel side by side -- keeps the popover short. */
+.settings-colors { display: flex; gap: 18px; }
+.settings-colors label + label { margin-top: 0; }
+.settings-popover input[type="color"] { width: 100%; height: 24px; padding: 0; border: 1px solid var(--line); border-radius: 5px; background: transparent; }
+.color-with-picker { display: flex; align-items: center; gap: 6px; margin-top: 5px; }
+.color-with-picker .t-color { width: 28px; height: 28px; }
+.settings-divider { margin: 12px 0 10px; border-top: 1px solid var(--line); }
+.settings-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; color: var(--text); font-size: 10.5px; line-height: 1.35; }
+.settings-note { margin-top: 7px; color: var(--muted); font-size: 9.5px; line-height: 1.45; }
+.settings-number-input { flex-shrink: 0; width: 58px; padding: 4px 6px; border: 1px solid var(--line); border-radius: 6px; color: var(--text); background: var(--panel-soft); font-size: 10.5px; text-align: right; }
+/* Pill toggle -- same look as .effects-master-toggle, reused for the
+   settings popover's on/off switches. */
+.mf-switch { position: relative; flex-shrink: 0; width: 34px; height: 19px; padding: 2px; border: 1px solid var(--line-strong); border-radius: 10px; background: var(--panel-deep); transition: background .15s ease, border-color .15s ease; }
+.mf-switch-thumb { display: block; width: 13px; height: 13px; border-radius: 50%; background: var(--muted); transition: transform .18s ease, background .15s ease; }
+.mf-switch[aria-checked="true"] { background: var(--accent); border-color: var(--accent); }
+.mf-switch[aria-checked="true"] .mf-switch-thumb { transform: translateX(15px); background: var(--panel-deep); }
+
+/* Caption Settings modal -- a real full-panel overlay (dims + blurs
+   everything behind it), unlike .settings-popover/.fp-popover which are
+   small anchored popovers. Opened from the Captions tab's "Transcribe
+   Selected Layer" button instead of running immediately. */
+.modal-overlay { position: absolute; inset: 0; z-index: 50; display: flex; align-items: center; justify-content: center; padding: 16px; background: rgba(0,0,0,.45); backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px); }
+.modal-panel { width: 100%; max-width: 320px; max-height: 100%; overflow-y: auto; padding: 14px; border: 1px solid var(--line-strong); border-radius: 12px; background: var(--panel-raised); box-shadow: 0 20px 48px var(--shadow); }
+.modal-label { display: block; margin: 12px 0 6px; color: var(--muted); font-size: 10px; font-weight: 650; text-transform: uppercase; letter-spacing: .04em; }
+.modal-label:first-of-type { margin-top: 0; }
+.modal-number-input { width: 100%; padding: 7px 9px; border: 1px solid var(--line); border-radius: 7px; color: var(--text); background: var(--panel-soft); font-size: 11px; }
+.modal-number-input:disabled { opacity: .45; }
+.modal-picker-button { width: 100%; padding: 8px 10px; border: 1px solid var(--line); border-radius: 7px; color: var(--text); background: var(--panel-soft); font-size: 11px; font-weight: 650; text-align: left; }
+.modal-picker-button:hover { border-color: var(--accent); }
+#captions-settings-confirm { width: 100%; margin-top: 16px; }
+
+.button-row { display: flex; gap: 8px; }
+.button-row .secondary-button { flex: 1 1 0; min-width: 0; margin-top: 0; }
+
+#style-presets-manage-overlay .button-row { margin-bottom: 11px; }
+
+.style-presets-list { display: flex; flex-direction: column; gap: 6px; max-height: 320px; overflow-y: auto; }
+.style-presets-list::-webkit-scrollbar { width: 5px; }
+.style-presets-list::-webkit-scrollbar-thumb { background: var(--panel-raised); border-radius: 10px; }
+.style-preset-row { display: flex; align-items: center; gap: 6px; padding: 8px 9px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel-soft); }
+.style-preset-row-name { flex: 1 1 auto; min-width: 0; color: var(--text); font-size: 11px; font-weight: 650; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.style-preset-row-input { flex: 1 1 auto; min-width: 0; padding: 5px 7px; border: 1px solid var(--line); border-radius: 6px; color: var(--text); background: var(--panel-deep); font-size: 11px; }
+.style-preset-row-input:focus { outline: 0; border-color: var(--accent); }
+.style-preset-row button { flex: 0 0 auto; padding: 5px 8px; border: 0; border-radius: 6px; color: var(--muted); background: transparent; font-size: 10px; font-weight: 650; }
+.style-preset-row button:hover { color: var(--accent-bright); background: rgba(159,122,234,.16); }
+.style-preset-row .style-preset-row-delete:hover { color: #f3a3b5; background: rgba(211,109,132,.16); }
+.style-presets-empty { padding: 20px 10px; text-align: center; color: var(--muted); font-size: 10.5px; }
+
+/* Kit preset render overlay (#kit-render-overlay, see index.html) --
+   no .modal-panel here, just the mascot clip. The <video> itself
+   (.kit-render-mascot-source) stays invisible; #kit-render-mascot is a
+   <canvas> that playKitMascotConfirmation (panel.js) draws real,
+   per-pixel alpha-keyed frames onto -- NOT a mix-blend-mode trick.
+   Confirmed live, twice, that mix-blend-mode simply isn't compositing
+   at all in this CEP build's Chromium (not video-specific, not
+   backdrop-filter-specific -- a plain white test div with
+   mix-blend-mode: difference rendered as flat unblended white both
+   inside this overlay and completely on its own elsewhere in the
+   page), so no CSS property here is depended on to make the clip's
+   black background disappear -- the canvas's pixels are genuinely
+   transparent where the source was black. pointer-events: none on
+   both -- this is a status indicator, not something to click.
+
+   500px, no max-width cap -- the source clip has real empty margin
+   baked into the frame around the mascot subject itself (not something
+   CSS can trim), so making the whole frame bigger is the only way to
+   make the SUBJECT read as bigger. The user explicitly said overflow
+   past the panel's own ~407px width and getting clipped by
+   .app-shell's overflow:hidden is fine here, so this is deliberately
+   uncapped rather than fit-to-panel. */
+.kit-render-mascot-source { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
+.kit-render-mascot { width: 500px; height: auto; pointer-events: none; }
+
+/* Shown during phase 1 (see the HTML comment on #kit-render-overlay) --
+   same look as .captions-spinner (a thin ring, accent-coloured top arc,
+   reusing the existing @keyframes captionsSpin), just a bigger, centred
+   version with a text label underneath, since this one stands alone as
+   the overlay's only content instead of sitting inline next to text. */
+.kit-render-spinner-wrap { display: flex; flex-direction: column; align-items: center; gap: 12px; }
+.kit-render-spinner { width: 40px; height: 40px; border-radius: 50%; border: 3px solid var(--panel-raised); border-top-color: var(--accent-bright); animation: captionsSpin .7s linear infinite; }
+.kit-render-spinner-text { color: var(--accent-bright); font-size: 11px; font-weight: 650; }
+
+/* Effects Manager tab -- one row per distinct effect (matchName) found
+   across every currently selected layer, union not intersection. Row
+   layout modeled on .style-preset-row above (checkbox/name/count/
+   delete) for visual consistency across the extension's list-style
+   panels, in our own accent colour rather than the green reference. */
+.effects-manager-summary { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 11px; padding-bottom: 11px; border-bottom: 1px solid var(--line); }
+.effects-manager-total { color: var(--accent-bright); font-size: 10px; font-weight: 700; letter-spacing: .08em; }
+
+.effects-master-toggle { position: relative; flex-shrink: 0; width: 34px; height: 19px; padding: 2px; border: 1px solid var(--line-strong); border-radius: 10px; background: var(--panel-deep); transition: background .15s ease, border-color .15s ease; }
+.effects-master-toggle-thumb { display: block; width: 13px; height: 13px; border-radius: 50%; background: var(--muted); transition: transform .18s ease, background .15s ease; }
+.effects-master-toggle[aria-checked="true"] { background: var(--accent); border-color: var(--accent); }
+.effects-master-toggle[aria-checked="true"] .effects-master-toggle-thumb { transform: translateX(15px); background: var(--panel-deep); }
+
+.effects-manager-list { display: flex; flex-direction: column; gap: 6px; max-height: 420px; overflow-y: auto; }
+.effects-manager-list::-webkit-scrollbar { width: 5px; }
+.effects-manager-list::-webkit-scrollbar-thumb { background: var(--panel-raised); border-radius: 10px; }
+.effects-manager-row { display: flex; align-items: center; gap: 9px; padding: 8px 9px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel-soft); }
+.effects-row-checkbox { display: flex; align-items: center; justify-content: center; flex-shrink: 0; width: 18px; height: 18px; padding: 0; border: 1px solid var(--line-strong); border-radius: 5px; background: var(--panel-deep); color: transparent; transition: background .15s ease, border-color .15s ease, color .15s ease; }
+.effects-row-checkbox svg { display: block; }
+.effects-row-checkbox.is-checked { border-color: var(--accent); background: var(--accent); color: var(--panel-deep); }
+.effects-row-checkbox.is-mixed { border-color: var(--accent); background: var(--panel-raised); color: var(--accent-bright); }
+.effects-row-name { flex: 1 1 auto; min-width: 0; color: var(--text); font-size: 11px; font-weight: 650; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.effects-row-count { flex-shrink: 0; color: var(--dim); font-size: 10px; font-weight: 650; }
+.effects-row-delete { display: flex; align-items: center; justify-content: center; flex-shrink: 0; width: 24px; height: 24px; padding: 0; border: 0; border-radius: 6px; color: var(--muted); background: transparent; transition: background .15s ease, color .15s ease; }
+.effects-row-delete:hover { color: #f3a3b5; background: rgba(211,109,132,.16); }
+
+.segmented { display: flex; border: 1px solid var(--line); border-radius: 7px; overflow: hidden; }
+.segmented-option { flex: 1 1 0; padding: 7px 4px; border: 0; border-right: 1px solid var(--line); color: var(--muted); background: var(--panel-soft); font-size: 10px; font-weight: 650; text-align: center; }
+.segmented-option:last-child { border-right: 0; }
+.segmented-option.is-active { color: var(--accent-bright); background: rgba(159,122,234,.16); }
+.segmented-option:hover:not(.is-active) { color: var(--text); }
+.secondary-button { width: 100%; margin-top: 12px; padding: 7px; color: var(--text); background: var(--panel-soft); }
+/* Icon + short label side by side, centered as a unit -- Captions tab
+   buttons (Transcribe/Import SRT/Save Preset/Manage/Change Style),
+   paired with the long explanatory text moving to a data-tooltip
+   instead of a permanent paragraph (see initFooterTooltips, built for
+   the Kit tab's footer and reused here as-is -- it wires up ANY
+   [data-tooltip] element on the page, not just Kit's). */
+.secondary-button-icon { display: flex; align-items: center; justify-content: center; gap: 7px; }
+.secondary-button-icon svg { flex-shrink: 0; }
+
+/* The action bar's height is user-adjustable: drag the .footer-resizer
+   handle sitting on its top edge (Home + Kit share one --footer-h, set
+   by initFooterResizer / persisted to localStorage). Unset -> `auto`,
+   i.e. the original content height. main / .kit-layout are flex:1 so
+   they give back whatever space the bar takes. */
+.footer { position: relative; display: flex; align-items: stretch; flex: 0 0 auto; height: var(--footer-h, auto); padding: 8px 14px; border-top: 1px solid var(--line); background: var(--panel-deep); color: var(--dim); font-size: 9px; }
+.footer-resizer { position: absolute; left: 0; right: 0; top: -4px; height: 9px; cursor: ns-resize; touch-action: none; z-index: 2; }
+.footer-resizer::after { content: ""; position: absolute; left: 14px; right: 14px; top: 3.5px; height: 2px; border-radius: 2px; background: transparent; transition: background .15s ease; }
+.footer-resizer:hover::after, .footer-resizer:focus-visible::after, .footer-resizer.is-dragging::after { background: var(--accent); }
+.footer-resizer:focus-visible { outline: none; }
+
+@media (max-width: 320px) {
+  .page-tabs { padding-left: 10px; }
+  .topbar-tools { padding-right: 10px; }
+  main { padding-left: 8px; padding-right: 8px; }
+  .section-tab, .section-body { padding-left: 10px; padding-right: 10px; }
+  .velocity-controls { gap: 6px; }
+  .velocity-input input { width: 26px; }
+  .t-row { grid-template-columns: 18px minmax(0, 62px) 14px minmax(0, 1fr); gap: 4px; }
+  .t-row > .t-fields { margin-left: 5px; gap: 4px; }
+  .t-field { width: 60px; }
+  .motion-row { flex-direction: column; align-items: center; }
+  .motion-row .curve-editor { width: 100%; }
+  .anchor-panel { width: 100%; }
+}

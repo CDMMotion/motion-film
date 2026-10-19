@@ -1,0 +1,94 @@
+/* "Mótion Figma Layers" satellite window -- layout only. Tokens and the
+   shared .status / .footer-button styles come from styles.css. */
+
+#paint-keepalive {
+  position: fixed;
+  left: 0;
+  bottom: 0;
+  width: 8px;
+  height: 8px;
+  opacity: 0.02;
+  pointer-events: none;
+  z-index: 0;
+  will-change: transform;
+  transform: translateZ(0);
+}
+
+.mfl-main {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 12px;
+  background: var(--panel-deep);
+}
+
+.mfl-actions {
+  flex: 1 1 auto;
+  min-height: 52px;
+  display: flex;
+  gap: 6px;
+}
+
+.mfl-button {
+  flex-direction: column;
+  gap: 6px;
+  font-size: 10px;
+  letter-spacing: 0.01em;
+}
+.mfl-button span { line-height: 1; }
+.mfl-button.is-busy { border-color: var(--accent); color: var(--accent-bright); pointer-events: none; }
+.mfl-button.is-busy svg { animation: mfl-pulse 1s ease-in-out infinite; }
+@keyframes mfl-pulse { 50% { opacity: 0.35; } }
+
+.mfl-row {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.mfl-label { color: var(--dim); font-size: 9.5px; letter-spacing: 0.04em; }
+
+.mfl-seg {
+  display: inline-flex;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  overflow: hidden;
+  background: var(--panel-raised);
+}
+.mfl-seg button {
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  padding: 3px 9px;
+  font: inherit;
+  font-size: 9.5px;
+  cursor: pointer;
+}
+.mfl-seg button + button { border-left: 1px solid var(--line); }
+.mfl-seg button:hover { color: var(--accent-bright); }
+.mfl-seg button.is-on { background: var(--accent); color: #fff; }
+
+.mfl-conn {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  color: var(--dim);
+  font-size: 9.5px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.mfl-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--danger);
+  flex: 0 0 auto;
+}
+.mfl-conn.is-on { color: var(--muted); }
+.mfl-conn.is-on .mfl-dot { background: #3dd68c; box-shadow: 0 0 0 3px rgba(61, 214, 140, 0.16); }
+.mfl-conn.is-wait .mfl-dot { background: #e8b44c; }

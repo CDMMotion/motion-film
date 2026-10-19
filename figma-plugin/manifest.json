@@ -1,0 +1,14 @@
+{
+  "name": "Mótion Figma Layers",
+  "id": "motion-figma-layers-cdm",
+  "api": "1.0.0",
+  "main": "code.js",
+  "ui": "ui.html",
+  "editorType": ["figma"],
+  "documentAccess": "dynamic-page",
+  "networkAccess": {
+    "allowedDomains": ["http://localhost:47811"],
+    "devAllowedDomains": ["http://localhost:47811"],
+    "reasoning": "Envia as camadas selecionadas para a janela Mótion Figma Layers do After Effects, que roda um servidor local nesta mesma máquina (nada sai do computador)."
+  }
+}
