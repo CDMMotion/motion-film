@@ -5149,3 +5149,20 @@ centralizado. Testado com Figma simulado + AE: sub-frames em (20,160) e
 (230,110) exatos numa comp 400x320, masks de raio 12/30/24, e alinhados
 ao quadro centralizado numa comp 1920x1080.
 
+### Mótion Figma Layers: vetores "invisíveis" (máscara do Figma exportada vazia)
+
+Relatado: ícones importados mostravam o traçado no AE mas não renderizavam.
+Inspecionado no projeto do usuário (comp "Web"): as camadas tinham track
+matte numa camada "◩ LAzYA70F3Ea" -- a máscara do Figma -- que chegou como
+PNG de 1x1 px. O Figma exporta VAZIO um nó com isMask. Agora (code.js):
+- `exportPng` exporta uma cópia temporária sem isMask, solta na página com
+  a mesma transform absoluta (fora de auto layout), e apaga a cópia;
+- `maskDesc`: máscara VECTOR = só o contorno (preenchimento opaco);
+  ALPHA/LUMINANCE com cor sólida = shape; imagem/gradiente/grupo = PNG;
+  PNG que ainda vier vazio cai pro contorno (`solidMatte`) com aviso.
+- A janela grava o último payload em Documentos/Mótion Figma Layers/
+  ultima-importacao.json (sem os PNGs) para diagnosticar importações.
+Testado com Figma simulado (nó-máscara exporta 1x1 como o real): matte
+29x29 correta, e o caminho do contorno; render no AE mostra o ícone (o
+import antigo do usuário renderiza vazio).
+

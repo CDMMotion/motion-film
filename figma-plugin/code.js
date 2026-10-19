@@ -228,10 +228,32 @@ function exportRegion(node, dims, scale, originX, originY) {
   return { x: ref.x + ref.width / 2 - wPt / 2 - (originX || 0), y: ref.y + ref.height / 2 - hPt / 2 - (originY || 0), w: wPt, h: hPt };
 }
 
+// O Figma exporta VAZIO (PNG 1x1) um nó que é máscara -- achado numa
+// importação real: a matte do ícone chegou com 1x1 px e tudo acima dela
+// sumiu no AE (só o traçado aparecia). Exporta uma cópia temporária sem a
+// marcação de máscara, solta na página com a mesma transform absoluta
+// (fora de auto layout, que reposicionaria/redimensionaria a cópia).
+async function exportPng(node, scale) {
+  var opts = { format: "PNG", constraint: { type: "SCALE", value: scale } };
+  if (!(("isMask" in node) && node.isMask)) {
+    return await node.exportAsync(opts);
+  }
+  var clone = null;
+  try {
+    clone = node.clone();
+    figma.currentPage.appendChild(clone);
+    try { clone.relativeTransform = node.absoluteTransform; } catch (e) {}
+    clone.isMask = false;
+    return await clone.exportAsync(opts);
+  } finally {
+    if (clone) { try { clone.remove(); } catch (e2) {} }
+  }
+}
+
 // "Assa" o nó inteiro (com filhos, efeitos, opacidade) num PNG alinhado
 // aos eixos, posicionado em coordenadas do container C.
 async function bake(node, C, ctx, reason) {
-  var bytes = await node.exportAsync({ format: "PNG", constraint: { type: "SCALE", value: ctx.scale } });
+  var bytes = await exportPng(node, ctx.scale);
   var dims = pngSize(bytes);
   var region = exportRegion(node, dims, ctx.scale, 0, 0);
   if (reason) { ctx.notes[reason] = (ctx.notes[reason] || 0) + 1; }
@@ -394,6 +416,45 @@ function effectsOf(node, ctx) {
 }
 
 // ---------------------------------------------------------------
+// Máscaras: no AE viram a track matte dos irmãos acima (figma.jsx).
+// VECTOR recorta só pelo contorno; ALPHA/LUMINANCE pela pintura -- sólida
+// vira shape, imagem/gradiente/grupo vira PNG. PNG vazio (máscara que o
+// Figma não renderiza) cai pro contorno: recortar pela forma é melhor do
+// que sumir com tudo que está acima.
+// ---------------------------------------------------------------
+function solidMatte(node, M) {
+  var geom = null;
+  if (node.type === "ELLIPSE" && fullEllipse(node)) {
+    geom = { kind: "ellipse", x: 0, y: 0, w: r4(node.width), h: r4(node.height) };
+  } else if (SHAPE_TYPES[node.type] && node.type !== "RECTANGLE") {
+    var g = geometryPaths(node.fillGeometry);
+    if (g.paths.length) { geom = { kind: "path", paths: g.paths, winding: g.winding }; }
+  }
+  if (!geom) {
+    var r = radiiOf(node);
+    geom = { kind: "rect", x: 0, y: 0, w: r4(node.width), h: r4(node.height), r: typeof r === "number" ? r4(r) : 0 };
+  }
+  return { type: "shape", xf: decompose(M), parts: [{ name: node.name, geom: geom, fills: [[0, 0, 0, 1]], stroke: null }], effects: [] };
+}
+
+async function maskDesc(node, M, C, ctx) {
+  if (SHAPE_TYPES[node.type] && (node.maskType === "VECTOR" || !nodeNeedsRaster(node))) {
+    var sd = node.maskType === "VECTOR" ? null : shapeDesc(node, M, ctx);
+    return (sd && sd.parts.length) ? sd : solidMatte(node, M);
+  }
+  if (node.maskType === "VECTOR") { return solidMatte(node, M); }
+  var d = null;
+  try { d = await bake(node, C, ctx, null); } catch (e) { d = null; }
+  var b = node.absoluteBoundingBox;
+  if (!d || (b && b.width > 2 && b.height > 2 && (d.w < 1.5 || d.h < 1.5))) {
+    if (d && ctx.assets.length && ctx.assets[ctx.assets.length - 1].id === d.asset) { ctx.assets.pop(); } // PNG vazio: não vai
+    ctx.notes["Máscara do Figma recortada pelo contorno (não exportou como imagem)"] = (ctx.notes["Máscara do Figma recortada pelo contorno (não exportou como imagem)"] || 0) + 1;
+    return solidMatte(node, M);
+  }
+  return d;
+}
+
+// ---------------------------------------------------------------
 // Texto
 // ---------------------------------------------------------------
 function applyCase(str, textCase) {
@@ -548,8 +609,8 @@ async function convertNode(node, C, ctx) {
 
   var d = null;
   try {
-    if (isMask && !SHAPE_TYPES[node.type]) {
-      d = await bake(node, C, ctx, null); // máscara composta: PNG serve como matte
+    if (isMask) {
+      d = await maskDesc(node, M, C, ctx);
     } else if (node.type === "TEXT") {
       d = textDesc(node, M, ctx);
     } else if (node.type === "GROUP") {

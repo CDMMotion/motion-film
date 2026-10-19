@@ -475,6 +475,13 @@
       var tmp = path.join(os.tmpdir(), "mfl_payload_" + Date.now() + ".json");
       fs.writeFileSync(tmp, JSON.stringify({ payload: payload, assetPaths: assetPaths }), "utf8");
       var result = await hostCallAsync("mflBuild", [tmp.replace(/\\/g, "/")]);
+      // Fica uma cópia do que o Figma mandou (só o JSON, sem os PNGs) para
+      // diagnosticar uma importação que saiu diferente do Figma.
+      try {
+        var lastDir = path.join(os.homedir(), "Documents", "Mótion Figma Layers");
+        fs.mkdirSync(lastDir, { recursive: true });
+        fs.copyFileSync(tmp, path.join(lastDir, "ultima-importacao.json"));
+      } catch (lastCopyError) {}
       try { fs.unlinkSync(tmp); } catch (unlinkError) {}
 
       if (result && result.ok) {
