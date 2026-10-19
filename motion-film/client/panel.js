@@ -2215,6 +2215,7 @@
         kitBusy("Copying media " + i + "/" + n + "…");
       });
       kitWriteJsonFile(path.join(dir, "data.json"), data);
+      kitMoveCaptureFfx(capturePath, path.join(dir, "ffx"));
       var meta = {
         id: id,
         kind: kind,
@@ -2252,8 +2253,38 @@
     } catch (saveError) {
       kitBusy(null);
       try { fs.rmSync(dir, { recursive: true, force: true }); } catch (cleanupError) {}
+      try { fs.rmSync(capturePath + "_ffx", { recursive: true, force: true }); } catch (ffxCleanupError) {}
       setStatus("Couldn't save the pack: " + saveError, "error");
     }
+  }
+
+  // The host writes one After Effects preset (.ffx) per layer next to the
+  // capture (<capture>_ffx/, see kitSaveLayerFfx in host.jsx) -- AE's own
+  // 1:1 copy of effects (custom data like Colorama's Output Cycle
+  // included), keyframes, expressions, masks, text and shapes. It lives
+  // in the pack as ffx/.
+  function kitMoveCaptureFfx(capturePath, destDir) {
+    var fs = nodeRequire("fs");
+    var path = nodeRequire("path");
+    var src = capturePath + "_ffx";
+    if (!fs.existsSync(src)) {
+      return;
+    }
+    try {
+      fs.renameSync(src, destDir);
+    } catch (renameError) {
+      fs.mkdirSync(destDir, { recursive: true });
+      fs.readdirSync(src).forEach(function (name) {
+        fs.copyFileSync(path.join(src, name), path.join(destDir, name));
+      });
+      fs.rmSync(src, { recursive: true, force: true });
+    }
+  }
+
+  // Absolute ffx folder of a pack for the host ("" when the pack has none).
+  function kitPackFfxDir(packDir) {
+    var p = nodeRequire("path").join(packDir, "ffx");
+    return nodeRequire("fs").existsSync(p) ? p.replace(/\\/g, "/") : "";
   }
 
   // Recursive copy that skips files already there with the same size --
@@ -2313,7 +2344,7 @@
         mediaDir = targetDir;
       }
       kitResolveAbsPaths(layers, mediaDir);
-      tmp = kitWriteTempJson("mf_pack_apply_", { kind: meta.kind, label: meta.label, data: data });
+      tmp = kitWriteTempJson("mf_pack_apply_", { kind: meta.kind, label: meta.label, data: data, ffxDir: kitPackFfxDir(dir) });
       kitBusy("Applying “" + meta.label + "”…");
     } catch (prepError) {
       kitBusy(null);
@@ -2532,6 +2563,7 @@
     }
     kitSlimLayers(kitDataLayers(kind, data));
     kitResolveAbsPaths(kitDataLayers(kind, data), path.join(dir, "assets"));
+    data.ffxDir = kitPackFfxDir(dir);
     var tmp;
     try {
       tmp = kitWriteTempJson("mf_pack_preview_", data);
@@ -3080,6 +3112,12 @@
       var fp = path.join(dir, "preview." + ext);
       if (fs.existsSync(fp)) { entries.push({ name: "preview." + ext, path: fp }); }
     });
+    var ffxDir = path.join(dir, "ffx");
+    if (fs.existsSync(ffxDir)) {
+      fs.readdirSync(ffxDir).forEach(function (name) {
+        entries.push({ name: "ffx/" + name, path: path.join(ffxDir, name) });
+      });
+    }
     var assetsDir = path.join(dir, "assets");
     var total = 0;
     if (fs.existsSync(assetsDir)) {
@@ -3156,6 +3194,8 @@
             if (!safeRel) { continue; }
             kitBusy("Importing " + safeRel.split("/").pop() + "…");
             await kitZipExtract(zip, ze, path.join(dir, "assets", safeRel));
+          } else if (/^ffx\/[A-Za-z0-9_-]+\.ffx$/.test(rel)) {
+            await kitZipExtract(zip, ze, path.join(dir, rel));
           } else if (rel === "preview.mp4" || rel === "preview.jpg") {
             await kitZipExtract(zip, ze, path.join(dir, rel));
             if (rel === "preview.mp4") { hasPreview = true; }

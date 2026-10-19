@@ -5104,3 +5104,27 @@ usuário: aplicar + mover, sem crash.
   botões arredondados (principal verde com texto escuro), barra de título
   escura; ícone verde. Layout conferido com um build `/define:PREVIEW`
   (só mostra a tela, nunca instala).
+
+### v0.9.9 -- Packs 1:1: cada camada leva um preset do próprio AE (.ffx)
+
+Relatado pelo usuário: Colorama salvo num Pack voltava com o Output Cycle
+padrão. Esse parâmetro (assim como Curves e dados de vários plugins) é
+CUSTOM_VALUE: script não lê nem escreve, então o JSON nunca carregaria.
+O AE 26.5 tem `layer.savePreset(File)` (sem janela; grava as
+propriedades SELECIONADAS da camada -- o mesmo .ffx do "Save Animation
+Preset"). Agora, ao salvar, cada camada (inclusive dentro de precomps)
+ganha `ffx/L<n>.ffx` com Transform, Effects, Masks, Layer Styles, Text,
+Contents, Camera/Light/Material/Geometry, Audio e Time Remap. Ao aplicar,
+o JSON recria a camada (tipo, mídia, tempo, switches, parent, matte) e o
+`applyPreset` preenche tudo. `applyPreset` põe o PRIMEIRO keyframe do
+preset no tempo atual da comp -- então o playhead vai até onde esse key
+pertence (`ffxFirstKey` + deslocamento) e volta depois; se cair fora da
+comp, os keys são deslocados depois. A seleção do usuário é guardada e
+restaurada na captura. Packs antigos (sem ffx/) seguem pelo JSON.
+Export/Import levam a pasta ffx/.
+Testado no AE com o preset "Película holográfica" (Colorama com Output
+Cycle próprio + 8 efeitos) e um texto animado com expressão: frames do
+pack novo idênticos byte a byte ao original (Save Layers e Save Comp);
+o caminho antigo (JSON) diferia em 38-65% dos pixels. Salvar 0,26 s,
+aplicar 0,35 s.
+

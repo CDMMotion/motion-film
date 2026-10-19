@@ -3449,6 +3449,9 @@
       transform: template.transform,
       textStyle: template.textStyle || null
     };
+    // The 1:1 copy of every property (see kitSaveLayerFfx). The JSON
+    // above stays as the fallback for packs/apply paths without it.
+    kitSaveLayerFfx(layer, template);
     return template;
   }
 
@@ -3733,6 +3736,226 @@
     }
   }
 
+  // ---------------------------------------------------------------
+  // Packs, 1:1: every layer's property data also goes into an After
+  // Effects animation preset (.ffx) -- the very file "Animation > Save
+  // Animation Preset" writes -- via layer.savePreset(File) (AE 26.5,
+  // writes the SELECTED properties of the layer, no dialog). Reported
+  // by the user: a Colorama saved in a pack came back with the default
+  // Output Cycle. That property (like Curves and many third-party
+  // plugins' data) is CUSTOM_VALUE: scripts can neither read nor write
+  // it, so the JSON capture can't carry it. The .ffx is AE's own copy
+  // of everything -- effects with all their data, keyframes and their
+  // easing, expressions, masks, text, shape contents, layer styles.
+  // The JSON template still recreates the LAYER itself (type, media,
+  // timing, switches, parent, matte); the .ffx then fills it in.
+  //
+  // Confirmed live before building this: selecting a layer's top-level
+  // groups and saving restores effects/keys/expression/position/masks
+  // exactly; works for layers of comps that aren't open (precomps);
+  // accented paths are fine. applyPreset puts the preset's EARLIEST
+  // keyframe at the comp's current time -- so the playhead is moved to
+  // where that key belongs before applying (kitApplyLayerFfx).
+  // ---------------------------------------------------------------
+  var KIT_FFX_GROUPS = [
+    "ADBE Transform Group",
+    "ADBE Effect Parade",
+    "ADBE Mask Parade",
+    "ADBE Layer Styles",
+    "ADBE Text Properties",
+    "ADBE Root Vectors Group",
+    "ADBE Camera Options Group",
+    "ADBE Light Options Group",
+    "ADBE Material Options Group",
+    "ADBE Geometry Options Group",
+    "ADBE Audio Group"
+  ];
+  var kitFfxCapture = null; // { dir, n, comps: [{ comp, layers: [{ layer, props }] }] } while capturing
+  var kitFfxDir = null;     // the pack's ffx folder while applying / previewing
+
+  function kitFfxEarliestKey(prop, earliest) {
+    try {
+      if (prop.propertyType === PropertyType.PROPERTY) {
+        if (prop.numKeys > 0) {
+          var t = prop.keyTime(1);
+          return (earliest === null || t < earliest) ? t : earliest;
+        }
+        return earliest;
+      }
+      for (var i = 1; i <= prop.numProperties; i += 1) {
+        earliest = kitFfxEarliestKey(prop.property(i), earliest);
+      }
+    } catch (keyError) {}
+    return earliest;
+  }
+
+  // savePreset works off the selection, so the capture changes it: each
+  // comp's layer + property selection is remembered on first touch and
+  // put back by kitFfxCaptureEnd.
+  function kitFfxRememberSelection(comp) {
+    var cap = kitFfxCapture;
+    for (var c = 0; c < cap.comps.length; c += 1) {
+      if (cap.comps[c].comp.id === comp.id) { // two references to one comp aren't ===
+        return;
+      }
+    }
+    var entry = { comp: comp, layers: [] };
+    try {
+      var sel = comp.selectedLayers;
+      for (var i = 0; i < sel.length; i += 1) {
+        var props = [];
+        try { props = sel[i].selectedProperties; } catch (propsError) {}
+        entry.layers.push({ layer: sel[i], props: props });
+      }
+      for (var j = 0; j < sel.length; j += 1) {
+        sel[j].selected = false;
+      }
+    } catch (selError) {}
+    cap.comps.push(entry);
+  }
+
+  function kitFfxCaptureBegin(dir) {
+    var folder = new Folder(dir);
+    if (!folder.exists) {
+      folder.create();
+    }
+    kitFfxCapture = { dir: dir, n: 0, comps: [] };
+  }
+
+  function kitFfxCaptureEnd() {
+    var cap = kitFfxCapture;
+    kitFfxCapture = null;
+    if (!cap) {
+      return;
+    }
+    for (var c = 0; c < cap.comps.length; c += 1) {
+      var entry = cap.comps[c];
+      try {
+        var now = entry.comp.selectedLayers;
+        for (var n = 0; n < now.length; n += 1) {
+          now[n].selected = false;
+        }
+        for (var i = 0; i < entry.layers.length; i += 1) {
+          entry.layers[i].layer.selected = true;
+          var props = entry.layers[i].props || [];
+          for (var p = 0; p < props.length; p += 1) {
+            try { props[p].selected = true; } catch (propError) {}
+          }
+        }
+      } catch (restoreError) {}
+    }
+  }
+
+  function kitSaveLayerFfx(layer, template) {
+    var cap = kitFfxCapture;
+    if (!cap) {
+      return;
+    }
+    var selectedGroups = [];
+    try {
+      kitFfxRememberSelection(layer.containingComp);
+      layer.selected = true;
+      var earliest = null;
+      for (var g = 0; g < KIT_FFX_GROUPS.length; g += 1) {
+        var group = safeProp(layer, KIT_FFX_GROUPS[g]);
+        if (!group) {
+          continue;
+        }
+        try {
+          if ((KIT_FFX_GROUPS[g] === "ADBE Effect Parade" || KIT_FFX_GROUPS[g] === "ADBE Mask Parade") && group.numProperties === 0) {
+            continue;
+          }
+          group.selected = true;
+          selectedGroups.push(group);
+          earliest = kitFfxEarliestKey(group, earliest);
+        } catch (selectError) {}
+      }
+      try {
+        if (layer.timeRemapEnabled) {
+          var remap = layer.property("ADBE Time Remapping");
+          remap.selected = true;
+          selectedGroups.push(remap);
+          earliest = kitFfxEarliestKey(remap, earliest);
+        }
+      } catch (remapError) {}
+      cap.n += 1;
+      var name = "L" + cap.n + ".ffx";
+      var file = new File(cap.dir + "/" + name);
+      if (layer.savePreset(file) && file.exists) {
+        template.ffx = name;
+        if (earliest !== null) {
+          template.ffxFirstKey = earliest;
+        }
+      }
+    } catch (saveError) {
+      // No .ffx (older AE without savePreset, odd layer): the JSON
+      // template alone is used for this layer, as before.
+    }
+    for (var s = 0; s < selectedGroups.length; s += 1) {
+      try { selectedGroups[s].selected = false; } catch (unselectError) {}
+    }
+    try { layer.selected = false; } catch (unselectLayerError) {}
+  }
+
+  // Moves every keyframe of the layer by `delta` seconds (rebuilt through
+  // the same capture/apply code as the JSON packs). Only for the rare
+  // case where the time the preset's first key belongs at is outside the
+  // comp (before 0 / after the end), so the playhead can't go there.
+  function kitShiftLayerKeys(layer, delta) {
+    visitProperties(layer, function (prop) {
+      try {
+        if (prop.numKeys > 0) {
+          var node = captureStyleNode(prop);
+          for (var k = prop.numKeys; k >= 1; k -= 1) {
+            prop.removeKey(k);
+          }
+          applyStyleLeaf(prop, node, delta);
+        }
+      } catch (shiftError) {}
+    });
+  }
+
+  // Fills a freshly created layer from its .ffx. timeOffset = how far
+  // this copy sits from the original (createLayerFromKitTemplate), so the
+  // first key lands where it was relative to the layer. Returns false
+  // (caller falls back to the JSON template) when there's no .ffx.
+  function kitApplyLayerFfx(layer, template, timeOffset) {
+    if (!template.ffx || !kitFfxDir) {
+      return false;
+    }
+    var file = new File(kitFfxDir + "/" + template.ffx);
+    if (!file.exists) {
+      return false;
+    }
+    var comp = layer.containingComp;
+    var savedTime = comp.time;
+    var shift = 0;
+    try {
+      var others = comp.selectedLayers;
+      for (var i = 0; i < others.length; i += 1) {
+        others[i].selected = false;
+      }
+      layer.selected = true;
+      if (typeof template.ffxFirstKey === "number") {
+        var wanted = template.ffxFirstKey + timeOffset;
+        var latest = Math.max(0, comp.duration - comp.frameDuration);
+        var at = Math.min(Math.max(wanted, 0), latest);
+        shift = wanted - at;
+        comp.time = at;
+      }
+      layer.applyPreset(file);
+    } catch (applyError) {
+      try { comp.time = savedTime; } catch (timeError) {}
+      return false;
+    }
+    if (Math.abs(shift) > 1e-6) {
+      kitShiftLayerKeys(layer, shift);
+    }
+    try { comp.time = savedTime; } catch (restoreTimeError) {}
+    try { layer.selected = false; } catch (unselectError) {}
+    return true;
+  }
+
   // Rebuilds a precomp captured by captureKitCompFull into a brand new
   // CompItem (always a fresh one -- unlike kitImportOrReuseFootage there's
   // no reliable identity to reuse a comp by, so applying the same preset
@@ -3866,6 +4089,11 @@
     applyKitLayerFlags(newLayer, template.flags);
 
     var timeOffset = newLayer.inPoint - numberOr(template.preset ? template.preset.layerInPoint : template.inPoint, 0);
+
+    // 1:1 path: AE's own preset holds every property (see kitSaveLayerFfx).
+    if (kitApplyLayerFfx(newLayer, template, timeOffset)) {
+      return newLayer;
+    }
 
     function applyGroup(matchName, nodes) {
       if (!nodes || !nodes.length) {
@@ -4557,11 +4785,19 @@
   // kind "comp" pastes them as ONE new composition (like Pre-compose:
   // same size/fps as where they came from, starting at the earliest
   // selected layer) dropped at the playhead.
+  // Each layer's .ffx (kitSaveLayerFfx) goes to <outPath>_ffx/; the
+  // panel moves that folder into the pack as ffx/.
   function kitCaptureToFile(kind, outPath) {
     var data;
     var summary = { ok: true, kind: kind };
     try {
-      var res = captureKitSelectionData();
+      var res;
+      kitFfxCaptureBegin(outPath + "_ffx");
+      try {
+        res = captureKitSelectionData();
+      } finally {
+        kitFfxCaptureEnd();
+      }
       if (!res.ok) {
         return stringify(res);
       }
@@ -4638,6 +4874,7 @@
     var data = pack.data || {};
     kitUndoCloseAll();
     kitFootageIndex = null; // rebuilt lazily: the project changed since last time
+    kitFfxDir = pack.ffxDir || null; // the pack's .ffx files (none in packs before 0.9.9)
     var target = activeComp();
     if (pack.kind !== "comp" && !target) {
       return stringify({ ok: false, error: "Open/select a composition first." });
@@ -4685,6 +4922,7 @@
     }
     kitUndoCloseAll(); // an error mid-way must never leave a group open
     kitApplyFolder = null;
+    kitFfxDir = null;
     kitFootageIndex = null; // don't hold item references between applies
     // A layers pack with no footage leaves its folder empty -- tidy up.
     try {
@@ -4706,6 +4944,7 @@
     } catch (readError) {
       return stringify({ ok: false, error: String(readError) });
     }
+    kitFfxDir = data.ffxDir || null;
     if (kind === "comp" && data.comp) {
       data = {
         layers: data.comp.layers || [],
@@ -4714,7 +4953,9 @@
         compFrameRate: data.comp.frameRate
       };
     }
-    return renderKitPreviewData("layers", data, outPath);
+    var result = renderKitPreviewData("layers", data, outPath);
+    kitFfxDir = null;
+    return result;
   }
 
   $.global.kitCaptureToFile = kitCaptureToFile;
