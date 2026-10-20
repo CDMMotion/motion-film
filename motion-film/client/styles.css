@@ -664,3 +664,14 @@ main::-webkit-scrollbar-thumb { background: var(--panel-raised); border-radius: 
 .lf-hold-fill { position: absolute; inset: 0 auto 0 0; width: 0; background: rgba(211,109,132,.28); pointer-events: none; }
 .lf-menu-item.is-holding .lf-hold-fill { width: 100%; transition: width .7s linear; }
 .lf-menu-item > span:not(.lf-hold-fill) { position: relative; }
+
+/* Scale Comp (aba Tools, "03 / SCALE COMP" -- client/scalecomp.js) */
+.sc-current { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; margin-bottom: 10px; color: var(--text); font-size: 11px; font-weight: 650; }
+.sc-current > span:first-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sc-size { flex-shrink: 0; color: var(--muted); font-size: 10px; font-weight: 700; }
+.sc-row { display: flex; align-items: center; gap: 10px; margin: 10px 0; }
+.sc-input { width: 92px; padding: 7px 9px; border: 1px solid var(--line); border-radius: 7px; outline: none; color: var(--text); background: var(--panel-deep); font-size: 12px; font-weight: 650; }
+.sc-input:focus { border-color: var(--accent); }
+.sc-result { min-width: 0; color: var(--muted); font-size: 10.5px; font-weight: 650; white-space: nowrap; }
+.sc-result.is-error { color: #eaa0b1; }
+.sc-apply { width: 100%; }

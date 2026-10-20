@@ -5211,3 +5211,20 @@ Testado no AE pela interface: ordem das abas, nome pela janelinha, duplo
 clique abre a caixa (continua aberta e focada após 1 s) e renomeia sem
 fechar a pasta.
 
+## Changelog -- Tools: "03 / SCALE COMP" (o Scale Composition do AE no painel)
+
+Pedido do usuário: o script nativo File > Scripts > Scale Composition.jsx
+como janela na aba Tools, 1:1. Mesmo comportamento: Scale Factor / Comp
+Width / Comp Height (trocar a opção mostra o valor equivalente), valor que
+deixaria a comp fora de 1..30000 é recusado e volta ao anterior, Scale
+aplica e o fator volta a 1. Mesmos passos do script (scaleActiveComp no
+host.jsx): Null 3D em (0,0,0) vira pai de toda camada sem pai (travadas
+destravadas e travadas de novo), tamanho com Math.floor, Zoom das câmeras
+(keys também) escalado, Null escalado e removido. Diferença: o nosso apaga
+o sólido "Null" que o script nativo deixa sobrando no projeto. A caixa
+mostra a comp ativa e o tamanho final ao digitar.
+Testado no AE: ×2 em comp com sólido rotacionado, texto, filho com parent,
+camada travada, 3D e câmera com keys de zoom (posições/escala ×2, filho
+intacto, trava mantida, zoom 1000/1500 -> 2000/3000, nenhum Null sobrando);
+pela interface, Comp Width 1280 em 1920x1080 -> 1280x720.
+

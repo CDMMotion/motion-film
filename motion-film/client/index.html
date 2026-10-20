@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Mótion Film</title>
-    <link rel="stylesheet" href="styles.css?v=0990b" />
+    <link rel="stylesheet" href="styles.css?v=0990c" />
   </head>
   <body>
     <div class="app-shell">
@@ -352,6 +352,30 @@
               <div class="lf-hint">Click a folder to fold · Shift: only this one · Alt: with subfolders · Double-click: rename · Right-click: more</div>
             </div>
           </section>
+          <section class="section" data-section-id="scale-comp">
+            <div class="section-tab" role="button" tabindex="0" aria-expanded="true">
+              <div class="section-heading">
+                <div>
+                  <div class="section-kicker">03 / SCALE COMP</div>
+                </div>
+              </div>
+              <svg class="section-chevron" viewBox="0 0 12 12" width="10" height="10" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M2.5 4.5L6 8l3.5-3.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </div>
+            <div class="section-body">
+              <div class="sc-current"><span id="sc-comp-name">No composition</span><span id="sc-comp-size" class="sc-size"></span></div>
+              <div class="segmented" id="sc-mode" role="tablist">
+                <button type="button" class="segmented-option is-active" data-value="scale">Scale Factor</button>
+                <button type="button" class="segmented-option" data-value="width">Comp Width</button>
+                <button type="button" class="segmented-option" data-value="height">Comp Height</button>
+              </div>
+              <div class="sc-row">
+                <input id="sc-value" class="sc-input" type="text" inputmode="decimal" value="1.0" spellcheck="false" />
+                <span id="sc-result" class="sc-result"></span>
+              </div>
+              <button type="button" id="sc-apply" class="lf-tool is-primary sc-apply">Scale</button>
+              <div class="lf-hint">Scales the active comp and every layer in it, cameras included, keeping everything in place. Same as File › Scripts › Scale Composition.</div>
+            </div>
+          </section>
         </main>
       </div>
 
@@ -459,5 +483,6 @@
     <script src="shared-core.js?v=0990a"></script>
     <script src="panel.js?v=0990d"></script>
     <script src="folders.js?v=0990b"></script>
+    <script src="scalecomp.js?v=0990a"></script>
   </body>
 </html>

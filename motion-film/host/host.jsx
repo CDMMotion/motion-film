@@ -5458,6 +5458,84 @@
   $.global.toggleTransformStopwatch = toggleTransformStopwatch;
   $.global.resetLayerTransform = resetLayerTransform;
   $.global.setAnchorPreset = setAnchorPreset;
+
+  // ---------------------------------------------------------------
+  // Tools > "03 / SCALE COMP": the same thing as AE's own File > Scripts >
+  // Scale Composition.jsx, step by step -- a 3D Null at (0,0,0) becomes
+  // the parent of every unparented layer (locked ones unlocked for the
+  // moment), the comp size is set (Math.floor, like the script), every
+  // camera's Zoom (keys too) is scaled, the Null is scaled by the factor
+  // and removed (its children keep the scaled result). One undo step.
+  // ---------------------------------------------------------------
+  function scaleCompInfo() {
+    var comp = activeComp();
+    if (!comp) {
+      return stringify({ ok: true, comp: null });
+    }
+    return stringify({ ok: true, comp: comp.name, width: comp.width, height: comp.height });
+  }
+
+  function scaleActiveComp(rawFactor) {
+    var comp = activeComp();
+    if (!comp) {
+      return stringify({ ok: false, error: "Please select or open a composition first." });
+    }
+    var factor = Number(rawFactor);
+    if (isNaN(factor) || factor <= 0) {
+      return stringify({ ok: false, error: "Enter a number." });
+    }
+    var newW = Math.floor(comp.width * factor);
+    var newH = Math.floor(comp.height * factor);
+    if (newW < 1 || newW > 30000 || newH < 1 || newH > 30000) {
+      return stringify({ ok: false, error: "Value will make height or width out of range 1 to 30000." });
+    }
+    var oldW = comp.width;
+    var oldH = comp.height;
+    app.beginUndoGroup("Scale Composition");
+    try {
+      var nullLayer = comp.layers.addNull();
+      nullLayer.threeDLayer = true;
+      nullLayer.position.setValue([0, 0, 0]);
+      for (var i = 1; i <= comp.numLayers; i += 1) {
+        var layer = comp.layer(i);
+        var wasLocked = layer.locked;
+        layer.locked = false;
+        if (layer.index !== nullLayer.index && layer.parent === null) {
+          layer.parent = nullLayer;
+        }
+        layer.locked = wasLocked;
+      }
+      comp.width = newW;
+      comp.height = newH;
+      for (var c = 1; c <= comp.numLayers; c += 1) {
+        var cam = comp.layer(c);
+        if (cam.matchName === "ADBE Camera Layer") {
+          var zoom = cam.zoom;
+          if (zoom.numKeys === 0) {
+            zoom.setValue(zoom.value * factor);
+          } else {
+            for (var k = 1; k <= zoom.numKeys; k += 1) {
+              zoom.setValueAtKey(k, zoom.keyValue(k) * factor);
+            }
+          }
+        }
+      }
+      var s = nullLayer.scale.value;
+      nullLayer.scale.setValue([s[0] * factor, s[1] * factor, s[2] * factor]);
+      var nullSource = nullLayer.source;
+      nullLayer.remove();
+      // The AE script leaves its "Null" solid behind in the project.
+      try { if (nullSource && nullSource.usedIn.length === 0) { nullSource.remove(); } } catch (sourceError) {}
+    } catch (error) {
+      app.endUndoGroup();
+      return stringify({ ok: false, error: String(error) });
+    }
+    app.endUndoGroup();
+    return stringify({ ok: true, comp: comp.name, from: [oldW, oldH], width: comp.width, height: comp.height });
+  }
+
+  $.global.scaleCompInfo = scaleCompInfo;
+  $.global.scaleActiveComp = scaleActiveComp;
   $.global.keyframeUtility = keyframeUtility;
   $.global.copySelectedKeyframeCurves = copySelectedKeyframeCurves;
   $.global.pasteSelectedKeyframeCurves = pasteSelectedKeyframeCurves;
