@@ -5196,3 +5196,18 @@ subpasta fechada dentro de mãe aberta, camada travada, moved/regather,
 duplicate com subpasta) e o fluxo pela interface real (Group -> clique
 fecha -> Logo/Texto shy + Hide Shy Layers).
 
+### Folders: renomear com duplo clique, nome ao criar, aba "Tools"
+
+- Bug: o 1o clique do duplo clique abria/fechava a pasta e redesenhava a
+  linha -- a caixa de nome piscava e sumia. Agora o clique simples espera
+  230 ms (cancelado pelo duplo clique) e a lista não redesenha enquanto um
+  nome está sendo editado.
+- Group abre a janelinha de nome (a mesma do Save dos Packs, exposta como
+  `window.MF.openNamePopover`), já com "Group" selecionado; Shift/Alt do
+  clique continuam valendo.
+- A aba Effects virou "Tools" (ícone de ferramenta) e passou a ser a 2a,
+  ao lado da Home. Ids internos (page-effects) mantidos.
+Testado no AE pela interface: ordem das abas, nome pela janelinha, duplo
+clique abre a caixa (continua aberta e focada após 1 s) e renomeia sem
+fechar a pasta.
+

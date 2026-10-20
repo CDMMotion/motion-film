@@ -41,6 +41,7 @@
   // Shared with the other scripts of this window (client/folders.js).
   window.MF = window.MF || {};
   window.MF.setStatus = function (message, type) { setStatus(message, type); };
+  window.MF.openNamePopover = function (trigger, placeholder, onSave, defaultValue) { openNamePopover(trigger, placeholder, onSave, defaultValue); };
 
   function setStatus(message, type) {
     if (!message) {

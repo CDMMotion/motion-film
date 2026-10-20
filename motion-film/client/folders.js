@@ -128,6 +128,7 @@
 
   function render(st) {
     state = st;
+    if (editing) { return; } // não troca a linha que está sendo renomeada
     var sig = signature(st);
     if (sig === lastSig) { return; }
     lastSig = sig;
@@ -222,13 +223,24 @@
       row.insertBefore(fx, count);
     }
 
+    // O clique simples espera um instante: se for o 1o clique de um duplo
+    // clique (renomear), não abre/fecha -- antes ele redesenhava a linha
+    // no meio do duplo clique e a caixa de nome piscava e sumia.
+    var clickTimer = null;
     row.addEventListener("click", function (event) {
       if (editing) { return; }
+      if (event.detail > 1) { return; }
       var mode = event.shiftKey && event.altKey ? "soloRecursive" : event.shiftKey ? "solo" : event.altKey ? "recursive" : "toggle";
-      act("lfToggle", [g.id, mode, storeGet(KEY_ACCORDION, "0") === "1"], true);
+      clearTimeout(clickTimer);
+      clickTimer = setTimeout(function () {
+        clickTimer = null;
+        if (!editing) { act("lfToggle", [g.id, mode, storeGet(KEY_ACCORDION, "0") === "1"], true); }
+      }, 230);
     });
     name.addEventListener("dblclick", function (event) {
       event.stopPropagation();
+      clearTimeout(clickTimer);
+      clickTimer = null;
       startRename(g, name);
     });
     count.addEventListener("click", function (event) {
@@ -459,8 +471,22 @@
     $("lf-accordion").innerHTML = ICONS.accordion;
     setAccordionButton();
 
+    // Group pede o nome primeiro (mesma janelinha do "Save" dos Packs).
+    // Shift/Alt valem do clique no botão.
     $("lf-group").addEventListener("click", function (event) {
-      act("lfGroup", [{ folded: !!event.shiftKey, parent: !!event.altKey }]);
+      var opts = { folded: !!event.shiftKey, parent: !!event.altKey };
+      var trigger = this;
+      if (!(window.MF && typeof window.MF.openNamePopover === "function")) {
+        act("lfGroup", [opts]);
+        return;
+      }
+      // Depois do clique: o clique em si fecharia a janelinha na hora.
+      setTimeout(function () {
+        window.MF.openNamePopover(trigger, "Folder name", function (name) {
+          opts.name = name;
+          act("lfGroup", [opts]);
+        }, "Group");
+      }, 0);
     });
     $("lf-fold").addEventListener("click", function (event) { act("lfFoldAll", [true, !!event.altKey]); });
     $("lf-unfold").addEventListener("click", function (event) { act("lfFoldAll", [false, !!event.altKey]); });
