@@ -38,6 +38,10 @@
     }, 200);
   }
 
+  // Shared with the other scripts of this window (client/folders.js).
+  window.MF = window.MF || {};
+  window.MF.setStatus = function (message, type) { setStatus(message, type); };
+
   function setStatus(message, type) {
     if (!message) {
       hideStatus();

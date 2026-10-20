@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Mótion Film</title>
-    <link rel="stylesheet" href="styles.css?v=0990a" />
+    <link rel="stylesheet" href="styles.css?v=0990b" />
   </head>
   <body>
     <div class="app-shell">
@@ -331,6 +331,27 @@
               </div>
             </div>
           </section>
+          <section class="section" data-section-id="layer-folders">
+            <div class="section-tab" role="button" tabindex="0" aria-expanded="true">
+              <div class="section-heading">
+                <div>
+                  <div class="section-kicker">02 / FOLDERS</div>
+                </div>
+              </div>
+              <svg class="section-chevron" viewBox="0 0 12 12" width="10" height="10" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M2.5 4.5L6 8l3.5-3.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </div>
+            <div class="section-body">
+              <div class="lf-toolbar">
+                <button type="button" id="lf-group" class="lf-tool is-primary" title="Group the selected layers into a folder &#10;Shift: create it folded &#183; Alt: layers follow the folder's Null"></button>
+                <button type="button" id="lf-fold" class="lf-tool" title="Fold the folders of the selected layers (nothing selected: all) &#10;Alt: all folders"></button>
+                <button type="button" id="lf-unfold" class="lf-tool" title="Open the folders of the selected layers (nothing selected: all) &#10;Alt: all folders"></button>
+                <button type="button" id="lf-accordion" class="lf-tool" role="switch" aria-checked="false" title="Accordion mode: opening a folder folds the others at the same level"></button>
+              </div>
+              <div id="lf-empty" class="empty-state">Select layers in the timeline, then Group.</div>
+              <div id="lf-tree" class="lf-tree"></div>
+              <div class="lf-hint">Click a folder to fold · Shift: only this one · Alt: with subfolders · Double-click: rename · Right-click: more</div>
+            </div>
+          </section>
         </main>
       </div>
 
@@ -436,6 +457,7 @@
          stale script for a whole AE session even after the file on disk
          changed. Changing the URL forces a fresh fetch + recompile. -->
     <script src="shared-core.js?v=0990a"></script>
-    <script src="panel.js?v=0990b"></script>
+    <script src="panel.js?v=0990c"></script>
+    <script src="folders.js?v=0990a"></script>
   </body>
 </html>

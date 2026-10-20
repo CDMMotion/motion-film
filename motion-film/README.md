@@ -5166,3 +5166,33 @@ Testado com Figma simulado (nó-máscara exporta 1x1 como o real): matte
 29x29 correta, e o caminho do contorno; render no AE mostra o ícone (o
 import antigo do usuário renderiza vazio).
 
+## Changelog -- Folders: pastas de camadas na timeline (aba Effects, "02 / FOLDERS")
+
+Pedido do usuário: nossa versão do "Accordion" (Motion Fun). Camadas
+relacionadas ficam juntas embaixo de um Null cabeçalho ("▾ Nome" /
+"▸ Nome (n)") e a pasta some da timeline ao fechar, sem precompor.
+Fechar usa o switch Shy (e liga Hide Shy Layers); as camadas continuam
+renderizando. Os dados ficam no comentário do Null (`mf-folder:` + JSON),
+então vão junto com o .aep.
+- Barra: Group (Shift = já fechada, Alt = camadas seguem o Null), Fold e
+  Unfold (pastas da seleção; nada selecionado ou Alt = todas), modo
+  Accordion (abrir uma pasta fecha as irmãs).
+- Lista: subpastas indentadas (mãe fechada esmaece as filhas), clique
+  abre/fecha, Shift = só esta, Alt = com subpastas, duplo clique renomeia,
+  contador seleciona (Shift soma), ícones solo/olho/cadeado com memória dos
+  switches de cada camada, aviso "moved" com Regather / Update.
+- Botão direito: cores (com ou sem as camadas), Rename, Select, Solo/Hide/
+  Lock, Up/Down, Duplicate (subpastas, parent e matte apontando pras
+  cópias), Parent to folder, Folder matte (AE 2023+), Folder FX
+  (adjustment layer), Ungroup, Dissolve e Strip all (segurar 0,7 s ou
+  Alt+clique).
+- Shy que o usuário já tinha é respeitado: cada pasta guarda o shy
+  "do usuário" de cada membro e só esconde por cima dele.
+- host/folders.jsx (carregado sob demanda) + client/folders.js. Cada
+  ação = 1 undo. A lista atualiza ao mostrar a aba, ao focar o painel e
+  ao entrar com o mouse (sem polling).
+Testado no AE: todas as ações em comps de teste (inclusive shy prévio,
+subpasta fechada dentro de mãe aberta, camada travada, moved/regather,
+duplicate com subpasta) e o fluxo pela interface real (Group -> clique
+fecha -> Logo/Texto shy + Hide Shy Layers).
+
