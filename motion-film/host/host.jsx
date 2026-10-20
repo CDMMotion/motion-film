@@ -3385,6 +3385,12 @@
       layerStyles: captureKitGroupChildren(safeProp(layer, "ADBE Layer Styles"))
     };
     try { template.stretch = layer.stretch; } catch (eStretch) {}
+    // Folders (Tools tab): the header Null keeps the folder in its comment
+    // and the folder points at layer ids -- remapped to the new layers on
+    // apply (kitRemapFolders). Label + comment ride along for every layer.
+    try { template.srcId = layer.id; } catch (eId) {}
+    try { template.label = layer.label; } catch (eLabel) {}
+    try { if (layer.comment) { template.comment = String(layer.comment); } } catch (eComment) {}
 
     if (type === "text") {
       try {
@@ -3658,6 +3664,15 @@
     for (var s = 0; s < layers.length; s += 1) {
       addLayer(layers[s]);
     }
+    var folderLayers = 0;
+    var selComp = activeComp();
+    for (var f = 0; f < layers.length; f += 1) {
+      var inFolder = [];
+      kitFolderDescendants(selComp, layers[f], inFolder);
+      for (var fi = 0; fi < inFolder.length; fi += 1) {
+        if (addLayer(inFolder[fi])) { folderLayers += 1; }
+      }
+    }
     var dependencies = 0;
     for (var d = 0; d < all.length; d += 1) {
       var dep = null;
@@ -3678,6 +3693,7 @@
       layers: templates,
       avSkipped: layers.length - templates.length,
       dependencies: dependencies,
+      folderLayers: folderLayers,
       selectedCount: selectedCount,
       firstName: layers[0].name,
       compName: comp.name,
@@ -4087,6 +4103,8 @@
     }
 
     applyKitLayerFlags(newLayer, template.flags);
+    if (template.label !== undefined) { try { newLayer.label = template.label; } catch (labelError) {} }
+    if (template.comment) { try { newLayer.comment = template.comment; } catch (commentError) {} }
 
     var timeOffset = newLayer.inPoint - numberOr(template.preset ? template.preset.layerInPoint : template.inPoint, 0);
 
@@ -4138,6 +4156,75 @@
       } catch (trError) {}
     }
     return newLayer;
+  }
+
+  // Folders inside a pack: rewrite each copied header's folder data so it
+  // points at the NEW layers (members, parented, matte, FX, switch
+  // memory), with a fresh folder id. Ids of layers that weren't saved are
+  // dropped. A folded folder hides its rows with Shy -- turn the
+  // destination comp's Hide Shy Layers on, like folding does.
+  var KIT_FOLDER_MARK = "mf-folder:";
+
+  function kitRemapFolders(comp, layersList, created) {
+    var map = {};
+    var j;
+    for (j = 0; j < layersList.length; j += 1) {
+      if (created[j] && layersList[j].srcId !== undefined) { map[layersList[j].srcId] = created[j].id; }
+    }
+    function list(a) {
+      var out = [];
+      for (var i = 0; a && i < a.length; i += 1) { if (map.hasOwnProperty(a[i])) { out.push(map[a[i]]); } }
+      return out;
+    }
+    function obj(o) {
+      var out = {};
+      for (var k in o) { if (o.hasOwnProperty(k) && map.hasOwnProperty(k)) { out[map[k]] = o[k]; } }
+      return out;
+    }
+    var anyFolded = false;
+    for (j = 0; j < layersList.length; j += 1) {
+      var c = layersList[j].comment;
+      if (!created[j] || !c || c.indexOf(KIT_FOLDER_MARK) !== 0) { continue; }
+      try {
+        var d = kitParseJson(c.substring(KIT_FOLDER_MARK.length));
+        d.id = "f" + new Date().getTime().toString(36) + j + Math.floor(Math.random() * 1e6).toString(36);
+        d.members = list(d.members);
+        d.base = obj(d.base || {});
+        d.hid = obj(d.hid || {});
+        d.parented = list(d.parented);
+        d.matte = d.matte && map.hasOwnProperty(d.matte) ? map[d.matte] : 0;
+        d.fx = d.fx && map.hasOwnProperty(d.fx) ? map[d.fx] : 0;
+        var ov = {};
+        for (var key in (d.ov || {})) { if (d.ov.hasOwnProperty(key)) { ov[key] = obj(d.ov[key]); } }
+        d.ov = ov;
+        if (d.folded) { anyFolded = true; }
+        created[j].comment = KIT_FOLDER_MARK + JSON.stringify(d);
+      } catch (folderError) {}
+    }
+    if (anyFolded) {
+      try { comp.hideShyLayers = true; } catch (shyError) {}
+    }
+  }
+
+  // A selected folder header stands for the whole folder: its members and
+  // subfolders (read from the header comments) come along.
+  function kitFolderDescendants(comp, header, out) {
+    var c = "";
+    try { c = header.comment; } catch (e) { return; }
+    if (!c || c.indexOf(KIT_FOLDER_MARK) !== 0) { return; }
+    var d;
+    try { d = kitParseJson(c.substring(KIT_FOLDER_MARK.length)); } catch (parseError) { return; }
+    var ids = d.members || [];
+    for (var i = 0; i < ids.length; i += 1) {
+      for (var L = 1; L <= comp.numLayers; L += 1) {
+        var layer = comp.layer(L);
+        if (layer.id === ids[i]) {
+          out.push(layer);
+          kitFolderDescendants(comp, layer, out);
+          break;
+        }
+      }
+    }
   }
 
   // Shared by applyKitLayerGroupPreset (curated, looked up by id) and
@@ -4196,6 +4283,7 @@
           try { created[j].trackMatteType = tmt; } catch (matteError) {}
         }
       }
+      kitRemapFolders(comp, layersList, created);
     } catch (error) {
       kitUndoEnd();
       return { ok: false, error: String(error) };
@@ -4835,6 +4923,7 @@
       summary.layers = res.layers.length;
       summary.selected = res.selectedCount;
       summary.dependencies = res.dependencies;
+      summary.folderLayers = res.folderLayers;
       summary.avSkipped = res.avSkipped;
       summary.sources = kitCountSources(res.layers, { files: 0, comps: 0, placeholders: 0, missing: 0 });
       kitWriteText(outPath, JSON.stringify(data));

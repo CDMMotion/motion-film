@@ -5228,3 +5228,20 @@ camada travada, 3D e câmera com keys de zoom (posições/escala ×2, filho
 intacto, trava mantida, zoom 1000/1500 -> 2000/3000, nenhum Null sobrando);
 pela interface, Comp Width 1280 em 1920x1080 -> 1280x720.
 
+### Packs + Folders: pastas vão junto no pack
+
+Antes o pack guardava shy/olho das camadas mas não o comentário do Null
+(onde mora a pasta) nem a cor: aplicado, o cabeçalho virava Null comum e
+os membros de pasta fechada ficavam shy sem pasta pra abrir. Agora:
+- cada template guarda `srcId` (layer.id), `label` e `comment`;
+- selecionar o cabeçalho de uma pasta leva a pasta inteira (membros e
+  subpastas, lidos dos comentários) -- `folderLayers` no resumo;
+- ao aplicar, `kitRemapFolders` reescreve os dados de cada pasta copiada
+  pros layers novos (membros, base/hid do shy, parent, matte, FX, memória
+  de solo/olho/cadeado), com id novo; pasta fechada liga Hide Shy Layers
+  na comp de destino. Vale pra Save Layers e Save Comp (e precomps).
+Testado no AE: Outer (com Parent to folder) contendo Inner (fechada) + C;
+salvo selecionando só o cabeçalho Outer (5 layers), aplicado noutra comp:
+duas pastas com nome, cor, aninhamento, estado fechado e parent iguais,
+nada "moved", Hide Shy ligado; abrir a Inner nova não mexe na original.
+

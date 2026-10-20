@@ -2186,6 +2186,9 @@
       }
       if (res.avSkipped) {
         setStatus(res.avSkipped + " layer" + (res.avSkipped === 1 ? "" : "s") + " couldn't be read and " + (res.avSkipped === 1 ? "was" : "were") + " skipped.", "error");
+      } else if (res.folderLayers) {
+        // A selected folder header brings its whole folder (Tools > Folders).
+        setStatus("The selected folder's " + res.folderLayers + " layer" + (res.folderLayers === 1 ? "" : "s") + " came along (the folder is saved too).", "success");
       } else if (res.dependencies) {
         // A selected layer's parent / track matte wasn't selected -- it
         // rides along so the layer keeps its motion and cut-out.
