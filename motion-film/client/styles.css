@@ -619,8 +619,11 @@ main::-webkit-scrollbar-thumb { background: var(--panel-raised); border-radius: 
 .lf-toolbar { display: flex; gap: 6px; margin-bottom: 10px; }
 .lf-tool { display: flex; align-items: center; justify-content: center; gap: 6px; height: 30px; min-width: 34px; padding: 0 9px; border: 1px solid var(--line); border-radius: 8px; color: var(--muted); background: var(--panel-soft); font-size: 10px; font-weight: 700; transition: border-color .15s ease, color .15s ease, background .15s ease; }
 .lf-tool:hover { border-color: var(--accent); color: var(--accent-bright); }
-.lf-tool.is-primary { flex: 1; color: var(--accent-ink); background: var(--accent); border-color: var(--accent); }
-.lf-tool.is-primary:hover { filter: brightness(1.08); color: var(--accent-ink); }
+/* Principal (Group / Scale): discreto como os botões da aba Captions,
+   verde só ao passar o mouse (pedido do usuário). */
+.lf-tool.is-primary { flex: 1; color: var(--text); background: var(--panel-soft); border-color: var(--line); }
+.lf-tool.is-primary:hover { color: var(--accent-bright); border-color: var(--accent); background: rgba(var(--accent-rgb), .1); }
+.lf-tool:disabled { opacity: .45; pointer-events: none; }
 .lf-tool.is-on { color: var(--accent-bright); border-color: var(--accent); background: rgba(var(--accent-rgb), .16); }
 .lf-tool svg { display: block; flex-shrink: 0; }
 .lf-tree { display: flex; flex-direction: column; gap: 3px; max-height: 360px; overflow-y: auto; }
