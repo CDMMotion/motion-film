@@ -2222,56 +2222,155 @@
   }
 
   // ---------------------------------------------------------------
-  // Captions tab: transcribe a footage layer's own audio (via a local
-  // whisper.cpp + ffmpeg pipeline the panel drives with Node's
-  // child_process -- see initCaptionsTools/transcribeSelectedLayer in
-  // client/panel.js) and turn the result into one text layer per
-  // sentence, positioned at the right point on the timeline. This host
-  // side only needs to (1) hand back which file to feed the pipeline and
-  // (2) build the layers once the panel has a transcript back.
+  // Captions tab: transcribe what the comp sounds like (via a local
+  // whisper.cpp pipeline the panel drives with Node's child_process --
+  // see initCaptionsTools/runTranscriptionForInfo in client/panel.js) and
+  // turn the result into caption text layers at the right point on the
+  // timeline. This host side (1) renders the audio to transcribe through
+  // AE's own Render Queue and (2) builds the layers once the panel has a
+  // transcript back.
   // ---------------------------------------------------------------
 
-  function getSelectedLayerAudioInfo() {
+  // True when some layer of `comp` (or of a precomp inside it) plays sound.
+  function compHasAudio(comp, depth) {
+    if (depth > 12) {
+      return false;
+    }
+    for (var i = 1; i <= comp.numLayers; i += 1) {
+      var layer = comp.layer(i);
+      if (!(layer instanceof AVLayer) || !layer.hasAudio || !layer.audioEnabled) {
+        continue;
+      }
+      if (!(layer.source instanceof CompItem) || compHasAudio(layer.source, depth + 1)) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  // What gets transcribed: the one selected layer with sound (footage,
+  // precomp, time-remapped -- anything AE can play), or, with nothing
+  // selected, the whole comp over its work area. The span is in comp
+  // time; nothing is rendered here.
+  function captionsAudioTarget() {
     var comp = activeComp();
     if (!comp) {
-      return stringify({ ok: false, error: "Open a composition first." });
+      return { ok: false, error: "Open a composition first." };
     }
     var layers = selectedLayers();
-    if (!layers.length) {
-      return stringify({ ok: false, error: "Select a layer with video/audio footage first." });
-    }
     if (layers.length > 1) {
-      return stringify({ ok: false, error: "Select only one layer to transcribe." });
+      return { ok: false, error: "Select only one layer to transcribe (or none, to transcribe the whole composition)." };
     }
-    var layer = layers[0];
-    var source = layer.source;
-    var file = (source && source.mainSource && source.mainSource.file) ? source.mainSource.file : null;
-    if (!file) {
-      return stringify({ ok: false, error: "“" + layer.name + "” isn't linked to a media file on disk (solids, shapes, text and precomps don't have one) -- select a video/audio footage layer instead." });
+    if (layers.length === 1) {
+      var layer = layers[0];
+      var hasSound = layer instanceof AVLayer && layer.hasAudio && (!(layer.source instanceof CompItem) || compHasAudio(layer.source, 0));
+      if (!hasSound) {
+        return { ok: false, error: "“" + layer.name + "” has no audio -- select a video/audio layer or a precomp with sound (or deselect everything to transcribe the whole composition)." };
+      }
+      var start = Math.max(layer.inPoint, 0);
+      var end = Math.min(layer.outPoint, comp.duration);
+      if (end <= start) {
+        return { ok: false, error: "“" + layer.name + "” isn't visible within the composition's timeline -- trim it back into view first." };
+      }
+      return { ok: true, comp: comp, layer: layer, start: start, end: end, label: layer.name };
     }
-    // Only transcribe the stretch of the source file the layer actually
-    // shows on the timeline -- respects trimming (In/Out points) and the
-    // comp's own bounds, instead of always reading the whole underlying
-    // file regardless of how much of it is actually used. `startTime` is
-    // where the footage's own time 0 lands in comp time (constant
-    // regardless of trimming), so subtracting it from the visible
-    // in/out range converts back to a time range inside the source file
-    // itself -- that's what ffmpeg needs to cut out.
-    var compIn = Math.max(layer.inPoint, 0);
-    var compOut = Math.min(layer.outPoint, comp.duration);
-    if (compOut <= compIn) {
-      return stringify({ ok: false, error: "“" + layer.name + "” isn't visible within the composition's timeline -- trim it back into view first." });
+    if (!compHasAudio(comp, 0)) {
+      return { ok: false, error: "“" + comp.name + "” has no layers with audio switched on -- add the video/audio to transcribe first." };
     }
-    var sourceInPoint = compIn - layer.startTime;
-    var sourceOutPoint = compOut - layer.startTime;
-    return stringify({
-      ok: true,
-      layerName: layer.name,
-      sourceFile: file.fsName,
-      sourceInPoint: sourceInPoint,
-      sourceOutPoint: sourceOutPoint,
-      layerInPoint: compIn
-    });
+    return { ok: true, comp: comp, layer: null, start: comp.workAreaStart, end: comp.workAreaStart + comp.workAreaDuration, label: comp.name };
+  }
+
+  function getCaptionsAudioTarget() {
+    var target = captionsAudioTarget();
+    if (!target.ok) {
+      return stringify(target);
+    }
+    return stringify({ ok: true, label: target.label, isLayer: !!target.layer, start: target.start, end: target.end });
+  }
+
+  // Renders the target's audio to an AIFF through the Render Queue, with
+  // AE's built-in "AIFF 48kHz" output module template -- so it's exactly
+  // what's heard on the timeline (precomps, time remap, stretch, audio
+  // levels, mutes), with no need to know the footage files behind it.
+  // A selected layer is copied alone into a temporary comp first, so the
+  // other layers' sound (music, effects) stays out of the transcription
+  // without touching the user's own layers. Queued render items are
+  // switched off during the render and restored after. `outBase` is the
+  // output path without extension (AE adds ".aif").
+  function renderCaptionsAudio(outBase) {
+    var target = captionsAudioTarget();
+    if (!target.ok) {
+      return stringify(target);
+    }
+    var rq = app.project.renderQueue;
+    if (rq.rendering) {
+      return stringify({ ok: false, error: "The Render Queue is busy -- wait for it to finish first." });
+    }
+    var comp = target.comp;
+    var tempComp = null;
+    var item = null;
+    var paused = [];
+    var i;
+    app.beginUndoGroup("Mótion Film: Captions audio");
+    try {
+      var renderComp = comp;
+      if (target.layer) {
+        tempComp = app.project.items.addComp("Mótion Film captions audio (temp)", comp.width, comp.height, comp.pixelAspect, comp.duration, comp.frameRate);
+        target.layer.copyToComp(tempComp);
+        try {
+          tempComp.layer(1).audioEnabled = true;
+        } catch (audioError) {}
+        renderComp = tempComp;
+      }
+      item = rq.items.add(renderComp);
+      var module = item.outputModule(1);
+      var template = null;
+      for (i = 0; i < module.templates.length; i += 1) {
+        if (/aiff/i.test(module.templates[i]) && !/_HIDDEN/.test(module.templates[i])) {
+          template = module.templates[i];
+          break;
+        }
+      }
+      if (!template) {
+        throw new Error("After Effects' built-in “AIFF 48kHz” output module template wasn't found.");
+      }
+      module.applyTemplate(template);
+      item.timeSpanStart = target.start;
+      item.timeSpanDuration = target.end - target.start;
+      module.file = new File(outBase);
+      for (i = 1; i <= rq.numItems; i += 1) {
+        var other = rq.item(i);
+        if (other !== item && other.status === RQItemStatus.QUEUED && other.render) {
+          other.render = false;
+          paused.push(other);
+        }
+      }
+      rq.render();
+      var out = module.file;
+      if (item.status !== RQItemStatus.DONE || !out.exists) {
+        throw new Error("After Effects couldn't render the audio (render status " + item.status + ").");
+      }
+      return stringify({ ok: true, file: out.fsName, start: target.start, duration: target.end - target.start, label: target.label });
+    } catch (error) {
+      return stringify({ ok: false, error: "Couldn't render the audio: " + String(error && error.message ? error.message : error) });
+    } finally {
+      for (i = 0; i < paused.length; i += 1) {
+        try {
+          paused[i].render = true;
+        } catch (restoreError) {}
+      }
+      try {
+        if (item) {
+          item.remove();
+        }
+      } catch (removeItemError) {}
+      try {
+        if (tempComp) {
+          tempComp.remove();
+        }
+      } catch (removeCompError) {}
+      app.endUndoGroup();
+    }
   }
 
   // ---------------------------------------------------------------
@@ -5053,10 +5152,9 @@
   $.global.kitBakeFootageItem = kitBakeFootageItem;
 
   // phrasesJson: JSON string, an array of { text, start, end } (start/end
-  // in seconds, relative to the SOURCE FILE's own time 0 -- the panel
-  // adds layerStartTime itself before calling, since it already has that
-  // number from getSelectedLayerAudioInfo and it's simpler to keep all
-  // the timestamp arithmetic in one place).
+  // in seconds, comp time -- the panel adds the rendered span's start
+  // itself before calling, so all the timestamp arithmetic stays in one
+  // place).
   // stylePresetJson: optional JSON string of a preset captured by
   // captureLayerStylePreset -- if present, applied to every caption
   // layer created, right after its text/timing/position are set.
@@ -5638,7 +5736,8 @@
   $.global.applyKitCompData = applyKitCompData;
   $.global.renderKitPreviewClip = renderKitPreviewClip;
   $.global.importSvgIcon = importSvgIcon;
-  $.global.getSelectedLayerAudioInfo = getSelectedLayerAudioInfo;
+  $.global.getCaptionsAudioTarget = getCaptionsAudioTarget;
+  $.global.renderCaptionsAudio = renderCaptionsAudio;
   $.global.createCaptionLayers = createCaptionLayers;
   $.global.captureLayerStylePreset = captureLayerStylePreset;
   $.global.applyStylePresetToSelectedLayers = applyStylePresetToSelectedLayers;

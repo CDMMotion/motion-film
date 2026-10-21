@@ -1714,6 +1714,18 @@ rodada de "não funcionou, tenta de novo" até a causa real aparecer.
     vivo; o "parou de pular?" precisa de digitação real -- pedido ao
     usuário pra fechar/reabrir o painel e confirmar. Ver README.
 
+67. **A Render Queue não grava em pasta com acento.** `om.file = new
+    File("C:/Users/Usuário/Documents/Mótion Film Tools/...")` + `rq.render()`
+    falhou com "Can not create a file in directory C:\Users" (confirmado
+    ao vivo, aba Captions). Passar o caminho curto 8.3 (`toShortPath`,
+    só ASCII) resolveu. **Lição: todo caminho que o AE vai RENDERIZAR
+    (não só os que vão pro whisper-cli) vai em 8.3 no Windows.** Também:
+    num teste via CDP, um `evalScript` com erro de sintaxe abre um
+    diálogo modal "Unable to execute script at line 1" NO AE DO USUÁRIO
+    (um por chamada) -- uma quebra de linha real (`\r` sem escapar)
+    dentro de uma regex no código mandado foi o culpado. Testar o
+    snippet antes de mandar em loop.
+
 ## Jeito de trabalhar que funcionou bem
 
 - **Testar de verdade em vez de só ler o código**, sempre que possível: para
@@ -1835,6 +1847,18 @@ rodada de "não funcionou, tenta de novo" até a causa real aparecer.
   do Iconify), guarda a lista completa em memória e revela 64 por vez
   conforme rola (`ICONS_PAGE_SIZE`/`iconsSearchState` em `client/
   panel.js`) -- sem chamada de rede nova a cada página.
+- **Aba Captions, fase 1 da versão própria das legendas dinâmicas
+  (2026-10-21)**: o áudio agora é renderizado pelo próprio AE (Render
+  Queue, template "AIFF 48kHz") -- camada selecionada (copiada sozinha
+  numa comp temporária) ou, sem seleção, a comp inteira na work area;
+  whisper roda com `-dtw <modelo> -nfa` (tempo por palavra); o novo
+  `client/captions-core.js` (JS puro, testável no Node) alinha palavras
+  à energia do áudio, joga fora frases inventadas e agrupa as legendas
+  por programação dinâmica. Base: `ANALISE-AFTERFLIX-CAPTIONS.md` na
+  raiz (engenharia reversa do AfterFlix Captions -- reimplementar
+  ideias, nunca copiar arquivos deles). Próximas fases: animação por
+  palavra (marcadores + animators), registro no XMP + editor, estilo
+  viral. Ver README "Captions fase 1".
 - **Aba Captions**: transcreve o áudio da camada selecionada e cria uma
   camada de texto por frase, posicionada no tempo certo -- **100% local**
   (whisper.cpp + ffmpeg via `child_process` do Node, já habilitado nesta

@@ -5245,3 +5245,60 @@ salvo selecionando só o cabeçalho Outer (5 layers), aplicado noutra comp:
 duas pastas com nome, cor, aninhamento, estado fechado e parent iguais,
 nada "moved", Hide Shy ligado; abrir a Inner nova não mexe na original.
 
+
+## Changelog -- Captions fase 1: áudio pela Render Queue, whisper com DTW, alinhamento e agrupamento novos
+
+Primeira fase da versão própria das legendas dinâmicas (estudo do
+AfterFlix Captions em `ANALISE-AFTERFLIX-CAPTIONS.md`, na raiz -- só as
+ideias, nenhum arquivo deles). Mesma interface; muda o que acontece por
+trás de "Transcribe".
+
+- **O que é transcrito** (`captionsAudioTarget` em `host.jsx`): uma
+  camada selecionada com som -- agora também precomp, time remap, stretch
+  -- só no trecho visível; ou, sem nada selecionado, a comp inteira na
+  work area. Antes: só camada de footage com arquivo, lida direto do
+  disco pelo ffmpeg (sem time remap, sem precomp).
+- **Áudio renderizado pelo AE** (`renderCaptionsAudio`): a comp vai pra
+  Render Queue com o template de saída embutido "AIFF 48kHz", os outros
+  itens da fila ficam desligados durante o render e voltam depois, e o
+  item é removido no fim. Camada selecionada = copiada sozinha
+  (`copyToComp`) numa comp temporária, então música/efeitos das outras
+  camadas não entram e nenhuma camada do usuário é alterada. Tudo num
+  único passo de undo.
+- **Pasta do job**: `Documents/Mótion Film Tools/temp/job-<n>/`, apagada
+  no fim (também em erro). O AE recebe o caminho curto 8.3 -- a Render
+  Queue não grava em pasta com acento (ver HANDOFF, lição 67).
+- **ffmpeg** só converte o AIFF pra WAV 16 kHz mono. O painel lê esse WAV
+  e mede a energia a cada 10 ms (`speechActivity`): limiar entre o piso
+  de ruído e as partes altas; buracos < 80 ms fechados. Áudio mudo para
+  aqui com mensagem (o whisper inventaria frases no silêncio).
+- **whisper-cli** com `-dtw <preset do modelo> -nfa` (`whisperDtwPreset`:
+  `ggml-small.bin` -> `small`), `-t` = núcleos - 1 (máx. 8) e `-pp`: a
+  porcentagem aparece no status ("Transcribing… 42%").
+- **`client/captions-core.js`** (novo, JS puro, roda no Node pra teste):
+  - `wordsFromWhisper`: tokens -> palavras inteiras; o `t_dtw` marca o
+    FIM do token, então a palavra vai do fim do token anterior ao `t_dtw`
+    do seu último token. Pontuação gruda na palavra anterior; texto do
+    segmento corrige letra multibyte cortada (ç, ã); "[Música]", "(risos)"
+    e ♪ saem.
+  - `cleanWords`: descarta segmentos que são frase inventada conhecida
+    ("obrigado por assistir", "legendas pela comunidade amara.org"...)
+    sobre pouco som, ou que caem quase todos no silêncio; depois prende o
+    início e o fim de cada palavra onde o som realmente começa/termina.
+  - `buildCaptions`: corta em pausa longa e fim de frase; dentro da frase,
+    programação dinâmica escolhe os cortes (menos legendas, tamanhos
+    parecidos, preferência por cortar depois de vírgula, nunca terminar
+    em "de/a/que/the..."). Duas linhas balanceadas. Timing: um pouco de
+    folga depois da fala, duração mínima, buraco < 0,25 s fechado (não
+    pisca). Regras por modo em `captionRules` (2 Lines / 1 Line / Word).
+- **Removidos de `panel.js`**: `flattenWhisperTokens`,
+  `flattenWhisperWords`, `buildCaptionsFromTranscript`. Em `host.jsx`,
+  `getSelectedLayerAudioInfo` virou `getCaptionsAudioTarget` +
+  `renderCaptionsAudio`. Import SRT não mudou.
+- **Testado ao vivo**: comp 1080x1920 com uma fala TTS em PT-BR (3
+  frases separadas por pausas) começando em 2 s + uma camada de tom
+  contínuo ("música"). Camada da fala selecionada: 3 legendas, texto e
+  acentos certos, quebra de linha balanceada, inícios em 2,08 / 9,52 /
+  18,24 s contra a fala medida em 2,10 / 9,54 / 18,26 s. Sem seleção
+  (comp inteira, com o tom junto): mesmas 3 legendas, 2,10 / 9,54 /
+  18,25 s. Render Queue vazia, comp temporária e pasta do job apagadas.

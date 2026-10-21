@@ -4538,6 +4538,9 @@
         child.stderr.setEncoding("utf8");
         child.stderr.on("data", function (chunk) {
           stderr += chunk;
+          if (opts.onStderr) {
+            opts.onStderr(chunk);
+          }
         });
       }
       child.on("error", function (err) {
@@ -4781,138 +4784,8 @@
     });
   }
 
-  // whisper.cpp emits several kinds of bracketed meta tokens mixed into
-  // the real word tokens -- not just "[_BEG_]", but also internal
-  // alignment markers like "[_TT_444]" (confirmed live: a narrower
-  // "[_..._]" pattern missed those, and they leaked straight into
-  // caption text, mid-sentence). Actual transcribed speech never comes
-  // back bracket-wrapped, so filtering out anything fully "[...]" is
-  // safe. Returns a flat, ordered list -- segment boundaries dropped,
-  // since they don't align with sentence or line boundaries anyway.
-  function flattenWhisperTokens(whisperResult) {
-    var segments = (whisperResult && whisperResult.transcription) || [];
-    var tokens = [];
-    for (var i = 0; i < segments.length; i += 1) {
-      var segTokens = segments[i].tokens || [];
-      for (var j = 0; j < segTokens.length; j += 1) {
-        var raw = segTokens[j].text || "";
-        if (/^\[.*\]$/.test(raw.replace(/^\s+|\s+$/g, ""))) {
-          continue;
-        }
-        var offsets = segTokens[j].offsets || {};
-        tokens.push({
-          text: raw,
-          start: (offsets.from || 0) / 1000,
-          end: (offsets.to || offsets.from || 0) / 1000
-        });
-      }
-    }
-    return tokens;
-  }
-
-  // whisper.cpp frequently splits one real word into several tokens
-  // (subword/BPE pieces, or punctuation glued onto the previous word) --
-  // a token starting with whitespace marks the start of a NEW word, one
-  // with no leading whitespace is a continuation of the previous token.
-  // Confirmed live this distinction matters: packing/wrapping directly
-  // off the raw token stream let a caption or line break land exactly
-  // between two pieces of the same word, visibly splitting it in half.
-  // This merges the flat token stream into whole, never-split words
-  // before anything else touches character counts.
-  function flattenWhisperWords(whisperResult) {
-    var tokens = flattenWhisperTokens(whisperResult);
-    var words = [];
-    for (var i = 0; i < tokens.length; i += 1) {
-      var raw = tokens[i].text;
-      if (words.length === 0 || /^\s/.test(raw)) {
-        words.push({ text: raw.replace(/^\s+/, ""), start: tokens[i].start, end: tokens[i].end });
-      } else {
-        var last = words[words.length - 1];
-        last.text += raw;
-        last.end = tokens[i].end;
-      }
-    }
-    return words;
-  }
-
-  // Groups whisper's words into captions according to the user's chosen
-  // length mode:
-  // - "word": one caption per whole word, ignoring the character limit
-  //   entirely (there's nothing to wrap or pack).
-  // - "1-line"/"2-lines": for each caption, fills up to `lineCount` lines
-  //   one at a time, each independently bounded at `charLimit` -- a word
-  //   that would push a line over the limit starts the NEXT line (or the
-  //   next caption, once `lineCount` lines are already full) instead.
-  //   Filling ever stops early the moment a word ends in sentence
-  //   punctuation, so a caption never spans past a sentence boundary even
-  //   with room left on the line. Packing whole words (see
-  //   flattenWhisperWords above) means a break can only ever land between
-  //   two real words, never mid-word -- and bounding EVERY line
-  //   individually (not just the first, then splitting the leftover
-  //   into a second line) means the character limit actually holds on
-  //   both lines, not just the first.
-  function buildCaptionsFromTranscript(whisperResult, settings) {
-    var words = flattenWhisperWords(whisperResult);
-
-    if (settings.length === "word") {
-      var wordCaptions = [];
-      for (var w = 0; w < words.length; w += 1) {
-        if (words[w].text) {
-          wordCaptions.push({ text: words[w].text, start: words[w].start, end: words[w].end });
-        }
-      }
-      return wordCaptions;
-    }
-
-    var perLine = settings.charLimit;
-    var lineCount = settings.length === "2-lines" ? 2 : 1;
-    var captions = [];
-    var wi = 0;
-
-    function endsSentence(word) {
-      return /[.!?]$/.test(word.text);
-    }
-
-    while (wi < words.length) {
-      var lines = [];
-      var start = words[wi].start;
-      var end = words[wi].end;
-      var stoppedForSentence = false;
-      for (var lineIdx = 0; lineIdx < lineCount && !stoppedForSentence; lineIdx += 1) {
-        if (wi >= words.length) {
-          break;
-        }
-        var lineWords = [];
-        var used = 0;
-        while (wi < words.length) {
-          var word = words[wi];
-          var next = lineWords.length ? used + 1 + word.text.length : word.text.length;
-          if (lineWords.length && next > perLine) {
-            break; // doesn't fit on this line -- next line, or next caption
-          }
-          lineWords.push(word.text);
-          used = next;
-          end = word.end;
-          wi += 1;
-          if (endsSentence(word)) {
-            stoppedForSentence = true;
-            break;
-          }
-        }
-        if (!lineWords.length) {
-          // one word alone is already longer than the limit -- keep it
-          // whole on its own line rather than looping forever.
-          lineWords.push(words[wi].text);
-          end = words[wi].end;
-          wi += 1;
-        }
-        lines.push(lineWords.join(" "));
-      }
-      captions.push({ text: lines.join("\r"), start: start, end: end });
-    }
-
-    return captions;
-  }
+  // Whisper JSON -> words -> captions lives in captions-core.js
+  // (window.MFCaptionsCore), pure JS so it can be tested under Node.
 
   // ---------------------------------------------------------------
   // Caption Settings modal -- opened from "Transcribe Selected Layer"
@@ -6006,53 +5879,116 @@
     }
   }
 
+  // whisper's -dtw needs the alignment-head preset of the model in use,
+  // named like the model file: ggml-small.bin -> "small",
+  // ggml-large-v3.bin -> "large.v3", ggml-base.en.bin -> "base.en".
+  function whisperDtwPreset(modelPath) {
+    var m = /ggml-([a-z0-9.\-]+?)(-q\d_\d)?\.bin$/i.exec(String(modelPath));
+    return m ? m[1].toLowerCase().replace(/-v(\d)/, ".v$1") : "";
+  }
+
+  function whisperThreads() {
+    var cpus = (nodeRequire("os").cpus() || []).length || 4;
+    return Math.max(1, Math.min(8, cpus - 1)); // leave a core to After Effects
+  }
+
+  // One transcription, start to finish, in its own temp folder (removed
+  // at the end, also on error):
+  //   1. After Effects renders the audio of the target (renderCaptionsAudio
+  //      in host.jsx -- the Render Queue, so it's exactly what's heard),
+  //   2. ffmpeg turns that AIFF into the 16 kHz mono WAV whisper reads,
+  //   3. the WAV's loudness gives the speech activity (and a silent target
+  //      stops here, before whisper invents something over the silence),
+  //   4. whisper-cli transcribes with -dtw (a time per token),
+  //   5. captions-core.js turns tokens into words snapped to the sound and
+  //      groups them into captions.
+  // Resolves the captions in comp time.
   function runTranscriptionPipeline(info, settings) {
     var fs = nodeRequire("fs");
+    var path = nodeRequire("path");
+    var core = window.MFCaptionsCore;
     var p = captionsPaths();
-    fs.mkdirSync(p.tempDir, { recursive: true });
-    var runId = String(Date.now());
+    var jobDir = path.join(p.tempDir, "job-" + Date.now());
+    fs.mkdirSync(jobDir, { recursive: true });
 
-    return toShortPath(p.tempDir).then(function (tempDirShort) {
-      var path = nodeRequire("path");
-      var wavPath = path.join(tempDirShort, "audio-" + runId + ".wav");
-      var jsonOutBase = path.join(tempDirShort, "transcript-" + runId);
+    function cleanup() {
+      try {
+        fs.rmSync(jobDir, { recursive: true, force: true, maxRetries: 5, retryDelay: 150 });
+      } catch (cleanupError) {
+        // Non-fatal -- a file AE still holds open; it's only a temp folder.
+      }
+    }
 
-      // -ss/-to as INPUT options (before -i) trim to exactly the stretch
-      // of the source the layer shows on the timeline -- respects
-      // trimming instead of always transcribing the whole underlying
-      // file. Both are relative to the ORIGINAL file's own timeline (not
-      // to each other), which is exactly the sourceInPoint/sourceOutPoint
-      // pair host.jsx already computed from the layer's In/Out points.
-      return runCommand(p.ffmpegExe, ["-nostdin", "-y", "-ss", String(info.sourceInPoint), "-to", String(info.sourceOutPoint), "-i", info.sourceFile, "-ar", "16000", "-ac", "1", "-c:a", "pcm_s16le", wavPath], { maxBuffer: 1024 * 1024 * 20, timeout: 10 * 60 * 1000 })
-        .then(function () {
-          setCaptionsRunStatus("Transcribing “" + info.layerName + "” (this can take a while on longer clips)…");
-          return Promise.all([toShortPath(p.whisperExe), toShortPath(p.modelPath)]);
-        })
-        .then(function (shortPaths) {
-          return runCommand(shortPaths[0], ["-m", shortPaths[1], "-f", wavPath, "-l", settings.language, "-ojf", "-of", jsonOutBase], { maxBuffer: 1024 * 1024 * 40, timeout: 30 * 60 * 1000 });
-        })
-        .then(function () {
-          var whisperResult = JSON.parse(fs.readFileSync(jsonOutBase + ".json", "utf8"));
-          var captions = buildCaptionsFromTranscript(whisperResult, settings);
-          // The extracted clip's own time 0 IS info.layerInPoint (that's
-          // exactly what -ss cut to), so caption times need no more math
-          // than that single offset -- no need to also add layerStartTime
-          // now that the clip no longer starts at the source file's time 0.
-          var absoluteCaptions = captions.map(function (caption) {
-            return { text: caption.text, start: info.layerInPoint + caption.start, end: info.layerInPoint + caption.end };
-          });
-          try {
-            fs.unlinkSync(wavPath);
-          } catch (cleanupWavError) {
-            // Non-fatal.
+    var rendered = null;
+    var duration = 0;
+    var activity = null;
+    var jobDirShort = "";
+    // The Render Queue can't write under a folder with accents (confirmed
+    // live: "Mótion Film Tools" under an accented "C:\Users\<name>" -> "Can not
+    // create a file in directory C:\Users"), so AE gets the 8.3 path too.
+    var work = toShortPath(jobDir).then(function (shortDir) {
+      jobDirShort = shortDir;
+      setCaptionsRunStatus("Rendering the audio of “" + info.label + "” in After Effects…");
+      return new Promise(function (resolve, reject) {
+        hostCall("renderCaptionsAudio", [path.join(jobDirShort, "audio")], function (result) {
+          if (!result.ok) {
+            reject(new Error(result.error));
+            return;
           }
-          try {
-            fs.unlinkSync(jsonOutBase + ".json");
-          } catch (cleanupJsonError) {
-            // Non-fatal.
-          }
-          return absoluteCaptions;
+          resolve(result);
         });
+      });
+    }).then(function (result) {
+      rendered = result;
+      setCaptionsRunStatus("Preparing the audio…");
+      var wavPath = path.join(jobDirShort, "audio16k.wav");
+      return runCommand(p.ffmpegExe, ["-nostdin", "-y", "-i", rendered.file, "-ar", "16000", "-ac", "1", "-c:a", "pcm_s16le", wavPath], { timeout: 10 * 60 * 1000 }).then(function () {
+        var wav = core.readWav16(new Uint8Array(fs.readFileSync(wavPath)));
+        duration = wav.samples.length / wav.rate;
+        activity = core.speechActivity(wav.samples, wav.rate);
+        if (core.isSilent(activity)) {
+          throw new Error("No sound found in “" + info.label + "” -- nothing to transcribe.");
+        }
+        setCaptionsRunStatus("Transcribing “" + info.label + "”…");
+        return Promise.all([toShortPath(p.whisperExe), toShortPath(p.modelPath)]);
+      }).then(function (shortPaths) {
+        var args = ["-m", shortPaths[1], "-f", wavPath, "-l", settings.language, "-t", String(whisperThreads()),
+          "-ojf", "-of", path.join(jobDirShort, "result"), "-pp"];
+        var dtw = whisperDtwPreset(p.modelPath);
+        if (dtw) {
+          args.push("-dtw", dtw, "-nfa"); // token times need flash attention off
+        }
+        return runCommand(shortPaths[0], args, {
+          timeout: 60 * 60 * 1000,
+          onStderr: function (chunk) {
+            var m = /progress\s*=\s*(\d+)%/.exec(chunk);
+            if (m) {
+              setCaptionsRunStatus("Transcribing “" + info.label + "”… " + m[1] + "%");
+            }
+          }
+        });
+      }).then(function () {
+        setCaptionsRunStatus("Syncing words to the audio…");
+        var whisperResult = JSON.parse(fs.readFileSync(path.join(jobDir, "result.json"), "utf8"));
+        var words = core.cleanWords(core.wordsFromWhisper(whisperResult), activity, duration);
+        if (!words.length) {
+          throw new Error("No speech recognized in “" + info.label + "”.");
+        }
+        return core.buildCaptions(words, core.captionRules(settings)).map(function (caption) {
+          return {
+            text: caption.text,
+            start: rendered.start + caption.start,
+            end: rendered.start + caption.end
+          };
+        });
+      });
+    });
+    return work.then(function (captions) {
+      cleanup();
+      return captions;
+    }, function (error) {
+      cleanup();
+      throw error;
     });
   }
 
@@ -6062,7 +5998,6 @@
     if (button) {
       button.disabled = true;
     }
-    setCaptionsRunStatus("Extracting audio from “" + info.layerName + "”…");
     var stylePresets = loadStylePresets();
     var stylePresetEntry = null;
     for (var i = 0; i < stylePresets.length; i += 1) {
@@ -6230,12 +6165,13 @@
 
     // Clicking "Transcribe" checks the selection first (so a bad
     // selection fails fast with a clear message) and only then opens the
-    // settings modal -- confirming the layer is transcribable before
-    // asking the user to configure how.
+    // settings modal -- confirming there's something to transcribe (one
+    // selected layer with sound, or nothing selected = the whole comp)
+    // before asking the user to configure how.
     var transcribeButton = $("captions-transcribe-button");
     if (transcribeButton) {
       transcribeButton.addEventListener("click", function () {
-        hostCall("getSelectedLayerAudioInfo", [], function (info) {
+        hostCall("getCaptionsAudioTarget", [], function (info) {
           if (!info.ok) {
             setStatus(info.error, "error");
             return;

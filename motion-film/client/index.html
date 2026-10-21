@@ -237,7 +237,7 @@
               </div>
               <div class="section-body captions-section-body">
                 <div class="button-row">
-                  <button id="captions-transcribe-button" class="secondary-button secondary-button-icon" type="button" data-tooltip="Select a video or audio layer in the timeline (one with a real file behind it -- not a solid, shape, text or precomp), then click Transcribe. Only the stretch of it visible on the timeline gets transcribed.">
+                  <button id="captions-transcribe-button" class="secondary-button secondary-button-icon" type="button" data-tooltip="Select one layer with sound (video, audio or a precomp) to transcribe just it -- only the stretch visible on the timeline -- or select nothing to transcribe the whole composition over its work area. After Effects renders the audio itself, so precomps, time remapping and speed changes sound exactly as on the timeline.">
                     <svg viewBox="0 0 28 28" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.7">
                       <path d="M5 11v6" stroke-linecap="round"/>
                       <path d="M9.5 8v12" stroke-linecap="round"/>
@@ -481,6 +481,7 @@
          stale script for a whole AE session even after the file on disk
          changed. Changing the URL forces a fresh fetch + recompile. -->
     <script src="shared-core.js?v=0100a"></script>
+    <script src="captions-core.js?v=0100a"></script>
     <script src="panel.js?v=0100a"></script>
     <script src="folders.js?v=0100a"></script>
     <script src="scalecomp.js?v=0100a"></script>
