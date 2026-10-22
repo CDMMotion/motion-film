@@ -1726,6 +1726,16 @@ rodada de "não funcionou, tenta de novo" até a causa real aparecer.
     dentro de uma regex no código mandado foi o culpado. Testar o
     snippet antes de mandar em loop.
 
+68. **Teste ao vivo no AE do usuário cria coisas NO PROJETO DELE.** O
+    projeto aberto era o do usuário (ele importou o vídeo dele no mesmo
+    projeto sem salvar): comps/áudios de teste, sólidos "MF Captions
+    shade" e "Null N" de cada teste ficaram lá, e um teste de geração
+    criou legendas na comp DELE (ele trocou de comp no meio). **Lição:**
+    (a) a criação tem que mirar a comp de origem por id, nunca a ativa;
+    (b) depois de cada teste, limpar também os itens de sólido/null que
+    o teste criou (`usedIn.length === 0`) e reabrir a comp que estava
+    ativa; (c) com o usuário mexendo no AE, avisar antes de testar.
+
 ## Jeito de trabalhar que funcionou bem
 
 - **Testar de verdade em vez de só ler o código**, sempre que possível: para
@@ -1856,9 +1866,19 @@ rodada de "não funcionou, tenta de novo" até a causa real aparecer.
   à energia do áudio, joga fora frases inventadas e agrupa as legendas
   por programação dinâmica. Base: `ANALISE-AFTERFLIX-CAPTIONS.md` na
   raiz (engenharia reversa do AfterFlix Captions -- reimplementar
-  ideias, nunca copiar arquivos deles). Próximas fases: animação por
-  palavra (marcadores + animators), registro no XMP + editor, estilo
-  viral. Ver README "Captions fase 1".
+  ideias, nunca copiar arquivos deles). **Fase 2 (mesmo dia)**: aba
+  refeita como guia 1 Style / 2 Animation / 3 Highlight / 4 Adjust
+  (`client/captions.js`), botões antigos e Style Presets removidos,
+  motor novo `createCaptionSet` (modelo + copyToComp, marcador por
+  palavra + Expression Selectors, 13 animações, destaque da palavra
+  falada, caixa, sombra de fundo). Depois (mesmo dia): **estilos Reels/Viral**
+  (13, `captions-styles.js`), layout compartilhado painel/AE
+  (`captions-layout.js`, ES3), planejador da palavra destaque
+  (`planHighlights`), motor `createViralSet` (Null + uma camada por
+  linha), 4 animações novas, aba Destaque, fontes OFL em
+  `motion-film/fonts/` instaladas pelo painel só pro usuário. Próximo:
+  registro no XMP + editor de texto. Ver README "Captions fase 1",
+  "fase 2" e "estilos Reels e Viral".
 - **Aba Captions**: transcreve o áudio da camada selecionada e cria uma
   camada de texto por frase, posicionada no tempo certo -- **100% local**
   (whisper.cpp + ffmpeg via `child_process` do Node, já habilitado nesta
@@ -1953,3 +1973,20 @@ código. O princípio seguido (já documentado no README desde antes desta
 sessão): entender a organização/objetivos é ok, mas nenhum código
 protegido/proprietário de terceiros é copiado ou incorporado. Vale manter
 esse mesmo cuidado se aparecer mais pesquisa desse tipo.
+
+## Aba Text Animation (nossa versão do AfterFlix Animations)
+
+Biblioteca de 2100 entradas/saídas de texto gerada por código nosso
+(`client/textanim-library.js`), UI em `client/textanim.js`, AE em
+`host/textanim.jsx` (`$.evalFile` sob demanda). Um preset = visual
+escondido de um Text Animator + Range Selector; o host cria "MF In" /
+"MF Out" nos textos selecionados. Detalhes e armadilhas (matchName
+`ADBE Text Track Type`; addProperty com matchName errado aborta o
+script sem catch) no README, "Aba Text Animation".
+
+Teste ao vivo: a ponte 8092 some se o painel principal for fechado e
+reaberto rápido demais (o motor novo tenta abrir a porta enquanto o
+velho ainda segura -> "Cannot start http server for devtools"). Dá pra
+continuar rodando ExtendScript pela 8094 (MF - Camadas), que usa o
+mesmo motor. Erro de sintaxe num script mandado por evalScript abre um
+diálogo modal no AE e trava todo evalScript até alguém clicar OK.

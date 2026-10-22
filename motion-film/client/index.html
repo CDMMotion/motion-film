@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Mótion Film</title>
-    <link rel="stylesheet" href="styles.css?v=0100b" />
+    <link rel="stylesheet" href="styles.css?v=0110a" />
   </head>
   <body>
     <div class="app-shell">
@@ -32,9 +32,13 @@
           <svg class="page-tab-icon" viewBox="0 0 20 20" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="2.5" y="4.5" width="15" height="11" rx="1.6"/><path d="M5.5 12.5h5M5.5 9.5h9" stroke-linecap="round"/></svg>
           <span class="page-tab-label"><span>Captions</span></span>
         </button>
+        <button id="page-tab-textanim" class="page-tab" type="button" role="tab" aria-selected="false" aria-controls="page-textanim" data-page="textanim">
+          <svg class="page-tab-icon" viewBox="0 0 20 20" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M7.5 4.5h9M12 4.5v11"/><path d="M2.5 8.5h3M3.5 12h2.5M2.5 15.5h3.5" opacity=".7"/></svg>
+          <span class="page-tab-label"><span>Text Animation</span></span>
+        </button>
       </nav>
         <div class="topbar-tools">
-          <span id="version-tag">v0.10.0</span>
+          <span id="version-tag">v0.11.0</span>
           <button id="settings-toggle" class="icon-button" type="button" aria-label="Open settings">•••</button>
         </div>
       </header>
@@ -226,85 +230,336 @@
             </div>
           </div>
           <main id="captions-main" class="captions-main" hidden>
-            <section class="section" data-section-id="captions-transcription">
+            <section class="section" data-section-id="cap-generate">
               <div class="section-tab" role="button" tabindex="0" aria-expanded="true">
-                <div class="section-heading">
+                <div class="section-heading compact">
                   <div>
-                    <div class="section-kicker">01 / TRANSCRIPTION</div>
+                    <div class="section-kicker">01 / GENERATE</div>
                   </div>
                 </div>
                 <svg class="section-chevron" viewBox="0 0 12 12" width="10" height="10" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M2.5 4.5L6 8l3.5-3.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
               </div>
-              <div class="section-body captions-section-body">
-                <div class="button-row">
-                  <button id="captions-transcribe-button" class="secondary-button secondary-button-icon" type="button" data-tooltip="Select one layer with sound (video, audio or a precomp) to transcribe just it -- only the stretch visible on the timeline -- or select nothing to transcribe the whole composition over its work area. After Effects renders the audio itself, so precomps, time remapping and speed changes sound exactly as on the timeline.">
-                    <svg viewBox="0 0 28 28" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.7">
-                      <path d="M5 11v6" stroke-linecap="round"/>
-                      <path d="M9.5 8v12" stroke-linecap="round"/>
-                      <path d="M14 5v18" stroke-linecap="round"/>
-                      <path d="M18.5 9v10" stroke-linecap="round"/>
-                      <path d="M23 12v4" stroke-linecap="round"/>
-                    </svg>
-                    <span>Transcribe</span>
-                  </button>
-                  <button id="captions-import-srt-button" class="secondary-button secondary-button-icon" type="button" data-tooltip="Captions already timed and adjusted by someone else? Import their .srt file directly -- keeps their exact timing and line breaks as-is (no re-splitting), and applies your current Style Preset if one is selected. Times in the file are treated as composition time (0:00 = start of the timeline).">
-                    <svg viewBox="0 0 28 28" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.7">
-                      <path d="M14 4v10" stroke-linecap="round"/>
-                      <path d="M9 9.5 14 14l5-4.5" stroke-linecap="round" stroke-linejoin="round"/>
-                      <path d="M6 16v5.5a1.5 1.5 0 0 0 1.5 1.5h13a1.5 1.5 0 0 0 1.5-1.5V16" stroke-linecap="round" stroke-linejoin="round"/>
-                    </svg>
-                    <span>Import SRT</span>
-                  </button>
+              <div class="section-body">
+                <div class="cap-picks">
+                  <button type="button" data-go="style" title="Go to 1 Style"><small>Style</small><b id="cap-pick-style"></b></button>
+                  <button type="button" data-go="anim" title="Go to 2 Animation"><small>Animation</small><b id="cap-pick-anim"></b></button>
                 </div>
-                <div id="captions-run-status" class="captions-step" hidden>
-                  <span class="captions-spinner" aria-hidden="true"></span>
-                  <span id="captions-run-status-text" class="captions-step-text"></span>
-                </div>
-                <input type="file" id="captions-import-srt-input" accept=".srt,.vtt,text/plain" hidden />
+                <button type="button" id="cap-generate" class="lf-tool is-primary cap-generate">
+                  <svg viewBox="0 0 20 20" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="2.5" y="4.5" width="15" height="11" rx="1.6"/><path d="M5.5 12.5h5M5.5 9.5h9" stroke-linecap="round"/></svg>
+                  Generate captions
+                </button>
+                <p class="cap-hint" id="cap-hint"></p>
               </div>
             </section>
 
-            <section class="section" data-section-id="captions-style">
+            <section class="section" data-section-id="cap-steps">
               <div class="section-tab" role="button" tabindex="0" aria-expanded="true">
-                <div class="section-heading">
+                <div class="section-heading compact">
                   <div>
-                    <div class="section-kicker">02 / STYLE</div>
+                    <div class="section-kicker">02 / CUSTOMIZE</div>
                   </div>
                 </div>
                 <svg class="section-chevron" viewBox="0 0 12 12" width="10" height="10" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M2.5 4.5L6 8l3.5-3.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
               </div>
-              <div class="section-body captions-section-body">
-                <p class="captions-hint">Already styled a caption by hand (font, position, effects, animators, an entrance animation)? Select that text layer and save it as a Style Preset -- every future caption can get the same setup, each one re-timed to its own start.</p>
-                <div class="button-row">
-                  <button id="captions-save-style-button" class="secondary-button secondary-button-icon" type="button">
-                    <svg viewBox="0 0 28 28" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.7">
-                      <path d="M7 5h14a1 1 0 0 1 1 1v17l-8-5-8 5V6a1 1 0 0 1 1-1Z" stroke-linejoin="round"/>
-                    </svg>
-                    <span>Save Preset</span>
-                  </button>
-                  <button id="captions-manage-styles-button" class="secondary-button secondary-button-icon" type="button">
-                    <svg viewBox="0 0 28 28" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.7">
-                      <path d="M9 8h13" stroke-linecap="round"/>
-                      <path d="M9 14h13" stroke-linecap="round"/>
-                      <path d="M9 20h13" stroke-linecap="round"/>
-                      <circle cx="5" cy="8" r="1.1" fill="currentColor" stroke="none"/>
-                      <circle cx="5" cy="14" r="1.1" fill="currentColor" stroke="none"/>
-                      <circle cx="5" cy="20" r="1.1" fill="currentColor" stroke="none"/>
-                    </svg>
-                    <span>Manage</span>
-                  </button>
-                  <button id="captions-change-style-button" class="secondary-button secondary-button-icon" type="button" data-tooltip="Select one or more already-generated/imported caption layers, then pick a different Style Preset here -- clears their current animation and applies the new preset instead. No need to retype the text or re-transcribe the video just to change how it looks.">
-                    <svg viewBox="0 0 28 28" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.7">
-                      <path d="M6 10a8 8 0 0 1 14-4.5M22 5v5h-5" stroke-linecap="round" stroke-linejoin="round"/>
-                      <path d="M22 18a8 8 0 0 1-14 4.5M6 23v-5h5" stroke-linecap="round" stroke-linejoin="round"/>
-                    </svg>
-                    <span>Change Style</span>
-                  </button>
+              <div class="section-body">
+                <!-- one part at a time, so the previews stay few and in view -->
+                <nav class="segmented cap-steps-nav" role="tablist" aria-label="Caption steps">
+                  <button type="button" class="segmented-option cap-tab is-active" data-view="style" role="tab"><i>1</i>Style</button>
+                  <button type="button" class="segmented-option cap-tab" data-view="anim" role="tab"><i>2</i>Animation</button>
+                  <button type="button" class="segmented-option cap-tab" data-view="highlight" role="tab"><i>3</i>Highlight</button>
+                  <button type="button" class="segmented-option cap-tab" data-view="adjust" role="tab"><i>4</i>Adjust</button>
+                </nav>
+
+                <!-- 1 Style: every style animating -->
+                <div class="cap-view" data-view="style">
+                  <div class="cap-heading">Pick a style <small>click to choose · Shift+click a Reels / Viral style: restyle the captions selected in the timeline</small></div>
+                  <div class="cap-chips" id="cap-filter">
+                    <button type="button" data-group="all">All</button>
+                    <button type="button" data-group="reels">Reels</button>
+                    <button type="button" data-group="viral">Viral</button>
+                    <button type="button" data-group="simple">Simple</button>
+                  </div>
+                  <div id="cap-style-groups"></div>
+                  <div id="cap-fonts-note" class="cap-note" hidden>
+                    <b id="cap-fonts-note-title"></b>
+                    <span id="cap-fonts-note-text"></span>
+                  </div>
+                </div>
+
+                <!-- 2 Animation: the chosen style with every animation -->
+                <div class="cap-view" data-view="anim" hidden>
+                  <div class="cap-heading">Pick an animation <small id="cap-anim-hint">how the text comes in</small></div>
+                  <div class="cap-grid" id="cap-anim-grid"></div>
+                </div>
+
+                <!-- 3 Highlight: the word being spoken -->
+                <div class="cap-view" data-view="highlight" hidden>
+                <div class="cap-heading">Preview <small id="cap-highlight-hint">the highlight with your choices</small></div>
+                  <div class="cap-preview" id="cap-highlight-preview"></div>
+                  <div id="cap-look-controls">
+                    <div class="cap-heading">Highlight color</div>
+                    <button type="button" class="cap-toggle" data-bool="colorOn">Use my own color</button>
+                    <div class="cap-rows" data-show="colorOn">
+                      <label class="cap-color"><input type="color" data-color="color" /><span>Highlight color</span></label>
+                    </div>
+                    <div class="cap-heading">Highlight effects</div>
+                    <button type="button" class="cap-toggle" data-bool="gradientOn">Gradient</button>
+                    <div class="cap-rows cap-rows-2" data-show="gradientOn">
+                      <label class="cap-color"><input type="color" data-color="gradTop" /><span>Top</span></label>
+                      <label class="cap-color"><input type="color" data-color="gradBottom" /><span>Bottom</span></label>
+                    </div>
+                    <button type="button" class="cap-toggle" data-bool="glowOn">Glow</button>
+                    <div class="cap-rows" data-show="glowOn">
+                      <label class="cap-color"><input type="color" data-color="glowColor" /><span>Glow color</span></label>
+                      <div class="cap-slider-row"><span>Amount</span><input type="range" min="5" max="100" step="1" data-num="glowAmt" /><b data-out="glowAmt"></b></div>
+                      <div class="cap-slider-row"><span>Size</span><input type="range" min="5" max="100" step="1" data-num="glowSize" /><b data-out="glowSize"></b></div>
+                    </div>
+                    <button type="button" class="cap-toggle" data-bool="sweepOn">Light edge (a thin white light on the word)</button>
+                    <div class="cap-heading">Fonts</div>
+                    <label class="cap-label">Highlighted word</label>
+                    <div class="cap-fields">
+                      <select id="cap-acc-family" class="cap-select" title="Font family"></select>
+                      <select id="cap-acc-style" class="cap-select" title="Weight / style"></select>
+                    </div>
+                    <label class="cap-label">Words above and below</label>
+                    <div class="cap-fields">
+                      <select id="cap-small-family" class="cap-select" title="Font family"></select>
+                      <select id="cap-small-style" class="cap-select" title="Weight / style"></select>
+                    </div>
+                    <button type="button" class="cap-link" id="cap-look-reset">Back to the style's own look</button>
+                  </div>
+                  <div id="cap-highlight-controls">
+                    <div class="cap-heading">Spoken word</div>
+                    <button type="button" class="cap-toggle" data-bool="highlightOn">Highlight the word being spoken</button>
+                    <div class="cap-rows" data-show="highlightOn">
+                      <label class="cap-color"><input type="color" data-color="highlight" /><span>Highlight color</span></label>
+                      <div class="cap-slider-row"><span>Size</span><input type="range" min="80" max="160" step="1" data-num="highlightScale" /><b data-out="highlightScale" data-unit="%"></b></div>
+                    </div>
+                  </div>
+                  <p class="cap-help" id="cap-highlight-word-note" hidden>One at a time already shows just the word being spoken -- its color and size are the text's own (Adjust).</p>
+                </div>
+
+                <!-- 4 Adjust -->
+                <div class="cap-view" data-view="adjust" hidden>
+                <div class="cap-heading">Preview <small id="cap-adjust-hint"></small></div>
+                  <div class="cap-preview" id="cap-adjust-preview"></div>
+
+                  <div class="cap-heading">Position &amp; size</div>
+                  <div class="segmented" id="cap-position">
+                    <button type="button" class="segmented-option" data-value="bottom">Bottom</button>
+                    <button type="button" class="segmented-option" data-value="center">Center</button>
+                    <button type="button" class="segmented-option" data-value="top">Top</button>
+                    <button type="button" class="segmented-option" data-value="custom">Custom</button>
+                  </div>
+                  <div class="cap-fields" data-show-position="custom">
+                    <label class="cap-field"><span>X %</span><input type="number" min="0" max="100" step="1" data-num="posX" /></label>
+                    <label class="cap-field"><span>Y %</span><input type="number" min="0" max="100" step="1" data-num="posY" /></label>
+                  </div>
+                  <div class="cap-slider-row"><span>Size</span><input type="range" min="30" max="300" step="1" data-num="scale" /><b data-out="scale" data-unit="%"></b></div>
+
+                  <div class="cap-heading">Shadow</div>
+                  <button type="button" class="cap-toggle" data-bool="shadowOn" id="cap-shadow-toggle">Drop shadow</button>
+                  <div class="cap-rows" data-show="shadowOn">
+                    <div class="cap-slider-row"><span>Opacity</span><input type="range" min="5" max="100" step="1" data-num="shadowOpacity" /><b data-out="shadowOpacity" data-unit="%"></b></div>
+                    <div class="cap-slider-row"><span>Softness</span><input type="range" min="0" max="120" step="1" data-num="shadowSoftness" /><b data-out="shadowSoftness"></b></div>
+                    <div class="cap-slider-row"><span>Distance</span><input type="range" min="0" max="60" step="1" data-num="shadowDistance" /><b data-out="shadowDistance"></b></div>
+                  </div>
+                  <button type="button" class="cap-toggle" data-bool="backShadeOn">Back shade (soft dark glow behind the lines)</button>
+                  <div class="cap-rows" data-show="backShadeOn">
+                    <div class="cap-slider-row"><span>Opacity</span><input type="range" min="10" max="90" step="1" data-num="backShadeOpacity" /><b data-out="backShadeOpacity" data-unit="%"></b></div>
+                    <div class="cap-slider-row"><span>Size</span><input type="range" min="60" max="200" step="1" data-num="backShadeSize" /><b data-out="backShadeSize" data-unit="%"></b></div>
+                  </div>
+
+                  <div class="cap-heading">Audio &amp; language</div>
+                  <label class="cap-label" for="cap-lang">Language spoken in the video</label>
+                  <select id="cap-lang" class="cap-select"></select>
+                  <label class="cap-label">With no layer selected, transcribe</label>
+                  <div class="segmented" id="cap-range">
+                    <button type="button" class="segmented-option" data-value="comp">Whole comp</button>
+                    <button type="button" class="segmented-option" data-value="work">Work area only</button>
+                  </div>
+
+                  <details class="cap-fold" id="cap-style-fold">
+                    <summary>Font, colors &amp; effects</summary>
+                    <div class="cap-fold-body">
+                      <label class="cap-label">Font</label>
+                      <div class="cap-fields">
+                        <select id="cap-font-family" class="cap-select" title="Font family"></select>
+                        <select id="cap-font-style" class="cap-select" title="Weight / style"></select>
+                      </div>
+                      <div class="cap-fields cap-fields-4">
+                        <label class="cap-field"><span>Size</span><input type="number" min="8" max="400" step="1" data-num="fontSize" /></label>
+                        <label class="cap-field"><span>Tracking</span><input type="number" min="-200" max="500" step="5" data-num="tracking" /></label>
+                        <label class="cap-field"><span>Line height</span><input type="number" min="0.7" max="3" step="0.05" data-num="lineHeight" /></label>
+                        <label class="cap-field"><span>Margin %</span><input type="number" min="0" max="45" step="1" data-num="margin" /></label>
+                      </div>
+                      <div class="cap-fields">
+                        <div class="segmented" id="cap-case">
+                          <button type="button" class="segmented-option" data-value="none" title="As spoken">Aa</button>
+                          <button type="button" class="segmented-option" data-value="upper" title="Uppercase">AA</button>
+                          <button type="button" class="segmented-option" data-value="lower" title="Lowercase">aa</button>
+                        </div>
+                        <div class="segmented" id="cap-justify">
+                          <button type="button" class="segmented-option" data-value="left" title="Align left">Left</button>
+                          <button type="button" class="segmented-option" data-value="center" title="Center">Center</button>
+                          <button type="button" class="segmented-option" data-value="right" title="Align right">Right</button>
+                        </div>
+                      </div>
+                      <label class="cap-label">Colors</label>
+                      <div class="cap-colors">
+                        <label class="cap-color"><input type="color" data-color="fill" /><span>Text</span></label>
+                        <label class="cap-color"><input type="color" data-color="stroke" /><span>Stroke</span></label>
+                        <label class="cap-color"><input type="color" data-color="bg" /><span>Box</span></label>
+                        <label class="cap-color"><input type="color" data-color="glowColor" /><span>Glow</span></label>
+                      </div>
+                      <label class="cap-label">Effects</label>
+                      <div class="cap-fx-row"><button type="button" class="cap-toggle" data-bool="strokeOn">Stroke</button><label class="cap-field"><span>Width</span><input type="number" min="0" max="60" step="0.5" data-num="strokeWidth" /></label></div>
+                      <div class="cap-fx-row"><button type="button" class="cap-toggle" data-bool="bgOn">Box</button><label class="cap-field"><span>Opacity %</span><input type="number" min="0" max="100" step="5" data-num="bgOpacity" /></label></div>
+                      <div class="cap-fx-row" data-show="bgOn"><span></span><label class="cap-field"><span>Padding</span><input type="number" min="0" max="200" step="1" data-num="bgPadding" /></label><label class="cap-field"><span>Corners</span><input type="number" min="0" max="200" step="1" data-num="bgRadius" /></label></div>
+                      <div class="cap-fx-row"><button type="button" class="cap-toggle" data-bool="glowOn">Glow</button><label class="cap-field"><span>Intensity</span><input type="number" min="0" max="10" step="0.1" data-num="glowIntensity" /></label></div>
+                      <div class="cap-fx-row" data-show="glowOn"><span></span><label class="cap-field"><span>Radius</span><input type="number" min="0" max="500" step="1" data-num="glowRadius" /></label></div>
+                      <button type="button" class="cap-link" id="cap-style-reset">Reset this style&#39;s look</button>
+                    </div>
+                  </details>
+
+                  <details class="cap-fold" id="cap-rules-fold">
+                    <summary>Caption split <small>advanced</small></summary>
+                    <div class="cap-fold-body">
+                      <p class="cap-help">How many words go into each caption and how long it stays on screen.</p>
+                      <div class="cap-fields cap-fields-4">
+                        <label class="cap-field"><span>Words (max)</span><input type="number" min="1" max="40" step="1" data-rule="maxWords" /></label>
+                        <label class="cap-field"><span>Letters / line</span><input type="number" min="4" max="80" step="1" data-rule="maxChars" /></label>
+                        <label class="cap-field"><span>Lines (max)</span><input type="number" min="1" max="4" step="1" data-rule="maxLines" /></label>
+                        <label class="cap-field" title="A pause longer than this starts a new caption"><span>Pause (s)</span><input type="number" min="0.05" max="5" step="0.05" data-rule="pauseBreak" /></label>
+                        <label class="cap-field" title="Shortest time a caption stays on screen"><span>Min (s)</span><input type="number" min="0.1" max="10" step="0.1" data-rule="minDuration" /></label>
+                        <label class="cap-field" title="Longest time a caption stays on screen"><span>Max (s)</span><input type="number" min="0.5" max="20" step="0.1" data-rule="maxDuration" /></label>
+                        <label class="cap-field" title="Extra time after the last word"><span>Hold (s)</span><input type="number" min="0" max="3" step="0.05" data-rule="linger" /></label>
+                        <label class="cap-field" title="Moves every caption earlier (negative) or later (positive)"><span>Sync (ms)</span><input type="number" min="-2000" max="2000" step="10" data-rule="offsetMs" /></label>
+                      </div>
+                      <div class="cap-fx-row">
+                        <button type="button" class="cap-toggle" data-rule-bool="bySentence">Break at sentence ends</button>
+                        <button type="button" class="cap-toggle" data-rule-bool="punctuation">Keep punctuation</button>
+                      </div>
+                      <button type="button" class="cap-link" id="cap-rules-reset">Reset this style&#39;s split</button>
+                    </div>
+                  </details>
+
+                  <div class="cap-heading">Subtitle file (SRT)</div>
+                  <button type="button" id="cap-import-srt" class="lf-tool is-primary cap-wide">Import SRT with this style</button>
+                  <input type="file" id="cap-import-srt-input" accept=".srt,.vtt,text/plain" hidden />
                 </div>
               </div>
             </section>
           </main>
+
+          <!-- Generating: steps + progress + cancel -->
+          <section id="cap-proc" class="cap-proc" hidden aria-live="polite">
+            <div class="cap-proc-title" id="cap-proc-title">Generating captions</div>
+            <ol class="cap-steps" id="cap-steps">
+              <li data-step="audio">Preparing the audio</li>
+              <li data-step="transcribe">Transcribing</li>
+              <li data-step="sync">Syncing the words</li>
+              <li data-step="layers">Creating the caption layers</li>
+              <li data-step="finish">Finishing</li>
+            </ol>
+            <div class="cap-bar" id="cap-bar"><span id="cap-bar-fill"></span></div>
+            <p class="cap-proc-note" id="cap-proc-note"></p>
+            <button type="button" id="cap-cancel" class="lf-tool cap-wide">Cancel</button>
+          </section>
         </div>
+      </div>
+
+      <!-- Text Animation (textanim.js + textanim-library.js; AE side in
+           host/textanim.jsx). Same collapsible sections as Home:
+           01 PREVIEW = stage, In / Out slots, timing + Apply;
+           02 LIBRARY = search, categories, the preset grid. -->
+      <div id="page-textanim" class="page" hidden>
+        <main id="ta-main" class="ta">
+          <section class="section" data-section-id="ta-preview">
+            <div class="section-tab" role="button" tabindex="0" aria-expanded="true">
+              <div class="section-heading">
+                <div>
+                  <div class="section-kicker">01 / PREVIEW</div>
+                </div>
+              </div>
+              <svg class="section-chevron" viewBox="0 0 12 12" width="10" height="10" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M2.5 4.5L6 8l3.5-3.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </div>
+            <div class="section-body">
+              <div class="ta-stage" id="ta-stage">
+                <div class="ta-sample" id="ta-sample"></div>
+                <span class="ta-stage-tag" id="ta-stage-tag"></span>
+              </div>
+              <div class="ta-slots">
+                <div class="ta-slot" data-slot="in">
+                  <button type="button" class="ta-slot-toggle" aria-pressed="true" title="Use an entrance">In</button>
+                  <button type="button" class="ta-step" data-step="-1" title="Previous preset" aria-label="Previous preset"><svg viewBox="0 0 16 16" width="11" height="11" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M10 3.5 5.5 8l4.5 4.5"/></svg></button>
+                  <div class="ta-slot-name" title="Scroll to step through the presets">
+                    <span class="ta-slot-line"><b class="ta-slot-num"></b><span class="ta-slot-title"></span></span>
+                    <small class="ta-slot-tags"></small>
+                  </div>
+                  <button type="button" class="ta-step" data-step="1" title="Next preset" aria-label="Next preset"><svg viewBox="0 0 16 16" width="11" height="11" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3.5 10.5 8 6 12.5"/></svg></button>
+                  <button type="button" class="ta-dice" title="Random preset (from the list below)" aria-label="Random preset"><svg viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="2.5" y="2.5" width="11" height="11" rx="2.5"/><circle cx="5.75" cy="5.75" r=".9" fill="currentColor"/><circle cx="10.25" cy="10.25" r=".9" fill="currentColor"/><circle cx="8" cy="8" r=".9" fill="currentColor"/></svg></button>
+                  <button type="button" class="ta-slot-fav" title="Favorite" aria-label="Favorite"><svg viewBox="0 0 16 16" width="12" height="12"><path d="M8 1.9l1.8 3.8 4.1.5-3 2.8.8 4.1L8 11.1 4.3 13.1l.8-4.1-3-2.8 4.1-.5z"/></svg></button>
+                </div>
+                <div class="ta-slot" data-slot="out">
+                  <button type="button" class="ta-slot-toggle" aria-pressed="true" title="Use an exit">Out</button>
+                  <button type="button" class="ta-step" data-step="-1" title="Previous preset" aria-label="Previous preset"><svg viewBox="0 0 16 16" width="11" height="11" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M10 3.5 5.5 8l4.5 4.5"/></svg></button>
+                  <div class="ta-slot-name" title="Scroll to step through the presets">
+                    <span class="ta-slot-line"><b class="ta-slot-num"></b><span class="ta-slot-title"></span></span>
+                    <small class="ta-slot-tags"></small>
+                  </div>
+                  <button type="button" class="ta-step" data-step="1" title="Next preset" aria-label="Next preset"><svg viewBox="0 0 16 16" width="11" height="11" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3.5 10.5 8 6 12.5"/></svg></button>
+                  <button type="button" class="ta-dice" title="Random preset (from the list below)" aria-label="Random preset"><svg viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="2.5" y="2.5" width="11" height="11" rx="2.5"/><circle cx="5.75" cy="5.75" r=".9" fill="currentColor"/><circle cx="10.25" cy="10.25" r=".9" fill="currentColor"/><circle cx="8" cy="8" r=".9" fill="currentColor"/></svg></button>
+                  <button type="button" class="ta-slot-fav" title="Favorite" aria-label="Favorite"><svg viewBox="0 0 16 16" width="12" height="12"><path d="M8 1.9l1.8 3.8 4.1.5-3 2.8.8 4.1L8 11.1 4.3 13.1l.8-4.1-3-2.8 4.1-.5z"/></svg></button>
+                </div>
+              </div>
+              <div class="ta-opts">
+                <label class="velocity-input ta-num"><span>IN</span><input id="ta-dur-in" type="number" min="0.1" max="10" step="0.1" /><em>s</em></label>
+                <label class="velocity-input ta-num"><span>OUT</span><input id="ta-dur-out" type="number" min="0.1" max="10" step="0.1" /><em>s</em></label>
+                <label class="velocity-input ta-ease"><span>EASE</span>
+                  <select id="ta-ease">
+                    <option value="smooth">Smooth</option>
+                    <option value="strong">Strong</option>
+                    <option value="linear">Linear</option>
+                  </select>
+                </label>
+              </div>
+              <div class="ta-actions">
+                <button type="button" id="ta-apply" class="lf-tool is-primary" title="Apply In / Out to the selected text layers. In starts at the layer's in point, Out ends at its out point.">
+                  <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M5 6h10M10 6v12"/><path d="M15.5 13.5 18 16l3.5-4.5"/></svg>
+                  Apply to text
+                </button>
+                <button type="button" id="ta-remove" class="lf-tool ta-remove" title="Remove the Mótion Film animation from the selected text layers" aria-label="Remove animation"><svg viewBox="0 0 28 28" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M6 8h16M11.5 8V6.2h5V8M9.5 8l1 15h7l1-15" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+              </div>
+            </div>
+          </section>
+
+          <section class="section" data-section-id="ta-library">
+            <div class="section-tab" role="button" tabindex="0" aria-expanded="true">
+              <div class="section-heading compact">
+                <div>
+                  <div class="section-kicker">02 / LIBRARY</div>
+                </div>
+                <span class="ta-count" id="ta-count"></span>
+              </div>
+              <svg class="section-chevron" viewBox="0 0 12 12" width="10" height="10" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M2.5 4.5L6 8l3.5-3.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </div>
+            <div class="section-body">
+              <div class="ta-filters">
+                <input id="ta-search" class="ta-search" type="search" spellcheck="false" placeholder="Search name or #number" />
+                <div class="segmented ta-unit" id="ta-unit" role="tablist">
+                  <button type="button" class="segmented-option" data-unit="all" title="Every unit">All</button>
+                  <button type="button" class="segmented-option" data-unit="c" title="Character by character">Aa</button>
+                  <button type="button" class="segmented-option" data-unit="w" title="Word by word">Word</button>
+                  <button type="button" class="segmented-option" data-unit="l" title="Line by line">Line</button>
+                </div>
+              </div>
+              <div class="ta-cats" id="ta-cats" role="tablist" aria-label="Categories"></div>
+              <div class="ta-grid" id="ta-grid"></div>
+              <p class="ta-empty" id="ta-empty" hidden></p>
+            </div>
+          </section>
+        </main>
       </div>
 
       <div id="page-effects" class="page" hidden>
@@ -379,44 +634,6 @@
         </main>
       </div>
 
-      <div id="captions-settings-overlay" class="modal-overlay" hidden>
-        <div class="modal-panel">
-          <div class="popover-heading"><span>Caption Settings</span><button id="captions-settings-close" type="button">×</button></div>
-
-          <label class="modal-label">Caption Length</label>
-          <div class="segmented" id="captions-length-segmented" role="tablist">
-            <button type="button" class="segmented-option" data-value="1-line">1 Line</button>
-            <button type="button" class="segmented-option" data-value="2-lines">2 Lines</button>
-            <button type="button" class="segmented-option" data-value="word">Word by word</button>
-          </div>
-
-          <label class="modal-label" for="captions-charlimit-input">Character limit (per line)</label>
-          <input id="captions-charlimit-input" class="modal-number-input" type="number" min="8" max="200" step="1" />
-
-          <label class="modal-label">Caption Preset</label>
-          <button type="button" id="captions-preset-button" class="modal-picker-button"></button>
-
-          <label class="modal-label">Style Preset</label>
-          <button type="button" id="captions-style-preset-button" class="modal-picker-button"></button>
-
-          <label class="modal-label">Language</label>
-          <button type="button" id="captions-language-button" class="modal-picker-button"></button>
-
-          <button type="button" id="captions-settings-confirm" class="primary-button">Transcribe</button>
-        </div>
-      </div>
-
-      <div id="style-presets-manage-overlay" class="modal-overlay" hidden>
-        <div class="modal-panel">
-          <div class="popover-heading"><span>Manage Style Presets</span><button id="style-presets-manage-close" type="button">×</button></div>
-          <div class="button-row">
-            <button type="button" id="style-presets-import-button" class="secondary-button">Import</button>
-            <button type="button" id="style-presets-export-all-button" class="secondary-button">Export All</button>
-          </div>
-          <input type="file" id="style-presets-import-input" accept=".json,application/json" multiple hidden />
-          <div id="style-presets-list" class="style-presets-list"></div>
-        </div>
-      </div>
 
       <!-- Covers the whole Kit "render a preview" cycle (see
            generateKitPresetPreview/playKitMascotConfirmation, panel.js)
@@ -480,10 +697,15 @@
          Cache (compiled-JS bytecode) in cep_cache can otherwise serve
          stale script for a whole AE session even after the file on disk
          changed. Changing the URL forces a fresh fetch + recompile. -->
-    <script src="shared-core.js?v=0100a"></script>
-    <script src="captions-core.js?v=0100a"></script>
-    <script src="panel.js?v=0100a"></script>
-    <script src="folders.js?v=0100a"></script>
-    <script src="scalecomp.js?v=0100a"></script>
+    <script src="shared-core.js?v=0110a"></script>
+    <script src="captions-core.js?v=0110a"></script>
+    <script src="captions-layout.js?v=0110a"></script>
+    <script src="captions-styles.js?v=0110a"></script>
+    <script src="panel.js?v=0110a"></script>
+    <script src="captions.js?v=0110a"></script>
+    <script src="folders.js?v=0110a"></script>
+    <script src="scalecomp.js?v=0110a"></script>
+    <script src="textanim-library.js?v=0110a"></script>
+    <script src="textanim.js?v=0110a"></script>
   </body>
 </html>

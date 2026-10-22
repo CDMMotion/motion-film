@@ -2250,9 +2250,9 @@
 
   // What gets transcribed: the one selected layer with sound (footage,
   // precomp, time-remapped -- anything AE can play), or, with nothing
-  // selected, the whole comp over its work area. The span is in comp
-  // time; nothing is rendered here.
-  function captionsAudioTarget() {
+  // selected, the whole comp (range "work": only its work area). The
+  // span is in comp time; nothing is rendered here.
+  function captionsAudioTarget(range) {
     var comp = activeComp();
     if (!comp) {
       return { ok: false, error: "Open a composition first." };
@@ -2277,15 +2277,10 @@
     if (!compHasAudio(comp, 0)) {
       return { ok: false, error: "“" + comp.name + "” has no layers with audio switched on -- add the video/audio to transcribe first." };
     }
-    return { ok: true, comp: comp, layer: null, start: comp.workAreaStart, end: comp.workAreaStart + comp.workAreaDuration, label: comp.name };
-  }
-
-  function getCaptionsAudioTarget() {
-    var target = captionsAudioTarget();
-    if (!target.ok) {
-      return stringify(target);
+    if (range === "work") {
+      return { ok: true, comp: comp, layer: null, start: comp.workAreaStart, end: comp.workAreaStart + comp.workAreaDuration, label: comp.name + " (work area)" };
     }
-    return stringify({ ok: true, label: target.label, isLayer: !!target.layer, start: target.start, end: target.end });
+    return { ok: true, comp: comp, layer: null, start: 0, end: comp.duration, label: comp.name };
   }
 
   // Renders the target's audio to an AIFF through the Render Queue, with
@@ -2296,9 +2291,10 @@
   // other layers' sound (music, effects) stays out of the transcription
   // without touching the user's own layers. Queued render items are
   // switched off during the render and restored after. `outBase` is the
-  // output path without extension (AE adds ".aif").
-  function renderCaptionsAudio(outBase) {
-    var target = captionsAudioTarget();
+  // output path without extension (AE adds ".aif"); `range` as in
+  // captionsAudioTarget.
+  function renderCaptionsAudio(outBase, range) {
+    var target = captionsAudioTarget(range);
     if (!target.ok) {
       return stringify(target);
     }
@@ -2311,7 +2307,7 @@
     var item = null;
     var paused = [];
     var i;
-    app.beginUndoGroup("Mótion Film: Captions audio");
+    kitUndoBegin("Mótion Film: Captions audio");
     try {
       var renderComp = comp;
       if (target.layer) {
@@ -2350,7 +2346,7 @@
       if (item.status !== RQItemStatus.DONE || !out.exists) {
         throw new Error("After Effects couldn't render the audio (render status " + item.status + ").");
       }
-      return stringify({ ok: true, file: out.fsName, start: target.start, duration: target.end - target.start, label: target.label });
+      return stringify({ ok: true, file: out.fsName, start: target.start, duration: target.end - target.start, label: target.label, compId: comp.id });
     } catch (error) {
       return stringify({ ok: false, error: "Couldn't render the audio: " + String(error && error.message ? error.message : error) });
     } finally {
@@ -2369,7 +2365,7 @@
           tempComp.remove();
         }
       } catch (removeCompError) {}
-      app.endUndoGroup();
+      kitUndoEnd();
     }
   }
 
@@ -5151,66 +5147,1340 @@
   $.global.renderKitPackPreview = renderKitPackPreview;
   $.global.kitBakeFootageItem = kitBakeFootageItem;
 
-  // phrasesJson: JSON string, an array of { text, start, end } (start/end
-  // in seconds, comp time -- the panel adds the rendered span's start
-  // itself before calling, so all the timestamp arithmetic stays in one
-  // place).
-  // stylePresetJson: optional JSON string of a preset captured by
-  // captureLayerStylePreset -- if present, applied to every caption
-  // layer created, right after its text/timing/position are set.
-  function createCaptionLayers(phrasesJson, stylePresetJson) {
-    var comp = activeComp();
-    if (!comp) {
-      return stringify({ ok: false, error: "No active composition." });
+  // ---------------------------------------------------------------
+  // Captions engine (Captions tab). The panel sends one payload, written
+  // to a temp file (a long video's thousands of words make a too-big
+  // evalScript argument), with the captions already split and timed by
+  // client/captions-core.js plus the chosen mode, style and animation:
+  //
+  //   { setId, mode: "classic" | "dynamic" | "word", anim, style,
+  //     captions: [{ start, end, text ("\r" between lines),
+  //                  words: [{ text, start, end }] }] }   (comp time, s)
+  //
+  // How it stays fast and editable:
+  //   - ONE template text layer gets the whole look (font, effects, text
+  //     animators) in a hidden temp comp and is copied (copyToComp) for
+  //     every caption -- styling a text layer is the slow part in AE,
+  //     copying it is not;
+  //   - meanwhile the viewer shows a tiny empty comp: AE redraws the open
+  //     comp after every change, which made creating many layers several
+  //     times slower;
+  //   - every word gets a layer marker where it's spoken (marker n = word
+  //     n); the word-by-word animators read those markers through an
+  //     Expression Selector, so the sync can be fine-tuned by dragging
+  //     the markers, with no keyframes to redo;
+  //   - every layer of a set gets the comment "MFC|<setId>|<n>" ("|bg" on
+  //     its background box / back shade) so the set can be found again.
+  // Sizes in the style are px for a 1080 short side, scaled by k.
+  // ---------------------------------------------------------------
+
+  var CAPTION_TAG = "MFC|";
+  var CAPTION_NAME = "Caption ";
+  var CAPTION_LABEL = 9; // green
+  var CAPTION_COPY_TAG = "MFC|copy";
+
+  function capColor(c, withAlpha) {
+    var rgb = [clamp01(c ? c[0] : 1), clamp01(c ? c[1] : 1), clamp01(c ? c[2] : 1)];
+    if (withAlpha) {
+      rgb.push(1);
     }
-    var phrases = parse(phrasesJson);
-    if (!phrases || !phrases.length) {
-      return stringify({ ok: false, error: "The transcription came back empty -- nothing to add." });
+    return rgb;
+  }
+
+  function capClamp(v, lo, hi) {
+    v = Number(v);
+    if (isNaN(v)) { return lo; }
+    return v < lo ? lo : (v > hi ? hi : v);
+  }
+
+  function capPad3(n) {
+    var s = String(n);
+    while (s.length < 3) { s = "0" + s; }
+    return s;
+  }
+
+  function capSnap(t, comp) {
+    return Math.round(t / comp.frameDuration) * comp.frameDuration;
+  }
+
+  function capNum(v) {
+    return String(Math.round(v * 10000) / 10000);
+  }
+
+  function capStyleDocument(doc, st, text, k) {
+    try { doc.resetCharStyle(); } catch (e1) {}
+    try { doc.resetParagraphStyle(); } catch (e2) {}
+    doc.text = text;
+    if (st.font) {
+      try { doc.font = st.font; } catch (e3) {}
     }
-    var stylePreset = stylePresetJson ? parse(stylePresetJson) : null;
-    var created = 0;
-    app.beginUndoGroup("Mótion Film: Add captions");
+    doc.fontSize = Math.max(4, st.fontSize * k);
+    doc.applyFill = true;
+    doc.fillColor = capColor(st.fill);
+    if (st.strokeOn && st.strokeWidth > 0) {
+      doc.applyStroke = true;
+      doc.strokeColor = capColor(st.stroke);
+      doc.strokeWidth = Math.max(0.1, st.strokeWidth * k);
+      doc.strokeOverFill = false;
+    } else {
+      doc.applyStroke = false;
+    }
+    doc.justification = st.justify === "left" ? ParagraphJustification.LEFT_JUSTIFY :
+      (st.justify === "right" ? ParagraphJustification.RIGHT_JUSTIFY : ParagraphJustification.CENTER_JUSTIFY);
+    doc.tracking = Math.round(st.tracking || 0);
     try {
-      for (var i = 0; i < phrases.length; i += 1) {
-        var phrase = phrases[i];
-        var text = String(phrase.text || "").replace(/^\s+|\s+$/g, "");
-        if (!text) {
+      doc.autoLeading = false;
+      doc.leading = Math.max(1, doc.fontSize * (st.lineHeight || 1.15));
+    } catch (e4) {}
+    return doc;
+  }
+
+  // Glow first, then the shadow (a shadow before the glow would glow too).
+  function capAddLook(L, st, k) {
+    var fx = L.property("ADBE Effect Parade");
+    var e;
+    if (st.glowOn) {
+      e = fx.addProperty("ADBE Glo2");
+      e.name = "MF Glow";
+      e.property("ADBE Glo2-0002").setValue(60 * 2.55);
+      e.property("ADBE Glo2-0003").setValue(Math.max(0, (st.glowRadius || 0) * k));
+      e.property("ADBE Glo2-0004").setValue(Math.max(0, st.glowIntensity || 0));
+      if (st.glowColor) {
+        try {
+          e.property("ADBE Glo2-0007").setValue(2); // A & B Colors
+          e.property("ADBE Glo2-0012").setValue(capColor(st.glowColor, true));
+          e.property("ADBE Glo2-0013").setValue(capColor(st.glowColor, true));
+        } catch (glowColorError) {}
+      }
+    }
+    if (st.shadowOn) {
+      e = fx.addProperty("ADBE Drop Shadow");
+      e.name = "MF Shadow";
+      e.property("ADBE Drop Shadow-0001").setValue(capColor(st.shadowColor || [0, 0, 0], true));
+      e.property("ADBE Drop Shadow-0002").setValue(capClamp(st.shadowOpacity, 0, 100) * 2.55);
+      e.property("ADBE Drop Shadow-0003").setValue(180);
+      e.property("ADBE Drop Shadow-0004").setValue(Math.max(0, (st.shadowDistance || 0) * k));
+      e.property("ADBE Drop Shadow-0005").setValue(Math.max(0, (st.shadowSoftness || 0) * k));
+    }
+  }
+
+  // ---------------------------------------------------------------- animations
+
+  var CAP_MARKER_HEAD =
+    "var m = thisLayer.marker, i = textIndex;\n" +
+    "var t0 = i <= m.numKeys ? m.key(i).time : thisLayer.inPoint;\n";
+  // 100 = hidden/offset, 0 = in place: fast start, long soft settle.
+  var CAP_CURVE = "var p = Math.min(Math.max((time - t0) / dur, 0), 1);\n100 * Math.pow(1 - p, 4);";
+  // Same, but it passes its place a little and comes back (ease-out back).
+  var CAP_CURVE_BACK = "var p = Math.min(Math.max((time - t0) / dur, 0), 1);\nvar c = 1.70158, q = p - 1;\n100 * (1 - (1 + (c + 1) * q * q * q + c * q * q));";
+
+  // Text-animator entrances. F = font size (px): offsets/blur are
+  // fractions of it so every size moves alike.
+  //   marker: each word at its marker; start: every word at the layer's
+  //   in point; stagger: word after word from the in point; chars:
+  //   letter after letter; cut: each word just appears at its marker.
+  var CAPTION_ENTRANCES = {
+    rise: { by: "marker", pos: [0, 0.22], blur: [0.02, 0.05], dur: 0.4 },
+    fromLeft: { by: "marker", pos: [-0.25, 0], blur: [0.05, 0.02], dur: 0.4 },
+    fromRight: { by: "marker", pos: [0.25, 0], blur: [0.05, 0.02], dur: 0.4 },
+    zoomBlur: { by: "marker", scale: 145, blur: [0.05, 0.05], dur: 0.4 },
+    softBlur: { by: "start", blur: [0.04, 0.04], dur: 0.35 },
+    slideWords: { by: "stagger", frames: 3, pos: [0, 0.32], blur: [0.02, 0.04], dur: 0.45 },
+    lettersRise: { by: "chars", frames: 1.4, pos: [0, 0.2], blur: [0.02, 0.04], dur: 0.34 },
+    lettersBlur: { by: "chars", frames: 1.5, blur: [0.05, 0.05], dur: 0.3 },
+    dropBlur: { by: "marker", pos: [0, -0.35], blur: [0.02, 0.08], dur: 0.45 },
+    lettersRight: { by: "chars", frames: 1.2, pos: [0.6, 0], blur: [0.04, 0.01], dur: 0.4 },
+    lettersSpin: { by: "chars", frames: 1.5, pos: [0, 0.28], rotation: 80, dur: 0.5, back: true },
+    lettersSpread: { by: "chars", frames: 0.8, tracking: 350, blur: [0.06, 0.02], dur: 0.55 },
+    none: { by: "cut" }
+  };
+
+  function capSetGrouping(L, value) {
+    try {
+      L.property("ADBE Text Properties").property("ADBE Text More Options").property("ADBE Text Anchor Point Grouping").setValue(value);
+    } catch (e) {}
+  }
+
+  // Animator properties first, selector last: adding to a property group
+  // can invalidate references to what was added before.
+  function capAddEntrance(L, kind, F) {
+    var spec = CAPTION_ENTRANCES[kind];
+    if (!spec) {
+      return;
+    }
+    capSetGrouping(L, spec.by === "chars" ? 1 : 2);
+    var an = L.property("ADBE Text Properties").property("ADBE Text Animators").addProperty("ADBE Text Animator");
+    an.name = "MF Entrance";
+    var props = an.property("ADBE Text Animator Properties");
+    if (spec.pos) {
+      props.addProperty("ADBE Text Position 3D").setValue([spec.pos[0] * F, spec.pos[1] * F, 0]);
+    }
+    if (spec.scale) {
+      props.addProperty("ADBE Text Scale 3D").setValue([spec.scale, spec.scale, 100]);
+    }
+    if (spec.rotation) {
+      props.addProperty("ADBE Text Rotation").setValue(spec.rotation);
+    }
+    if (spec.tracking) {
+      props.addProperty("ADBE Text Tracking Amount").setValue(spec.tracking);
+    }
+    props.addProperty("ADBE Text Opacity").setValue(0);
+    if (spec.blur) {
+      props.addProperty("ADBE Text Blur").setValue([spec.blur[0] * F, spec.blur[1] * F]);
+    }
+    var sel = an.property("ADBE Text Selectors").addProperty("ADBE Text Expressible Selector");
+    sel.property("ADBE Text Range Type2").setValue(spec.by === "chars" ? 2 : 3); // 2 = characters excluding spaces, 3 = words
+    var expr;
+    var curve = spec.back ? CAP_CURVE_BACK : CAP_CURVE;
+    if (spec.by === "cut") {
+      expr = "// Mótion Film: each word appears at its marker (marker n = word n)\n" + CAP_MARKER_HEAD + "time < t0 ? 100 : 0;";
+    } else if (spec.by === "marker") {
+      expr = "// Mótion Film: each word comes in at its marker (marker n = word n); dur in seconds\nvar dur = " + capNum(spec.dur) + ";\n" + CAP_MARKER_HEAD + curve;
+    } else if (spec.by === "start") {
+      expr = "// Mótion Film: every word comes in with the caption; dur in seconds\nvar dur = " + capNum(spec.dur) + ";\nvar t0 = thisLayer.inPoint;\n" + curve;
+    } else {
+      expr = "// Mótion Film: one " + (spec.by === "chars" ? "letter" : "word") + " after the other; gap in frames, dur in seconds\n" +
+        "var gap = " + capNum(spec.frames) + " * thisComp.frameDuration, dur = " + capNum(spec.dur) + ";\n" +
+        "var t0 = thisLayer.inPoint + (textIndex - 1) * gap;\n" + curve;
+    }
+    sel.property("ADBE Text Expressible Amount").expression = expr;
+  }
+
+  // The spoken word, in color (and optionally bigger), from its marker to
+  // the next word's.
+  function capAddHighlight(L, st) {
+    var an = L.property("ADBE Text Properties").property("ADBE Text Animators").addProperty("ADBE Text Animator");
+    an.name = "MF Highlight";
+    var props = an.property("ADBE Text Animator Properties");
+    props.addProperty("ADBE Text Fill Color").setValue(capColor(st.highlight));
+    var scale = Number(st.highlightScale) || 100;
+    if (scale !== 100) {
+      props.addProperty("ADBE Text Scale 3D").setValue([scale, scale, 100]);
+    }
+    var sel = an.property("ADBE Text Selectors").addProperty("ADBE Text Expressible Selector");
+    sel.property("ADBE Text Range Type2").setValue(3);
+    sel.property("ADBE Text Expressible Amount").expression =
+      "// Mótion Film: highlights the word being spoken (marker n = word n)\n" +
+      "var m = thisLayer.marker, i = textIndex;\n" +
+      "var t0 = i <= m.numKeys ? m.key(i).time : 1e9;\n" +
+      "var t1 = i < m.numKeys ? m.key(i + 1).time : thisLayer.outPoint;\n" +
+      "(time >= t0 && time < t1) ? 100 : 0;";
+  }
+
+  // A Gaussian Blur that fades with the layer's own Position slide (reads
+  // how far the keyframes still are from landing).
+  function capAddSlideBlur(L, amount) {
+    var e = L.property("ADBE Effect Parade").addProperty("ADBE Gaussian Blur 2");
+    e.name = "MF Slide Blur";
+    var blur = e.property("ADBE Gaussian Blur 2-0001");
+    blur.setValue(amount);
+    blur.expression =
+      "// Mótion Film: blur that clears as the caption lands\n" +
+      "var p = thisLayer.transform.position, k = 0;\n" +
+      "if (p.numKeys > 1) { var a = p.key(1).value[1], z = p.key(2).value[1]; if (a != z) { k = (p.value[1] - z) / (a - z); } }\n" +
+      "value * Math.min(Math.max(k, 0), 1);";
+  }
+
+  var CAP_BOUNCE_EXPR =
+    "// Mótion Film: bounce -- after each landing the scale overshoots and settles (amp in %, freq per second, decay)\n" +
+    "var amp = 14, freq = 2.6, decay = 8;\n" +
+    "var n = 0;\n" +
+    "if (numKeys > 0) { n = nearestKey(time).index; if (key(n).time > time) { n--; } }\n" +
+    "var out = value;\n" +
+    "if (n > 0 && n % 2 == 0) {\n" +
+    "  var t = time - key(n).time;\n" +
+    "  var d = value[0] * amp / 100 * Math.sin(freq * t * 2 * Math.PI) / Math.exp(decay * t);\n" +
+    "  out = value.length > 2 ? [value[0] + d, value[1] + d, value[2]] : [value[0] + d, value[1] + d];\n" +
+    "}\n" +
+    "out;";
+
+  function capEase(prop, index, inInfluence, outInfluence) {
+    var dims = prop.propertyValueType === PropertyValueType.ThreeD ? 3 : (prop.propertyValueType === PropertyValueType.TwoD ? 2 : 1);
+    var ins = [];
+    var outs = [];
+    for (var i = 0; i < dims; i += 1) {
+      ins.push(new KeyframeEase(0, inInfluence));
+      outs.push(new KeyframeEase(0, outInfluence));
+    }
+    prop.setTemporalEaseAtKey(index, ins, outs);
+  }
+
+  // Two keys a -> b, Bezier, leaving fast and settling slowly; the
+  // landing key holds (pairs of keys can follow, one per word).
+  function capKeyPair(prop, t0, t1, a, b) {
+    var k0 = prop.addKey(t0);
+    prop.setValueAtKey(k0, a);
+    var k1 = prop.addKey(t1);
+    prop.setValueAtKey(k1, b);
+    k0 = prop.nearestKeyIndex(t0);
+    k1 = prop.nearestKeyIndex(t1);
+    prop.setInterpolationTypeAtKey(k0, KeyframeInterpolationType.BEZIER, KeyframeInterpolationType.BEZIER);
+    prop.setInterpolationTypeAtKey(k1, KeyframeInterpolationType.BEZIER, KeyframeInterpolationType.HOLD);
+    capEase(prop, k0, 33, 12);
+    capEase(prop, k1, 88, 33);
+  }
+
+  function capOpacityIn(L, t0, frames) {
+    var op = L.property("ADBE Transform Group").property("ADBE Opacity");
+    var fd = L.containingComp.frameDuration;
+    var a = op.addKey(t0);
+    op.setValueAtKey(a, 0);
+    var b = op.addKey(t0 + Math.max(1, frames) * fd);
+    op.setValueAtKey(b, 100);
+    a = op.nearestKeyIndex(t0);
+    b = op.nearestKeyIndex(t0 + Math.max(1, frames) * fd);
+    op.setInterpolationTypeAtKey(a, KeyframeInterpolationType.LINEAR, KeyframeInterpolationType.LINEAR);
+    op.setInterpolationTypeAtKey(b, KeyframeInterpolationType.LINEAR, KeyframeInterpolationType.HOLD);
+  }
+
+  // Whole-caption entrances, keyed on the copy once its in/out are set.
+  function capLayerEntrance(L, kind, pos, scale) {
+    var comp = L.containingComp;
+    var fd = comp.frameDuration;
+    var tr = L.property("ADBE Transform Group");
+    var t0 = L.inPoint;
+    var life = L.outPoint - L.inPoint;
+    var shortSide = Math.min(comp.width, comp.height);
+    var frames;
+    if (kind === "smooth" || kind === "slidePhrase") {
+      frames = Math.max(2, Math.min(kind === "smooth" ? 12 : 15, Math.round(life * 0.8 / fd)));
+      var dist = shortSide * (kind === "smooth" ? 0.06 : 0.11);
+      capKeyPair(tr.property("ADBE Position"), t0, t0 + frames * fd, [pos[0], pos[1] + dist], [pos[0], pos[1]]);
+      capOpacityIn(L, t0, Math.round(frames * (kind === "smooth" ? 0.6 : 0.4)));
+    } else if (kind === "bounce") {
+      capKeyPair(tr.property("ADBE Scale"), t0, t0 + Math.min(4, Math.max(2, Math.round(life * 0.5 / fd))) * fd, [0, 0, 100], [scale, scale, 100]);
+      tr.property("ADBE Scale").expression = CAP_BOUNCE_EXPR;
+    } else if (kind === "scale") {
+      frames = Math.max(2, Math.min(Math.round(0.5 / fd), Math.round(life * 0.8 / fd)));
+      capKeyPair(tr.property("ADBE Scale"), t0, t0 + frames * fd, [0, 0, 100], [scale, scale, 100]);
+    }
+  }
+
+  // "One at a time": the text changes at every word (hold keys on Source
+  // Text). Returns the change times; capWordByWordEntrances animates them.
+  function capWordByWord(L, words) {
+    var comp = L.containingComp;
+    var fd = comp.frameDuration;
+    var src = L.property("ADBE Text Properties").property("ADBE Text Document");
+    var starts = [];
+    for (var i = 0; i < words.length; i += 1) {
+      var t = Math.max(L.inPoint, capSnap(words[i].start, comp));
+      if (i > 0 && t <= L.inPoint) {
+        continue;
+      }
+      if (starts.length && t < starts[starts.length - 1].t + fd) {
+        continue; // two words in one frame: the second waits for the next change
+      }
+      var doc = src.value;
+      doc.text = words[i].text;
+      src.setValueAtTime(t, doc);
+      starts.push({ t: t, text: words[i].text });
+    }
+    return starts;
+  }
+
+  // ---------------------------------------------------------------- layout
+
+  // Fixed vertical metrics of the caption font (accents + descenders), so
+  // every caption sits at the same height whatever its letters.
+  function capFontMetrics(T) {
+    var prop = T.property("ADBE Text Properties").property("ADBE Text Document");
+    var doc = prop.value;
+    var keep = doc.text;
+    doc.text = "ÁÉÍgjpqyH";
+    prop.setValue(doc);
+    var r = T.sourceRectAtTime(0, false);
+    var leading = doc.leading || doc.fontSize * 1.2;
+    doc = prop.value;
+    doc.text = keep;
+    prop.setValue(doc);
+    return { top: r.top, bottom: r.top + r.height, leading: leading };
+  }
+
+  function capBasePosition(comp, st) {
+    var w = comp.width;
+    var h = comp.height;
+    var margin = capClamp(st.margin === undefined ? 10 : st.margin, 0, 45) / 100;
+    if (st.position === "top") { return [w / 2, h * margin]; }
+    if (st.position === "center") { return [w / 2, h / 2]; }
+    if (st.position === "custom") { return [w * capClamp(st.posX, 0, 100) / 100, h * capClamp(st.posY, 0, 100) / 100]; }
+    return [w / 2, h * (1 - margin)];
+  }
+
+  // Anchor so the block sits on the chosen point (bottom edge for
+  // "bottom" -- extra lines grow upward --, top edge for "top", middle
+  // otherwise) and a smaller scale when it's wider than 88% of the comp.
+  // `rect` = the widest the caption gets. Returns the scale used.
+  function capPlace(L, comp, st, rect, metrics, lineCount, baseScale) {
+    var maxWidth = comp.width * 0.88;
+    var scale = baseScale;
+    if (rect.width > 0 && rect.width * baseScale / 100 > maxWidth) {
+      scale = baseScale * maxWidth / (rect.width * baseScale / 100);
+    }
+    L.property("ADBE Transform Group").property("ADBE Scale").setValue([scale, scale, 100]);
+    var top = metrics.top;
+    var bottom = metrics.bottom + (Math.max(1, lineCount) - 1) * metrics.leading;
+    var ay = (top + bottom) / 2;
+    if (st.position === "bottom") { ay = bottom; } else if (st.position === "top") { ay = top; }
+    var ax = st.justify === "left" || st.justify === "right" ? rect.left + rect.width / 2 : 0;
+    L.property("ADBE Transform Group").property("ADBE Anchor Point").setValue([ax, ay]);
+    return scale;
+  }
+
+  // Marker n = word n, from the layer's in point, at least a frame apart.
+  function capWordMarkers(L, words, comp) {
+    var mk = L.property("ADBE Marker");
+    var last = -1;
+    for (var i = 0; i < words.length; i += 1) {
+      var t = Math.max(L.inPoint, capSnap(words[i].start, comp), last + comp.frameDuration);
+      if (t >= L.outPoint) {
+        t = Math.max(L.inPoint, L.outPoint - comp.frameDuration);
+      }
+      mk.setValueAtTime(t, new MarkerValue(words[i].text));
+      last = t;
+    }
+  }
+
+  // copyToComp neither returns the copy nor promises where it lands: tag
+  // the source, find the tagged layer (normally the top one).
+  function capCopyInto(src, comp) {
+    src.comment = CAPTION_COPY_TAG;
+    src.copyToComp(comp);
+    src.comment = "";
+    if (comp.numLayers && comp.layer(1).comment === CAPTION_COPY_TAG) {
+      comp.layer(1).comment = "";
+      return comp.layer(1);
+    }
+    for (var i = 1; i <= comp.numLayers; i += 1) {
+      if (comp.layer(i).comment === CAPTION_COPY_TAG) {
+        comp.layer(i).comment = "";
+        return comp.layer(i);
+      }
+    }
+    throw new Error("The copy of the caption template wasn't found.");
+  }
+
+  // Background box: a shape layer parented to its caption whose rectangle
+  // follows the caption's text bounds by expression (so it follows text
+  // edits too); its opacity follows the caption's.
+  function capMakeBackground(hidden, st, k) {
+    var S = hidden.layers.addShape();
+    var group = S.property("ADBE Root Vectors Group").addProperty("ADBE Vector Group");
+    group.name = "MF Box";
+    var contents = group.property("ADBE Vectors Group");
+    var rect = contents.addProperty("ADBE Vector Shape - Rect");
+    var px = capNum(Math.max(0, (st.bgPadding || 0) * k));
+    var py = capNum(Math.max(0, (st.bgPadding || 0) * k * 0.6));
+    rect.property("ADBE Vector Rect Size").expression =
+      "// Mótion Film: the box follows the caption's text\nif (thisLayer.hasParent) { var r = thisLayer.parent.sourceRectAtTime(time, false); [r.width + " + px + " * 2, r.height + " + py + " * 2]; } else { [0, 0]; }";
+    rect.property("ADBE Vector Rect Position").expression =
+      "if (thisLayer.hasParent) { var r = thisLayer.parent.sourceRectAtTime(time, false); [r.left + r.width / 2, r.top + r.height / 2]; } else { [0, 0]; }";
+    rect.property("ADBE Vector Rect Roundness").setValue(Math.max(0, (st.bgRadius || 0) * k));
+    var fill = contents.addProperty("ADBE Vector Graphic - Fill");
+    fill.property("ADBE Vector Fill Color").setValue(capColor(st.bg, true));
+    var tr = S.property("ADBE Transform Group");
+    tr.property("ADBE Anchor Point").setValue([0, 0]);
+    tr.property("ADBE Position").setValue([0, 0]);
+    tr.property("ADBE Opacity").expression =
+      "// Mótion Film: box opacity x caption opacity\nthisLayer.hasParent ? thisLayer.parent.transform.opacity * " + capNum(capClamp(st.bgOpacity, 0, 100) / 100) + " : 0;";
+    S.label = CAPTION_LABEL;
+    return S;
+  }
+
+  function capAttachBackground(template, L, tag, comp) {
+    var S = capCopyInto(template, comp);
+    S.name = L.name + " box";
+    S.comment = tag + "|bg";
+    S.label = CAPTION_LABEL;
+    S.moveAfter(L);
+    if (S.setParentWithJump) { S.setParentWithJump(L); } else { S.parent = L; }
+    var tr = S.property("ADBE Transform Group");
+    tr.property("ADBE Anchor Point").setValue([0, 0]);
+    tr.property("ADBE Position").setValue([0, 0]);
+    tr.property("ADBE Scale").setValue([100, 100, 100]);
+    S.startTime = 0;
+    S.inPoint = L.inPoint;
+    S.outPoint = L.outPoint;
+    return S;
+  }
+
+  // Back shade: a black solid behind each caption with a big-feathered
+  // ellipse mask around its lines. Fades only next to a pause, so
+  // back-to-back captions keep it on instead of pulsing.
+  function capAddBackShades(comp, made, st) {
+    var amount = capClamp(st.backShadeOpacity || 45, 5, 100);
+    var size = capClamp(st.backShadeSize || 100, 30, 300) / 100;
+    var fd = comp.frameDuration;
+    var source = null;
+    var boxes = [];
+    var i;
+    for (i = 0; i < made.length; i += 1) {
+      if (made[i].box) { // Reels / Viral: the layout already knows the block's edges
+        boxes.push({ m: made[i], x0: made[i].box[0], y0: made[i].box[1], x1: made[i].box[2], y1: made[i].box[3] });
+        continue;
+      }
+      var L = made[i].layer;
+      var t = Math.max(L.inPoint, L.outPoint - fd);
+      var r = L.sourceRectAtTime(t, false);
+      if (!(r.width > 0)) {
+        continue;
+      }
+      var tr = L.property("ADBE Transform Group");
+      var p = tr.property("ADBE Position").valueAtTime(t, false);
+      var a = tr.property("ADBE Anchor Point").value;
+      var s = tr.property("ADBE Scale").valueAtTime(t, false)[0] / 100;
+      boxes.push({ m: made[i], x0: p[0] + (r.left - a[0]) * s, y0: p[1] + (r.top - a[1]) * s, x1: p[0] + (r.left + r.width - a[0]) * s, y1: p[1] + (r.top + r.height - a[1]) * s });
+    }
+    for (i = 0; i < boxes.length; i += 1) {
+      var b = boxes[i];
+      var bw = b.x1 - b.x0;
+      var bh = b.y1 - b.y0;
+      var S;
+      if (!source) {
+        S = comp.layers.addSolid([0, 0, 0], "MF Captions shade", comp.width, comp.height, comp.pixelAspect);
+        source = S.source;
+      } else {
+        S = comp.layers.add(source);
+      }
+      S.name = b.m.layer.name + " shade";
+      S.comment = b.m.tag + "|bg";
+      S.label = CAPTION_LABEL;
+      S.moveAfter(b.m.bottom);
+      S.startTime = 0;
+      S.inPoint = b.m.layer.inPoint;
+      S.outPoint = b.m.layer.outPoint;
+      var feather = Math.max(bh * 0.9, bw * 0.35) * size;
+      var rx = bw / 2 * 1.08 * size + feather / 2;
+      var ry = bh / 2 * 1.2 * size + feather / 2;
+      var cx = comp.width / 2;
+      var cy = comp.height / 2;
+      var kappa = 0.5523;
+      var shape = new Shape();
+      shape.vertices = [[cx, cy - ry], [cx + rx, cy], [cx, cy + ry], [cx - rx, cy]];
+      shape.inTangents = [[-rx * kappa, 0], [0, -ry * kappa], [rx * kappa, 0], [0, ry * kappa]];
+      shape.outTangents = [[rx * kappa, 0], [0, ry * kappa], [-rx * kappa, 0], [0, -ry * kappa]];
+      shape.closed = true;
+      var mask = S.property("ADBE Mask Parade").addProperty("ADBE Mask Atom");
+      mask.property("ADBE Mask Shape").setValue(shape);
+      mask.property("ADBE Mask Feather").setValue([feather, feather]);
+      var str = S.property("ADBE Transform Group");
+      str.property("ADBE Position").setValue([(b.x0 + b.x1) / 2, (b.y0 + b.y1) / 2]);
+      var op = str.property("ADBE Opacity");
+      var prev = boxes[i - 1];
+      var next = boxes[i + 1];
+      var fadeIn = !prev || b.m.layer.inPoint - prev.m.layer.outPoint > 0.1;
+      var fadeOut = !next || next.m.layer.inPoint - b.m.layer.outPoint > 0.1;
+      var tIn = b.m.layer.inPoint;
+      var tOut = b.m.layer.outPoint;
+      if (fadeIn || fadeOut) {
+        if (fadeIn) { op.setValueAtTime(tIn, 0); op.setValueAtTime(Math.min(tOut, tIn + 6 * fd), amount); } else { op.setValueAtTime(tIn, amount); }
+        if (fadeOut) { op.setValueAtTime(Math.max(tIn + 6 * fd, tOut - 5 * fd), amount); op.setValueAtTime(tOut, 0); }
+      } else {
+        op.setValue(amount);
+      }
+    }
+  }
+
+  // AE redraws the open comp after every change: while the layers are
+  // made, the viewer shows a tiny empty comp (removed at the end).
+  var capParked = null;
+  function capParkViewer(comp) {
+    capParked = null;
+    try {
+      var viewer = app.activeViewer;
+      if (!viewer || viewer.type !== ViewerType.VIEWER_COMPOSITION || app.project.activeItem !== comp) {
+        return;
+      }
+      var tmp = app.project.items.addComp("Mótion Film (creating captions…)", 16, 16, 1, 1, comp.frameRate);
+      tmp.openInViewer();
+      capParked = { comp: comp, tmp: tmp };
+    } catch (e) {
+      capParked = null;
+    }
+  }
+  function capUnparkViewer() {
+    if (!capParked) {
+      return;
+    }
+    var parked = capParked;
+    capParked = null;
+    try { parked.comp.openInViewer(); } catch (e1) {}
+    try { parked.tmp.remove(); } catch (e2) {}
+  }
+
+  function capReadPayload(path) {
+    var f = new File(path);
+    f.encoding = "UTF-8";
+    if (!f.open("r")) {
+      throw new Error("Couldn't read the captions data.");
+    }
+    var text = f.read();
+    f.close();
+    try { f.remove(); } catch (removeError) {}
+    return parse(text);
+  }
+
+  // The animations keyed on the layer itself (the rest are text
+  // animators built once on the template).
+  var CAPTION_LAYER_ANIMS = { smooth: true, slidePhrase: true, bounce: true, scale: true };
+
+  function capCompById(id) {
+    for (var i = 1; i <= app.project.numItems; i += 1) {
+      var item = app.project.item(i);
+      if (item instanceof CompItem && item.id === id) {
+        return item;
+      }
+    }
+    return null;
+  }
+
+  // The captions go into the comp the audio came from (data.compId), even
+  // if another comp became active while it was transcribing.
+  function createCaptionSet(payloadPath) {
+    var data;
+    try {
+      data = capReadPayload(payloadPath);
+    } catch (readError) {
+      return stringify({ ok: false, error: String(readError.message || readError) });
+    }
+    var comp = data && data.compId ? capCompById(data.compId) : activeComp();
+    if (!comp) {
+      return stringify({ ok: false, error: data && data.compId ? "The composition the audio came from isn't in the project anymore." : "Open a composition first." });
+    }
+    if (!data || !data.captions || !data.captions.length) {
+      return stringify({ ok: false, error: "There are no captions to create." });
+    }
+    if (data.mode === "viral") {
+      return createViralSet(data, comp);
+    }
+    var st = data.style || {};
+    var mode = data.mode || "classic";
+    var anim = data.anim || "smooth";
+    var oneAtATime = mode === "word";
+    var k = Math.min(comp.width, comp.height) / 1080;
+    var baseScale = capClamp(st.scale || 100, 10, 1000);
+    var pos = capBasePosition(comp, st);
+    var F = st.fontSize * k;
+    var hidden = null;
+    var created = 0;
+    kitUndoBegin("Mótion Film: Create captions");
+    capParkViewer(comp);
+    try {
+      hidden = app.project.items.addComp("Mótion Film captions (temp)", comp.width, comp.height, comp.pixelAspect, comp.duration, comp.frameRate);
+      var first = String(data.captions[0].text || " ");
+      var T = hidden.layers.addText(first);
+      var tp = T.property("ADBE Text Properties").property("ADBE Text Document");
+      tp.setValue(capStyleDocument(tp.value, st, first, k));
+      var metrics = capFontMetrics(T);
+      T.label = CAPTION_LABEL;
+      T.property("ADBE Transform Group").property("ADBE Position").setValue(pos);
+      capAddLook(T, st, k);
+      if (anim === "smooth") {
+        capAddSlideBlur(T, 12 * k * 100 / baseScale);
+      }
+      if (!oneAtATime && CAPTION_ENTRANCES[anim]) {
+        capAddEntrance(T, anim, F);
+      }
+      if (!oneAtATime && st.highlightOn) {
+        capAddHighlight(T, st);
+        if ((Number(st.highlightScale) || 100) !== 100 && !(CAPTION_ENTRANCES[anim] && CAPTION_ENTRANCES[anim].by === "chars")) {
+          capSetGrouping(T, 2);
+        }
+      }
+      var boxTemplate = st.bgOn ? capMakeBackground(hidden, st, k) : null;
+
+      var made = [];
+      var previous = null;
+      var anchor = comp.numLayers ? comp.layer(1) : null;
+      for (var n = 0; n < data.captions.length; n += 1) {
+        var c = data.captions[n];
+        var tIn = capSnap(c.start, comp);
+        var tOut = Math.min(capSnap(c.end, comp), comp.duration);
+        if (tIn >= comp.duration) {
           continue;
         }
-        var startT = numberOr(phrase.start, 0);
-        var endT = numberOr(phrase.end, startT + 1);
-        if (endT <= startT) {
-          endT = startT + 0.5;
+        if (tOut <= tIn) {
+          tOut = tIn + comp.frameDuration;
         }
-        var textLayer = comp.layers.addText(text);
-        textLayer.name = text.length > 40 ? text.slice(0, 40) + "…" : text;
-        textLayer.startTime = startT;
-        textLayer.inPoint = startT;
-        textLayer.outPoint = endT;
-        // Bottom-center is the standard caption position for video work --
-        // set explicitly rather than relying on wherever AE happens to
-        // drop a freshly-added text layer, since dozens of these might
-        // get created for one video and re-positioning each by hand would
-        // defeat the point of automating this. A style preset's own
-        // Transform capture (only present if the user actually animated
-        // Position/Anchor Point/etc.) is applied afterward and takes
-        // over from here if it touches the same properties.
-        var textDoc = textLayer.property("ADBE Text Properties").property("ADBE Text Document").value;
-        textDoc.justification = ParagraphJustification.CENTER_JUSTIFY;
-        textLayer.property("ADBE Text Properties").property("ADBE Text Document").setValue(textDoc);
-        textLayer.property("ADBE Transform Group").property("ADBE Position").setValue([comp.width / 2, comp.height * 0.88]);
-        textLayer.property("ADBE Transform Group").property("ADBE Anchor Point").setValue([0, 0]);
-        if (stylePreset) {
-          applyStylePresetToLayer(textLayer, stylePreset);
+        var words = c.words && c.words.length ? c.words : [{ text: String(c.text).replace(/\r/g, " "), start: c.start, end: c.end }];
+        var tag = CAPTION_TAG + data.setId + "|" + (n + 1);
+        var L = capCopyInto(T, comp);
+        if (previous) { L.moveAfter(previous); } else if (anchor) { L.moveBefore(anchor); }
+        L.name = CAPTION_NAME + capPad3(n + 1);
+        L.comment = tag;
+        L.label = CAPTION_LABEL;
+        L.startTime = 0;
+        L.inPoint = tIn;
+        L.outPoint = tOut;
+        var src = L.property("ADBE Text Properties").property("ADBE Text Document");
+        var rect;
+        var lineCount = 1;
+        if (oneAtATime) {
+          var starts = capWordByWord(L, words);
+          rect = { left: 0, width: 0 };
+          for (var w = 0; w < starts.length; w += 1) {
+            var wr = L.sourceRectAtTime(starts[w].t, false);
+            if (wr.width > rect.width) { rect = wr; }
+          }
+        } else {
+          src.setValue(String(c.text));
+          lineCount = String(c.text).split("\r").length;
+          capWordMarkers(L, words, comp);
+          rect = L.sourceRectAtTime(Math.max(L.inPoint, L.outPoint - comp.frameDuration), false);
         }
+        var scale = capPlace(L, comp, st, rect, metrics, lineCount, baseScale);
+        if (oneAtATime) {
+          // Source Text keys are already in place; only the entrances.
+          capWordByWordEntrances(L, words, anim, pos, scale);
+        } else if (CAPTION_LAYER_ANIMS[anim]) {
+          capLayerEntrance(L, anim, pos, scale);
+        }
+        var bottom = L;
+        if (boxTemplate) {
+          bottom = capAttachBackground(boxTemplate, L, tag, comp);
+        }
+        made.push({ layer: L, tag: tag, bottom: bottom });
+        previous = bottom;
         created += 1;
       }
+      if (st.backShadeOn) {
+        capAddBackShades(comp, made, st);
+      }
+      hidden.remove();
+      hidden = null;
     } catch (error) {
-      app.endUndoGroup();
-      return stringify({ ok: false, error: String(error) });
+      try { if (hidden) { hidden.remove(); } } catch (cleanupError) {}
+      capUnparkViewer();
+      kitUndoEnd();
+      return stringify({ ok: false, error: "Couldn't create the captions: " + String(error.message || error) + (error.line ? " (line " + error.line + ")" : "") });
     }
-    app.endUndoGroup();
-    return stringify({ ok: true, created: created });
+    capUnparkViewer();
+    kitUndoEnd();
+    return stringify({ ok: true, created: created, setId: data.setId });
+  }
+
+  // ---------------------------------------------------------------- Reels / Viral
+
+  // Every caption is a small composition: a Null ("Caption 001") that
+  // places it, and one text layer per line under it -- small words above,
+  // the big highlighted word, small words below -- each with its role's
+  // font and effects and its own entrance, starting when its first word
+  // is spoken. Which words go where and how big comes from
+  // client/captions-layout.js, the same file the panel's previews use.
+  //
+  // data.preset = the style (client/captions-styles.js, colors as
+  // [r, g, b]), data.place = { position, posX, posY, scale }, data.shade
+  // = { backShadeOn, backShadeOpacity, backShadeSize }, captions[i].words
+  // carry `accent` and captions[i].variant picks the palette color.
+
+  function capLoadLayout(extDir) {
+    if ($.global.MFCaptionsLayout) {
+      return;
+    }
+    var candidates = [];
+    if (extDir) { candidates.push(extDir + "/client/captions-layout.js"); }
+    try { candidates.push(File($.fileName).parent.parent.fsName + "/client/captions-layout.js"); } catch (e) {}
+    for (var i = 0; i < candidates.length; i += 1) {
+      var f = new File(candidates[i]);
+      if (f.exists) {
+        $.evalFile(f);
+        return;
+      }
+    }
+    throw new Error("captions-layout.js wasn't found next to the extension.");
+  }
+
+  // Is this font really there? AE takes any name and draws a substitute
+  // for a missing one; app.fonts (AE 24+) tells them apart.
+  function capFontInstalled(postScriptName) {
+    try {
+      if (!app.fonts || !app.fonts.getFontsByPostScriptName) {
+        return true;
+      }
+      var found = app.fonts.getFontsByPostScriptName(postScriptName);
+      for (var i = 0; i < found.length; i += 1) {
+        if (!found[i].isSubstitute) {
+          return true;
+        }
+      }
+      return false;
+    } catch (e) {
+      return true;
+    }
+  }
+
+  // fontsJson: ["Inter-Bold", ...] -> { ok, missing: [...] }. Asks AE to
+  // look at the font folders again first (fonts installed while it runs).
+  function checkCaptionFonts(fontsJson) {
+    var list = parse(fontsJson) || [];
+    try {
+      if (app.fonts && app.fonts.pollForAndPushNonSystemFontFoldersChanges) {
+        app.fonts.pollForAndPushNonSystemFontFoldersChanges();
+      }
+    } catch (pollError) {}
+    var missing = [];
+    for (var i = 0; i < list.length; i += 1) {
+      if (!capFontInstalled(list[i])) {
+        missing.push(list[i]);
+      }
+    }
+    capFontCache = null;
+    return stringify({ ok: true, missing: missing });
+  }
+
+  function capRoleDocument(doc, role, k, text) {
+    try { doc.resetCharStyle(); } catch (e1) {}
+    try { doc.resetParagraphStyle(); } catch (e2) {}
+    doc.text = text;
+    if (role.font) {
+      try { doc.font = role.font; } catch (e3) {}
+    }
+    doc.fontSize = Math.max(4, role.size * k);
+    doc.applyFill = true;
+    doc.fillColor = capColor(role.fill || [1, 1, 1]);
+    if (role.stroke && role.stroke.width > 0) {
+      doc.applyStroke = true;
+      doc.strokeColor = capColor(role.stroke.color);
+      doc.strokeWidth = Math.max(0.1, role.stroke.width * k);
+      doc.strokeOverFill = false;
+    } else {
+      doc.applyStroke = false;
+    }
+    doc.justification = ParagraphJustification.CENTER_JUSTIFY;
+    doc.tracking = Math.round(role.tracking || 0);
+    return doc;
+  }
+
+  // Text layers are continuously rasterized: effect points live in comp
+  // space, so they're the text's own box through toComp.
+  var CAP_RECT = "var r = sourceRectAtTime(time, false);\n";
+
+  function capRoleEffects(L, role, k) {
+    var fx = L.property("ADBE Effect Parade");
+    var e;
+    var i;
+    if (role.gradient) {
+      e = fx.addProperty("ADBE Ramp");
+      e.name = "MF Gradient";
+      var diag = role.gradient.diag;
+      e.property("ADBE Ramp-0001").expression = "// Mótion Film: top of the text\n" + CAP_RECT + (diag ? "toComp([r.left, r.top]);" : "toComp([r.left + r.width / 2, r.top]);");
+      e.property("ADBE Ramp-0002").setValue(capColor(role.gradient.top, true));
+      e.property("ADBE Ramp-0003").expression = "// Mótion Film: bottom of the text\n" + CAP_RECT + (diag ? "toComp([r.left + r.width, r.top + r.height]);" : "toComp([r.left + r.width / 2, r.top + r.height]);");
+      e.property("ADBE Ramp-0004").setValue(capColor(role.gradient.bottom, true));
+    }
+    if (role.sweep) {
+      e = fx.addProperty("CC Light Sweep");
+      e.name = "MF Light Edge";
+      e.property(1).expression = "// Mótion Film: a still light over the word (pos = fraction of its width)\nvar pos = 0.42;\n" + CAP_RECT + "toComp([r.left + pos * r.width, r.top + r.height / 2]);";
+      try {
+        e.property(2).setValue(-25);                    // direction
+        try { e.property(3).setValue(2); } catch (shapeError) {} // smooth
+        e.property(4).setValue(Math.max(30, 140 * k));  // width
+        e.property(5).setValue(0);                      // sweep intensity: only the edge shows
+        e.property(6).setValue(85);                     // edge intensity
+        e.property(7).setValue(1.6);                    // edge thickness
+        e.property(8).setValue([1, 1, 1, 1]);
+      } catch (sweepError) {}
+    }
+    if (role.glow) {
+      e = fx.addProperty("ADBE Glo2");
+      e.name = "MF Glow";
+      e.property("ADBE Glo2-0002").setValue(capClamp(role.glow.threshold === undefined ? 50 : role.glow.threshold, 0, 100) * 2.55);
+      e.property("ADBE Glo2-0003").setValue(Math.max(0, role.glow.radius * k));
+      e.property("ADBE Glo2-0004").setValue(Math.max(0, role.glow.intensity));
+    }
+    var halos = role.outerGlow ? (role.outerGlow instanceof Array ? role.outerGlow : [role.outerGlow]) : [];
+    for (i = 0; i < halos.length; i += 1) {
+      e = fx.addProperty("ADBE Drop Shadow");
+      e.name = "MF Halo" + (halos.length > 1 ? " " + (i + 1) : "");
+      e.property("ADBE Drop Shadow-0001").setValue(capColor(halos[i].color, true));
+      e.property("ADBE Drop Shadow-0002").setValue(capClamp(halos[i].opacity, 0, 100) * 2.55);
+      e.property("ADBE Drop Shadow-0004").setValue(0);
+      e.property("ADBE Drop Shadow-0005").setValue(Math.max(0, halos[i].softness * k));
+    }
+    if (role.shadow) {
+      e = fx.addProperty("ADBE Drop Shadow");
+      e.name = "MF Shadow";
+      e.property("ADBE Drop Shadow-0001").setValue(capColor(role.shadow.color || [0, 0, 0], true));
+      e.property("ADBE Drop Shadow-0002").setValue(capClamp(role.shadow.opacity, 0, 100) * 2.55);
+      e.property("ADBE Drop Shadow-0003").setValue(180);
+      e.property("ADBE Drop Shadow-0004").setValue(Math.max(0, (role.shadow.distance || 0) * k));
+      e.property("ADBE Drop Shadow-0005").setValue(Math.max(0, (role.shadow.softness || 0) * k));
+    }
+    if (role.opacity !== undefined && role.opacity < 100) {
+      L.property("ADBE Transform Group").property("ADBE Opacity").setValue(role.opacity);
+    }
+  }
+
+  function capMerge(a, b) {
+    var o = {};
+    var key;
+    for (key in a) { if (a.hasOwnProperty(key)) { o[key] = a[key]; } }
+    for (key in b) { if (b.hasOwnProperty(key)) { o[key] = b[key]; } }
+    return o;
+  }
+
+  function capSetText(L, text) {
+    var prop = L.property("ADBE Text Properties").property("ADBE Text Document");
+    var doc = prop.value;
+    doc.text = text;
+    prop.setValue(doc);
+  }
+
+  // A hand-drawn line under the highlight, drawn by Trim Paths right
+  // after the word comes in.
+  function capAddUnderline(comp, N, na, row, accentSize, tIn, tOut, tag, name) {
+    var S = comp.layers.addShape();
+    var w = row.w;
+    var x0 = row.left;
+    var base = row.y + row.h / 2;
+    S.name = name + " · line";
+    S.comment = tag + "|v";
+    S.label = CAPTION_LABEL;
+    var group = S.property("ADBE Root Vectors Group").addProperty("ADBE Vector Group");
+    group.name = "MF Line";
+    var contents = group.property("ADBE Vectors Group");
+    var path = new Shape();
+    path.vertices = [[x0 - 0.02 * w, base + 0.12 * accentSize], [x0 + w * 1.02, base + 0.08 * accentSize]];
+    path.inTangents = [[0, 0], [-0.45 * w, -0.05 * accentSize]];
+    path.outTangents = [[0.22 * w, -0.07 * accentSize], [0, 0]];
+    path.closed = false;
+    contents.addProperty("ADBE Vector Shape - Group").property("ADBE Vector Shape").setValue(path);
+    var stroke = contents.addProperty("ADBE Vector Graphic - Stroke");
+    stroke.property("ADBE Vector Stroke Color").setValue([1, 1, 1, 1]);
+    stroke.property("ADBE Vector Stroke Width").setValue(Math.max(2, 0.06 * accentSize));
+    try { stroke.property("ADBE Vector Stroke Line Cap").setValue(2); } catch (capError) {}
+    var trimEnd = contents.addProperty("ADBE Vector Filter - Trim").property("ADBE Vector Trim End");
+    capKeyPair(trimEnd, tIn + 0.15, tIn + 0.6, 0, 100);
+    if (S.setParentWithJump) { S.setParentWithJump(N); } else { S.parent = N; }
+    var tr = S.property("ADBE Transform Group");
+    tr.property("ADBE Anchor Point").setValue([0, 0]);
+    tr.property("ADBE Position").setValue([na[0], na[1]]);
+    tr.property("ADBE Scale").setValue([100, 100]);
+    S.startTime = 0;
+    S.inPoint = tIn;
+    S.outPoint = tOut;
+    return S;
+  }
+
+  function createViralSet(data, comp) {
+    var P = data.preset;
+    if (!P || !P.accent || !P.base) {
+      return stringify({ ok: false, error: "The caption style is missing." });
+    }
+    try {
+      capLoadLayout(data.extDir);
+    } catch (layoutError) {
+      return stringify({ ok: false, error: String(layoutError.message || layoutError) });
+    }
+    var CL = $.global.MFCaptionsLayout;
+    var place = data.place || {};
+    var anim = data.anim || P.anim || "rise";
+    var wide = comp.width > comp.height;
+    var shortSide = Math.min(comp.width, comp.height);
+    var userScale = capClamp(place.scale || 100, 30, 300) / 100;
+    var k = shortSide / 1080 * (wide ? 0.75 : 1) * userScale;
+    var W = 0.86 * shortSide * (wide ? 0.75 : 1) * userScale;
+    var px = comp.width / 2;
+    var py = comp.height * (wide ? 0.72 : 0.62);
+    if (place.position === "top") { py = comp.height * 0.3; }
+    else if (place.position === "center") { py = comp.height * 0.5; }
+    else if (place.position === "custom") { px = comp.width * capClamp(place.posX, 0, 100) / 100; py = comp.height * capClamp(place.posY, 0, 100) / 100; }
+
+    // the roles: accent0..n = the highlight in each palette color
+    var roles = { base: P.base };
+    if (P.lead) { roles.lead = P.lead; }
+    if (P.tail) { roles.tail = P.tail; }
+    var palette = P.palette && P.palette.length ? P.palette : [{}];
+    var p;
+    for (p = 0; p < palette.length; p += 1) {
+      roles["accent" + p] = capMerge(P.accent, palette[p]);
+    }
+    var missing = [];
+    for (var key in roles) {
+      if (roles.hasOwnProperty(key) && roles[key].font && !capFontInstalled(roles[key].font)) {
+        missing.push(roles[key].font);
+      }
+    }
+
+    var hidden = null;
+    var created = 0;
+    kitUndoBegin("Mótion Film: Create captions");
+    capParkViewer(comp);
+    try {
+      hidden = app.project.items.addComp("Mótion Film captions (temp)", comp.width, comp.height, comp.pixelAspect, comp.duration, comp.frameRate);
+      var plain = {};
+      var styled = {};
+      var plainTemplate = function (roleKey) {
+        var T = hidden.layers.addText("Mótion");
+        var tp = T.property("ADBE Text Properties").property("ADBE Text Document");
+        tp.setValue(capRoleDocument(tp.value, roles[roleKey], k, "Mótion"));
+        T.label = CAPTION_LABEL;
+        return T;
+      };
+      var measure = function (roleKey, text) {
+        if (!plain[roleKey]) {
+          plain[roleKey] = plainTemplate(roleKey);
+        }
+        capSetText(plain[roleKey], text);
+        return plain[roleKey].sourceRectAtTime(0, false);
+      };
+      var styledTemplate = function (roleKey) {
+        if (styled[roleKey]) {
+          return styled[roleKey];
+        }
+        var T = plainTemplate(roleKey);
+        capRoleEffects(T, roles[roleKey], k);
+        if (anim === "smooth") {
+          capAddSlideBlur(T, 12 * k);
+        } else if (CAPTION_ENTRANCES[anim]) {
+          capAddEntrance(T, anim, roles[roleKey].size * k);
+        }
+        styled[roleKey] = T;
+        return T;
+      };
+
+      var made = [];
+      var previous = null;
+      // restyling (data.replace = ids of the old captions' layers): the
+      // new ones go where the old ones were, which are removed at the end
+      var replaced = data.replace && data.replace.length ? capLayersByIds(comp, data.replace) : [];
+      var anchor = replaced.length ? replaced[0] : (comp.numLayers ? comp.layer(1) : null);
+      for (var n = 0; n < data.captions.length; n += 1) {
+        var c = data.captions[n];
+        var tIn = capSnap(c.start, comp);
+        var tOut = Math.min(capSnap(c.end, comp), comp.duration);
+        if (tIn >= comp.duration || !c.words || !c.words.length) {
+          continue;
+        }
+        if (tOut <= tIn) {
+          tOut = tIn + comp.frameDuration;
+        }
+        var variant = (c.variant || 0) % palette.length;
+        var rows = CL.rows(c.words, P);
+        var r;
+        for (var i = 0; i < rows.length; i += 1) {
+          r = rows[i];
+          r.key = r.role === "accent" ? "accent" + variant : r.role;
+          r.rect = measure(r.key, r.text);
+          r.size = roles[r.key].size * k;
+        }
+        var lay = CL.layout(rows, P, W, comp.height, k);
+        // the block stays inside the frame (6% margin)
+        var dy = 0;
+        if (py + lay.bottom > comp.height * 0.94) { dy = comp.height * 0.94 - (py + lay.bottom); }
+        if (py + dy + lay.top < comp.height * 0.06) { dy = comp.height * 0.06 - (py + lay.top); }
+        var tag = CAPTION_TAG + data.setId + "|" + (n + 1);
+        var name = CAPTION_NAME + capPad3(n + 1);
+        var N = comp.layers.addNull();
+        N.name = name;
+        N.comment = tag;
+        N.label = CAPTION_LABEL;
+        N.property("ADBE Transform Group").property("ADBE Position").setValue([px, py + dy]);
+        N.startTime = 0;
+        N.inPoint = tIn;
+        N.outPoint = tOut;
+        if (previous) { N.moveAfter(previous); } else if (anchor) { N.moveBefore(anchor); }
+        var na = N.property("ADBE Transform Group").property("ADBE Anchor Point").value;
+        var pieces = [];
+        var x0 = 1e9;
+        var x1 = -1e9;
+        for (i = 0; i < rows.length; i += 1) {
+          r = rows[i];
+          var Lr = capCopyInto(styledTemplate(r.key), comp);
+          capSetText(Lr, r.text);
+          if (Lr.setParentWithJump) { Lr.setParentWithJump(N); } else { Lr.parent = N; }
+          var tr = Lr.property("ADBE Transform Group");
+          var pos = [na[0] + r.x, na[1] + r.y];
+          tr.property("ADBE Anchor Point").setValue([r.rect.left + r.rect.width / 2, r.rect.top + r.rect.height / 2]);
+          tr.property("ADBE Position").setValue(pos);
+          tr.property("ADBE Scale").setValue([r.s * 100, r.s * 100, 100]);
+          Lr.name = name + " · " + r.text;
+          Lr.comment = tag + "|v";
+          Lr.label = CAPTION_LABEL;
+          Lr.startTime = 0;
+          // each line comes in when its first word is said (still ~0.55 s
+          // to be read when it's said right before the caption ends)
+          var t = anim === "slidePhrase" ? tIn : Math.max(tIn, capSnap(r.words[0].start, comp));
+          t = Math.min(t, Math.max(tIn, capSnap(tOut - 0.55, comp)));
+          if (t > tOut - 2 * comp.frameDuration) { t = tIn; }
+          Lr.inPoint = t;
+          Lr.outPoint = tOut;
+          r.t = t;
+          capWordMarkers(Lr, r.words, comp);
+          if (CAPTION_LAYER_ANIMS[anim]) {
+            capLayerEntrance(Lr, anim, pos, r.s * 100);
+          }
+          pieces.push({ layer: Lr, emph: r.part === "emph" });
+          x0 = Math.min(x0, r.left);
+          x1 = Math.max(x1, r.left + r.w);
+        }
+        if (P.underline) {
+          for (i = 0; i < rows.length; i += 1) {
+            if (rows[i].part === "emph") {
+              pieces.push({ layer: capAddUnderline(comp, N, na, rows[i], lay.accentSize, rows[i].t, tOut, tag, name), emph: true });
+            }
+          }
+        }
+        // stacking under the null: the highlight on top of the small words
+        var after = N;
+        var order = [];
+        for (i = 0; i < pieces.length; i += 1) { if (pieces[i].emph) { order.push(pieces[i].layer); } }
+        for (i = 0; i < pieces.length; i += 1) { if (!pieces[i].emph) { order.push(pieces[i].layer); } }
+        for (i = 0; i < order.length; i += 1) {
+          order[i].moveAfter(after);
+          after = order[i];
+        }
+        made.push({ layer: N, tag: tag, bottom: after, box: [px + x0, py + dy + lay.top, px + x1, py + dy + lay.bottom] });
+        previous = after;
+        created += 1;
+      }
+      if (data.shade && data.shade.backShadeOn) {
+        capAddBackShades(comp, made, data.shade);
+      }
+      hidden.remove();
+      hidden = null;
+      for (i = replaced.length - 1; i >= 0; i -= 1) {
+        if (replaced[i].locked) { replaced[i].locked = false; }
+        replaced[i].remove();
+      }
+      for (i = 0; i < made.length; i += 1) {
+        made[i].layer.selected = true;
+      }
+    } catch (error) {
+      try { if (hidden) { hidden.remove(); } } catch (cleanupError) {}
+      capUnparkViewer();
+      kitUndoEnd();
+      return stringify({ ok: false, error: "Couldn't create the captions: " + String(error.message || error) + (error.line ? " (line " + error.line + ")" : "") });
+    }
+    capUnparkViewer();
+    kitUndoEnd();
+    return stringify({ ok: true, created: created, replaced: replaced.length ? data.replace.length : 0, setId: data.setId, missingFonts: missing });
+  }
+
+  // ---------------------------------------------------------------
+  // Restyle selected captions (Captions tab: Shift+click a Reels / Viral
+  // style). Reads the words back from the selected captions so they can
+  // be rebuilt in another style without transcribing again:
+  //   - a caption made by the panel is every layer tagged "MFC|<set>|<n>"
+  //     (text, box, back shade, viral rows); its words are the layer
+  //     markers (marker n = word n, comment = the word, time = when it's
+  //     said). Selecting any one of its layers takes the whole caption;
+  //   - a simple caption whose text was edited by hand (word count no
+  //     longer matches the markers) and any other text layer: the words
+  //     of its current text, spread over the layer by length.
+  // createViralSet then builds the new captions where the old ones were
+  // and removes the old layers (data.replace), in the same undo step.
+  // ---------------------------------------------------------------
+
+  function capTagBase(comment) {
+    var parts = String(comment || "").split("|");
+    if (parts.length < 3 || parts[0] + "|" !== CAPTION_TAG || parts[1] === "copy") {
+      return "";
+    }
+    return parts[0] + "|" + parts[1] + "|" + parts[2];
+  }
+
+  function capTextWords(L) {
+    var text = "";
+    try { text = String(L.property("ADBE Text Properties").property("ADBE Text Document").value.text); } catch (e) {}
+    var raw = text.split(/\s+/);
+    var out = [];
+    for (var i = 0; i < raw.length; i += 1) {
+      if (raw[i] !== "") { out.push(raw[i]); }
+    }
+    return out;
+  }
+
+  function capSpreadWords(texts, start, end) {
+    var total = 0;
+    var i;
+    for (i = 0; i < texts.length; i += 1) { total += texts[i].length + 1; }
+    var t = start;
+    var out = [];
+    for (i = 0; i < texts.length; i += 1) {
+      out.push({ text: texts[i], start: t });
+      t += (end - start) * (texts[i].length + 1) / Math.max(1, total);
+    }
+    return out;
+  }
+
+  function getSelectedCaptionWords() {
+    var comp = activeComp();
+    if (!comp) {
+      return stringify({ ok: false, error: "Open a composition first." });
+    }
+    var sel = comp.selectedLayers;
+    var groups = {};
+    var order = [];
+    var i;
+    var L;
+    for (i = 0; i < sel.length; i += 1) {
+      L = sel[i];
+      var base = capTagBase(L.comment);
+      var key = base || (L instanceof TextLayer ? "layer|" + L.id : "");
+      if (key && !groups[key]) {
+        groups[key] = { base: base, layers: base ? [] : [L] };
+        order.push(key);
+      }
+    }
+    if (!order.length) {
+      return stringify({ ok: false, error: "Select the captions (or text layers) to restyle." });
+    }
+    // every layer of each tagged caption, selected or not
+    for (i = 1; i <= comp.numLayers; i += 1) {
+      L = comp.layer(i);
+      var b = capTagBase(L.comment);
+      if (b && groups[b]) { groups[b].layers.push(L); }
+    }
+    var out = [];
+    for (var g = 0; g < order.length; g += 1) {
+      var grp = groups[order[g]];
+      var start = 1e9;
+      var end = -1e9;
+      var ids = [];
+      var texts = [];
+      var words = [];
+      for (i = 0; i < grp.layers.length; i += 1) {
+        L = grp.layers[i];
+        ids.push(L.id);
+        start = Math.min(start, L.inPoint);
+        end = Math.max(end, L.outPoint);
+        if (L instanceof TextLayer) { texts.push(L); }
+      }
+      for (i = 0; i < texts.length; i += 1) {
+        var mk = texts[i].property("ADBE Marker");
+        var current = capTextWords(texts[i]);
+        var m;
+        var keyed = texts[i].property("ADBE Text Properties").property("ADBE Text Document").numKeys > 0;
+        if (grp.base && mk.numKeys && keyed) {
+          // "One at a time": the text changes word by word, the markers
+          // keep every word
+          for (m = 1; m <= mk.numKeys; m += 1) {
+            words.push({ text: String(mk.keyValue(m).comment), start: mk.keyTime(m) });
+          }
+        } else if (grp.base && mk.numKeys && mk.numKeys === current.length) {
+          for (m = 1; m <= mk.numKeys; m += 1) {
+            words.push({ text: current[m - 1], start: mk.keyTime(m) });
+          }
+        } else {
+          var spread = capSpreadWords(current, texts[i].inPoint, texts[i].outPoint);
+          for (var s = 0; s < spread.length; s += 1) { words.push(spread[s]); }
+        }
+      }
+      if (!words.length) {
+        continue;
+      }
+      words.sort(function (a, c) { return a.start - c.start; });
+      out.push({ start: start, end: end, words: words, ids: ids });
+    }
+    if (!out.length) {
+      return stringify({ ok: false, error: "The selected layers have no text to restyle." });
+    }
+    out.sort(function (a, c) { return a.start - c.start; });
+    return stringify({ ok: true, compId: comp.id, captions: out });
+  }
+
+  // The layers of comp whose ids are in `ids` (array), top first.
+  function capLayersByIds(comp, ids) {
+    var want = {};
+    for (var i = 0; i < ids.length; i += 1) { want[ids[i]] = true; }
+    var out = [];
+    for (i = 1; i <= comp.numLayers; i += 1) {
+      if (want[comp.layer(i).id]) { out.push(comp.layer(i)); }
+    }
+    return out;
+  }
+
+  // "One at a time" entrances, one per Source Text change (capWordByWord).
+  function capWordByWordEntrances(L, words, kind, pos, scale) {
+    if (kind === "none") {
+      return;
+    }
+    var src = L.property("ADBE Text Properties").property("ADBE Text Document");
+    var comp = L.containingComp;
+    var fd = comp.frameDuration;
+    var tr = L.property("ADBE Transform Group");
+    var times = [];
+    for (var i = 1; i <= src.numKeys; i += 1) {
+      times.push(src.keyTime(i));
+    }
+    if (!times.length) {
+      times.push(L.inPoint);
+    }
+    for (var j = 0; j < times.length; j += 1) {
+      var t0 = times[j];
+      var next = j + 1 < times.length ? times[j + 1] : L.outPoint;
+      if (next - t0 < 3 * fd) {
+        continue;
+      }
+      var t1 = t0 + Math.min(kind === "pop" ? 5 : 4, Math.max(2, Math.round((next - t0) * 0.6 / fd))) * fd;
+      if (kind === "pop") {
+        capKeyPair(tr.property("ADBE Scale"), t0, t1, [scale * 0.82, scale * 0.82, 100], [scale, scale, 100]);
+        capOpacityIn(L, t0, 2);
+      } else if (kind === "bounce") {
+        var from = j ? scale * 0.55 : 0;
+        capKeyPair(tr.property("ADBE Scale"), t0, t1, [from, from, 100], [scale, scale, 100]);
+      } else if (kind === "scale") {
+        capKeyPair(tr.property("ADBE Scale"), t0, t1, [0, 0, 100], [scale, scale, 100]);
+      } else if (kind === "slideWords") {
+        var dy = Math.min(comp.width, comp.height) * 0.03;
+        capKeyPair(tr.property("ADBE Position"), t0, t1, [pos[0], pos[1] + dy], [pos[0], pos[1]]);
+        capOpacityIn(L, t0, 2);
+      }
+    }
+    if (kind === "bounce") {
+      tr.property("ADBE Scale").expression = CAP_BOUNCE_EXPR;
+    }
+  }
+
+  // Installed fonts for the panel's pickers: [{ f: family, s: [[style,
+  // postScriptName]] }] (app.fonts, AE 24+; null when not available).
+  var capFontCache = null;
+  function getCaptionFonts() {
+    if (capFontCache) {
+      return capFontCache;
+    }
+    try {
+      if (!app.fonts || !app.fonts.allFonts) {
+        return stringify({ ok: true, families: null });
+      }
+      var groups = app.fonts.allFonts;
+      var families = [];
+      for (var i = 0; i < groups.length; i += 1) {
+        var styles = [];
+        for (var j = 0; j < groups[i].length; j += 1) {
+          if (groups[i][j].postScriptName) {
+            styles.push([String(groups[i][j].styleName), String(groups[i][j].postScriptName)]);
+          }
+        }
+        if (styles.length) {
+          families.push({ f: String(groups[i][0].familyName), s: styles });
+        }
+      }
+      families.sort(function (a, b) { return a.f.toLowerCase() < b.f.toLowerCase() ? -1 : 1; });
+      capFontCache = stringify({ ok: true, families: families });
+      return capFontCache;
+    } catch (error) {
+      return stringify({ ok: true, families: null, error: String(error) });
+    }
+  }
+
+  // What the Captions tab's status pill shows: the active comp and what
+  // "Generate" would transcribe. Light on purpose (polled while the tab
+  // is open): no text layer is read.
+  function getCaptionsSummary(range) {
+    var comp = activeComp();
+    if (!comp) {
+      return stringify({ ok: true, comp: null });
+    }
+    var target = captionsAudioTarget(range);
+    return stringify({
+      ok: true,
+      comp: { id: comp.id, name: comp.name, width: comp.width, height: comp.height, fps: Math.round(comp.frameRate * 100) / 100, duration: comp.duration },
+      target: target.ok ? { label: target.label, isLayer: !!target.layer, start: target.start, end: target.end } : null,
+      error: target.ok ? "" : target.error
+    });
   }
 
   // ---------------------------------------------------------------
@@ -5736,9 +7006,12 @@
   $.global.applyKitCompData = applyKitCompData;
   $.global.renderKitPreviewClip = renderKitPreviewClip;
   $.global.importSvgIcon = importSvgIcon;
-  $.global.getCaptionsAudioTarget = getCaptionsAudioTarget;
   $.global.renderCaptionsAudio = renderCaptionsAudio;
-  $.global.createCaptionLayers = createCaptionLayers;
+  $.global.createCaptionSet = createCaptionSet;
+  $.global.getSelectedCaptionWords = getSelectedCaptionWords;
+  $.global.getCaptionFonts = getCaptionFonts;
+  $.global.getCaptionsSummary = getCaptionsSummary;
+  $.global.checkCaptionFonts = checkCaptionFonts;
   $.global.captureLayerStylePreset = captureLayerStylePreset;
   $.global.applyStylePresetToSelectedLayers = applyStylePresetToSelectedLayers;
   $.global.applyPaletteColor = applyPaletteColor;

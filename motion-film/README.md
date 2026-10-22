@@ -5302,3 +5302,278 @@ trás de "Transcribe".
   18,24 s contra a fala medida em 2,10 / 9,54 / 18,26 s. Sem seleção
   (comp inteira, com o tom junto): mesmas 3 legendas, 2,10 / 9,54 /
   18,25 s. Render Queue vazia, comp temporária e pasta do job apagadas.
+
+## Changelog -- Captions fase 2: aba nova em guia (Style / Animation / Highlight / Adjust) + motor de legendas por palavra
+
+Pedido do usuário: tirar todos os botões antigos da aba Captions
+(Transcribe, Import SRT, Save/Manage/Change Style, modal Caption
+Settings) e seguir o guia do AfterFlix Captions. Tudo reimplementado com
+código nosso.
+
+- **Interface (`client/captions.js`, novo; HTML em `#captions-main`, CSS
+  `.cap-*` no fim de `styles.css`)**:
+  - pílula de status no topo: comp ativa e o que vai ser transcrito
+    (camada selecionada ou comp inteira), ou o motivo de não dar;
+    consulta leve a cada 1,5 s só com a aba visível
+    (`getCaptionsSummary`, não lê camada de texto);
+  - abas numeradas: **1 Style** (Classic, 3 Words, One at a time),
+    **2 Animation** (13 animações; One at a time tem 5), **3 Highlight**
+    (palavra falada: liga/desliga, cor, tamanho), **4 Adjust** (prévia na
+    proporção da comp, posição/tamanho, sombra + sombra de fundo, idioma,
+    comp inteira/work area, "Font, colors & effects" com as fontes do
+    AE, "Caption split" avançado, Import SRT);
+  - cada card é uma **prévia ao vivo** desenhada em JS com as mesmas
+    contas das expressões que o motor escreve no AE (curva
+    `100 * (1 - p)^4`, offsets em fração do tamanho da fonte) -- sem
+    vídeo nenhum;
+  - rodapé fixo: o que está escolhido (Style / Animation, clicáveis) +
+    "Generate captions";
+  - gerar mostra uma tela com as 5 etapas (áudio, transcrição com %,
+    sincronia, camadas, fim), barra, tempo decorrido e **Cancel** (mata o
+    whisper; durante o render do AE espera ele terminar).
+  - Configurações por estilo (visual, animação, regras) em
+    `localStorage["motionfilm-captions"]` -> espelhado em
+    `Documents/Mótion Film Packs/settings.json`.
+- **Motor (`createCaptionSet` em `host.jsx`, substitui
+  `createCaptionLayers`)**: payload num arquivo temp (JSON grande via
+  evalScript falha). Uma camada modelo totalmente estilizada numa comp
+  temporária + `copyToComp` por legenda; viewer "estacionado" numa comp
+  16x16 durante a criação; **um marcador por palavra** (marcador n =
+  palavra n) lido por Expression Selectors -- ajustar o sync é arrastar
+  marcador. Destaque da palavra falada = animator de cor/escala pelo
+  marcador. Animações de camada (Smooth, Slide phrase, Bounce, Scale)
+  em keyframes na própria cópia; One at a time = keys de Source Text
+  por palavra + entrada a cada troca. Caixa de fundo = shape parentado
+  com expressões (`thisLayer.hasParent`); sombra de fundo = sólido com
+  máscara elíptica de feather grande. Altura fixa pela métrica da fonte;
+  encolhe se passar de 88% da largura. Camadas com comment
+  `MFC|<setId>|<n>` (`|bg` fundo/sombra), label verde, um passo de undo
+  (`kitUndoBegin`). Fontes: `getCaptionFonts` (app.fonts).
+- **`captions-core.js`**: `captionRules(mode, overrides)` com regras por
+  estilo (Classic 2 linhas/38 letras, 3 Words 1 linha/3 palavras, One at
+  a time 5 palavras), `prepareWords` (caixa, pontuação), `offsetCaptions`
+  (sync em ms), quebra por frase opcional.
+- **Removido**: botões e modais antigos, Style Presets (save/manage/
+  change/import/export, o ZIP só deles), seletor de opções e o pipeline
+  antigo de `panel.js` (~1.500 linhas). Ficaram em `panel.js` o setup
+  das ferramentas, `runCommand`/`toShortPath`/`captionsPaths` e o name
+  popover (usado por outras abas), expostos em `window.MF.captions`.
+  `captureLayerStyleParts`/`applyStylePresetToLayer` do host continuam
+  (o Kit usa).
+- **Testado ao vivo**: as 17 combinações de modo x animação criadas sem
+  erro de expressão (~0,35 s por 2 legendas); frames salvos com
+  `saveFrameToPng` conferidos (destaque, caixa, sombra de fundo, glow);
+  as 13 prévias de animação confirmadas mudando de estado; fluxo
+  completo pelo botão: camada com fala TTS -> 4 legendas certas, 1
+  marcador por palavra. **A etapa de áudio levou ~9 min nesse teste**
+  (na fase 1, ~2 s) -- o usuário estava usando o AE ao mesmo tempo
+  (projeto dele aberto); ainda não confirmado se foi isso.
+
+## Changelog -- Captions: estilos Reels e Viral (palavra destaque) + 4 animações novas
+
+Pedido do usuário depois de comparar com o AfterFlix: a ferramenta é
+para Reels -- legenda "orgânica", com uma palavra grande em destaque, não
+legenda de vídeo parado -- e trazer todas as animações de lá. Tudo
+recriado com código, nomes, cores e medidas nossos; nenhum arquivo do
+AfterFlix (os `.ffx` das animações deles vêm de outro produto pago, e o
+repo é público).
+
+- **13 estilos novos** (`client/captions-styles.js`): Reels -- Spotlight,
+  Full stop, Below, Serif, Keynote, Underline, Side, Number, Classy,
+  Script -- e Viral -- Mint, Blue serif, Fire. Cada estilo tem papéis
+  (base = palavras pequenas, accent = destaque, lead/tail opcionais) com
+  fonte, tamanho, cor, degradê, contorno, sombra, halos (outerGlow),
+  glow, luz na borda (sweep), tracking; e layout (tamanho das pequenas
+  em relação ao destaque, alinhamento/recuo/letras por linha em cima e
+  embaixo, espaços entre linhas, bloco à esquerda, centralizado, ponto
+  final no destaque, caixa alta em cima, sublinhado desenhado, paleta
+  que alterna entre legendas, animação própria).
+- **Layout compartilhado** (`client/captions-layout.js`, ES3): `rows`
+  decide que palavras vão em que linha/papel (quebra balanceada por
+  letras) e `layout` dimensiona e posiciona linhas já medidas (destaque
+  em `fit` da largura até `maxSize`; pequenas em `small` x tamanho do
+  destaque, nunca mais largas que ~1,15x ele; linhas empilhadas pela
+  tinta com espaço em "tamanhos de destaque"; em cima puxa à esquerda,
+  embaixo puxa à direita, saindo pelo seu lado quando mais largas). O
+  painel roda o mesmo arquivo nas prévias (medindo com canvas
+  `measureText`) e o host carrega com `$.evalFile` (medindo com
+  `sourceRectAtTime`) -- o card mostra o arranjo que a comp recebe.
+- **Planejador** (`planHighlights` em `captions-core.js`): pontua cada
+  palavra (conteúdo longo, número +30, `!`/`?`, fim de frase, CAIXA ALTA;
+  nunca artigo/preposição/pronome/auxiliar PT/EN/ES), forma par com
+  número vizinho ("30 mil"), prefere deixar 1-3 palavras em cima e
+  embaixo, e corta legendas longas no melhor ponto (fim de frase,
+  vírgula, antes de "e/mas/que", nunca depois de palavra fraca, metades
+  parecidas no tempo). Regras de divisão "viral" próprias.
+- **Motor** (`createViralSet` em `host.jsx`): por legenda um Null
+  ("Caption 001") + uma camada de texto por linha, parentadas;
+  cada linha entra quando a primeira palavra dela é falada, com
+  marcador por palavra; modelo por papel+animação numa comp temporária
+  e copyToComp. Degradê = Ramp com pontos por expressão (`toComp` da
+  caixa do texto); luz na borda = CC Light Sweep só com a borda; halos =
+  Drop Shadow distância 0; sublinhado = shape com Trim Paths. Destaque
+  acima das pequenas na pilha. Sombra de fundo usa a caixa que o layout
+  já calculou. Bloco preso entre 6% e 94% da altura.
+- **4 animações novas** (todas as modalidades): Drop blur (cai com
+  blur, por palavra), Letters from right, Letters spin (girando, com
+  overshoot -- curva ease-out back), Letters spread (letras espaçadas
+  que se juntam com blur). Agora são 17.
+- **Aba Destaque** para Reels/Viral: cor própria, degradê (2 cores),
+  glow (cor, quantidade, tamanho), luz na borda, fonte do destaque e das
+  pequenas (fontes do AE + as empacotadas); "voltar ao padrão do estilo".
+  Ajustes: posição (Padrão/Centro/Topo/Livre), tamanho, sombra suave em
+  todas as palavras (em vez da do estilo), sombra de fundo.
+- **Filtro** Todos / Reels / Viral / Simple; cards quadrados em 2 colunas.
+  Prévias Reels/Viral desenhadas em canvas: degradê, halos, sombra,
+  contorno, sublinhado e as animações (palavra escala inteira, letras
+  giram no próprio centro).
+- **Fontes** (OFL, `motion-film/fonts/` + `fonts/licenses/`): Inter
+  (Medium..Black), Montserrat (ExtraBold, Black, Black Italic), Playfair
+  Display (ExtraBold/Black Italic), Great Vibes, Instrument Serif,
+  Libre Caslon Text Italic, Dancing Script Bold -- TTFs estáticos do
+  Google Fonts. O painel carrega todas com FontFace antes de medir (sem
+  isso o canvas media com a fonte reserva e as letras saíam espaçadas
+  errado). Ao escolher um estilo Reels/Viral (e ao gerar) o painel
+  checa no AE (`checkCaptionFonts`, `app.fonts.getFontsByPostScriptName`
+  + `isSubstitute`) e instala as que faltam **só para o usuário, sem
+  admin**: Windows = `%LOCALAPPDATA%\Microsoft\Windows\Fonts` + chave em
+  `HKCU\...\Fonts` (reg.exe); Mac = `~/Library/Fonts`.
+  `app.fonts.pollForAndPushNonSystemFontFoldersChanges()` fez o AE achar
+  a fonte nova **sem reiniciar** (confirmado ao vivo com Great Vibes);
+  se ainda faltar depois de algumas tentativas, aviso para reabrir o AE.
+- **Bug real corrigido**: as legendas eram criadas na comp ATIVA no fim
+  da geração -- num teste o usuário trocou de comp durante os ~40 s e as
+  legendas foram parar na comp dele. Agora `renderCaptionsAudio` devolve
+  o `compId` e `createCaptionSet` cria nessa comp (SRT: a comp da
+  pílula). **Ainda não retestado ao vivo.**
+- **Bug real corrigido**: no painel não existe `process` global do Node
+  (a instalação de fontes falhava calada) -- usar
+  `require("process")`.
+- **Testado ao vivo**: 5 estilos criados no AE (~0,5 s cada) e frames
+  salvos conferidos (layout, degradê, sublinhado iguais às prévias);
+  fluxo completo pelo botão com Spotlight: 5 legendas em 38 s (áudio
+  16 s); instalação de fonte + AE enxergando sem reiniciar.
+
+## Changelog -- Aba Text Animation: biblioteca de animações de texto (In / Out)
+
+Pedido do usuário: a ideia do AfterFlix Animations (biblioteca numerada
+de entradas/saídas de texto com prévia) dentro do Mótion Film, numa aba
+nova "Text Animation". Regra de sempre: nada copiado deles (os ~2100
+presets do `kit.jsxinc`, os mp4 de prévia, os "Recomendados do Shadow").
+Só o formato da ideia -- um Text Animator com Range Selector -- e a
+biblioteca é gerada por código nosso, com valores nossos.
+
+- **Biblioteca (`client/textanim-library.js`, `window.MFTextAnimLib`)**:
+  2100 presets, determinísticos (número e id iguais toda sessão;
+  favoritos são guardados por id). 906 em 18 famílias com nome (Fade,
+  Slide, Pop, Zoom, Blur, Spin, Flip 3D, Tumble 3D, Depth 3D, Skew,
+  Tracking, Drop, Swing, Stretch, Rise & Turn, Scatter, Typewriter,
+  Glitch) cruzando unidade (letras sem espaço / palavras / linhas),
+  ordem (normal / aleatória), direção e força; + 1194 "Remix" = misturas
+  sorteadas (semente fixa) de 2-4 ingredientes, sempre terminando
+  escondidas (opacidade 0 ou escala ~0). + 12 Combos (In + Out prontos).
+  Cada preset guarda o visual ESCONDIDO (`v`: opacidade, escala,
+  posição XYZ, rotações, skew, tracking, blur, âncora), `unit`, `rnd`
+  (seed), `shape` (ramp/square), `spread`, `eh/el`, `d3`. Distâncias em
+  px para fonte de 100 px.
+- **AE (`host/textanim.jsx`, `$.evalFile` sob demanda como o
+  folders.jsx)**: `taApply` cria nos textos selecionados "MF In" e/ou
+  "MF Out" (remove os MF anteriores primeiro). Range Selector com Start
+  0 / End = spread e Offset por 2 keyframes: In = Ramp Up, Offset
+  -spread -> 100; Out = Ramp Down, mesmo Offset (os dois varrem da
+  esquerda pra direita -- conferido renderizando quadros no AE).
+  `square` (Typewriter / Glitch): End 100, Offset In 0 -> 100, Out
+  -100 -> 0, Smoothness 0. In começa no In point da camada, Out termina
+  no último quadro; se não couber, os dois encolhem na proporção.
+  Distâncias x tamanho da fonte / 100. Liga Per-character 3D quando o
+  preset precisa. Ease dos keyframes: Smooth (50/60), Strong (80/85),
+  Linear. `taRemove` tira os MF; `taState` alimenta a pílula e a
+  prévia (texto da camada). Um undo por ação; seleção das camadas é
+  restaurada no fim (adicionar animator seleciona o animator e tira a
+  camada da seleção -- Remove logo depois falhava).
+  - matchName do Tracking Type é `ADBE Text Track Type` (não
+    "Tracking Type"); addProperty com matchName errado ABORTA o script
+    inteiro sem cair no catch. Ler `.value` de `ADBE Text VF Axis N`
+    também aborta.
+- **Interface (`client/textanim.js`, HTML em `#page-textanim`, CSS
+  `.ta-*` no fim de `styles.css`)**: mesmo layout da Home (pedido do
+  usuário: as abas novas destoavam) -- `<main>` rolando com duas
+  `.section` recolhíveis (o `initCollapsibleSections` do panel.js já
+  pega, estado em `motionfilm-collapsed-ta-*`): **01 / PREVIEW** = palco,
+  slots In / Out, tempo In / Out + Ease (no estilo `.velocity-input`) e
+  Apply + remover (`.lf-tool`); **02 / LIBRARY** = busca, filtro,
+  categorias e grade. Sem pílula de status (ocupava espaço) e sem verde
+  chapado: toggles, chips e Apply são caixas escuras que só ficam verdes
+  no hover / ligadas, como nas outras abas. Palco que toca
+  In -> pausa -> Out em loop com o texto da camada selecionada (ou um
+  texto de exemplo); slots In / Out (liga/desliga, ‹ ›, roda do mouse,
+  dado, favorito; o slot destacado recebe o clique no card, botão
+  direito = Out); busca por nome ou `#número` (número procura na
+  biblioteca toda); filtro All / Aa / Word / Line; chips de categoria
+  (All, Favorites, Combos, famílias, Remix); grade com rolagem infinita
+  (72 por vez); cada card mostra o preset parado no meio da entrada e
+  anima no hover (o palco também mostra o card do hover). Prévias são
+  DOM + CSS com a MESMA conta do seletor do AE (ramp com spread, ease
+  dos keyframes, ordem aleatória por seed) -- sem vídeo. Rolagem
+  infinita pelo scroll do `#ta-main`. Tudo em
+  `localStorage["motionfilm-textanim"]` (-> settings.json).
+- Testado ao vivo no AE (comp `MF_TA_TEST` criada e apagada): 12 presets
+  de famílias diferentes + Remix renderizados quadro a quadro, reaplicar
+  troca os animators, remover, sem seleção = erro claro.
+
+## Changelog -- Captions e Text Animation no layout da Home
+
+Pedido do usuário: as abas novas (Captions, Text Animation) destoavam
+das primeiras -- pílula de status ocupando espaço, botão verde chapado
+no rodapé, abas numeradas verdes. Agora as duas seguem a Home: um
+`<main>` que rola com `.section` recolhíveis (`initCollapsibleSections`
+do panel.js; estado em `motionfilm-collapsed-<id>`), botões no estilo
+`.lf-tool` / `.velocity-input` (escuros, verdes só no hover / ligado).
+
+- **Captions**: duas seções. **01 / GENERATE** = Style / Animation
+  escolhidos (clicar abre a etapa), "Generate captions" e, numa linha
+  embaixo, o que vai ser transcrito ou por que não dá (era a pílula).
+  **02 / CUSTOMIZE** = as etapas 1 Style / 2 Animation / 3 Highlight /
+  4 Adjust, uma parte por vez (o usuário preferiu assim: as prévias
+  ficam poucas e na rolagem), agora num `.segmented` igual ao da Scale
+  Comp em vez das abas verdes. Uma primeira versão com cada etapa numa
+  seção própria foi desfeita a pedido. O loop das prévias só desenha as
+  visíveis na rolagem e fora de seção recolhida. `.cap-proc` (tela de
+  geração) saiu do `<main>` e cobre o `.captions-layout` inteiro. CSS
+  morto removido (`.cap-pill`, `.cap-body`, `.cap-footer`, `.cap-cta`).
+- **Text Animation**: ver "Aba Text Animation" acima.
+
+## Changelog -- Captions: Shift+clique num estilo Reels / Viral reestiliza as legendas selecionadas
+
+Pedido do usuário: gerar legendas simples e depois escolher trechos
+específicos (camadas selecionadas) pra virar um estilo dinâmico (Reels
+/ Viral), que se ajusta ao número de palavras -- sem gerar a timeline
+toda de novo.
+
+- **Uso**: selecionar legendas na timeline, aba Captions › 02 /
+  CUSTOMIZE › 1 Style, **Shift+clique** num card Reels / Viral. Clique
+  normal continua só escolhendo o estilo. Shift+clique num card Simple
+  avisa que só vale pros Reels / Viral.
+- **AE (`getSelectedCaptionWords` em `host.jsx`)**: agrupa a seleção por
+  legenda -- tudo com o mesmo `MFC|<set>|<n>` (texto, caixa `|bg`,
+  sombra, linhas viral `|v`, null); selecionar qualquer pedaço pega a
+  legenda inteira. Palavras = marcadores (marcador n = palavra n):
+  com Source Text keyframado ("One at a time") usa o comment dos
+  marcadores; se o nº de palavras do texto atual bate com os
+  marcadores, texto atual + tempos dos marcadores (preserva correção à
+  mão); senão (texto editado, ou camada de texto qualquer sem marca),
+  as palavras do texto atual espalhadas pela duração da camada por
+  tamanho. Devolve `{start, end, words, ids}` por legenda.
+- **Painel (`restyleSelection` em `captions.js`)**: monta as legendas
+  (fim de cada palavra = início da próxima), `planHighlights` com o
+  estilo escolhido (legenda longa pode virar duas, como ao gerar) e
+  `createCaptionSet` com `replace` = ids das camadas antigas.
+- **`createViralSet`**: com `replace`, as novas entram no lugar da
+  primeira camada antiga na pilha, as antigas são apagadas no fim e os
+  nulls novos ficam selecionados -- tudo no mesmo undo (um Ctrl+Z volta
+  as originais, conferido).
+- Testado ao vivo (comp de teste criada e apagada): 2 legendas simples
+  com caixa (uma selecionada só pela caixa) + um texto comum -> 3
+  legendas Spotlight nos tempos certos, originais removidas; One at a
+  time lido pelos marcadores; ler de volta uma legenda Viral (selecionando
+  só uma linha) dá as 6 palavras em ordem.
