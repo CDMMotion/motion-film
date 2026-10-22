@@ -19,6 +19,13 @@ $manifest = [xml](Get-Content -Raw -Encoding UTF8 (Join-Path $root 'motion-film\
 $version = $manifest.ExtensionManifest.ExtensionBundleVersion
 Write-Host "Versão $version"
 
+# Helper do Windows (atalho global + popup Elastic), compilado em obj\ e
+# posto no zip como motion-film/bin/win/MFHelper.exe (o da pasta de dev
+# pode estar rodando ou desatualizado)
+$helperExe = Join-Path $obj 'MFHelper.exe'
+& powershell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $here 'build-helper.ps1') -Out $helperExe
+if ($LASTEXITCODE -ne 0) { throw "build-helper.ps1 falhou" }
+
 # ---------- payload.zip (entradas sempre com "/")
 $zipPath = Join-Path $obj 'payload.zip'
 if (Test-Path $zipPath) { Remove-Item $zipPath -Force }
@@ -33,10 +40,12 @@ foreach ($pkg in 'motion-film', 'figma-plugin') {
     # Media left over from the old in-extension pack store (packs now live in
     # Documents\Mótion Film Packs) -- never ship someone's pack media.
     if ($pkg -eq 'motion-film' -and $rel -match '^client\\assets\\(kit-assets\\|kit-previews\\(?!README\.md$))') { return }
+    if ($pkg -eq 'motion-film' -and $rel -eq 'bin\win\MFHelper.exe') { return }
     $entryName = $pkg + '/' + ($rel -replace '\\', '/')
     [System.IO.Compression.ZipFileExtensions]::CreateEntryFromFile($zip, $_.FullName, $entryName, [System.IO.Compression.CompressionLevel]::Optimal) | Out-Null
   }
 }
+[System.IO.Compression.ZipFileExtensions]::CreateEntryFromFile($zip, $helperExe, 'motion-film/bin/win/MFHelper.exe', [System.IO.Compression.CompressionLevel]::Optimal) | Out-Null
 $zip.Dispose(); $fs.Dispose()
 Write-Host ("payload.zip: {0:N1} MB" -f ((Get-Item $zipPath).Length / 1MB))
 

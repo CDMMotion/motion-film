@@ -272,6 +272,9 @@
       context.fill();
       context.stroke();
     });
+    if (window.MF.curves && window.MF.curves.onDraw) {
+      window.MF.curves.onDraw();
+    }
   }
 
   function canvasPoint(event) {
@@ -873,7 +876,9 @@
     });
   }
 
-  function applyCurve() {
+  // `label` (optional): a favorite curve being used -- with no keyframe
+  // selected it just says the curve was loaded instead of "0 keyframes".
+  function applyCurve(label) {
     var inInfluence = influenceValue(els.inValue, 64);
     var outInfluence = influenceValue(els.outValue, 64);
     var payload = {
@@ -882,15 +887,40 @@
       outInfluence: outInfluence,
       mode: velocity.mode
     };
+    var named = typeof label === "string" ? label : "";
     hostCall("applyVelocityProfile", [JSON.stringify(payload)], function (result) {
       if (!result.ok) {
-        setStatus(result.error, "error");
+        setStatus(named && /composition/i.test(result.error) ? named + " loaded." : result.error, named ? "" : "error");
+        return;
+      }
+      if (named && !result.changed) {
+        setStatus(named + " loaded -- select keyframes to apply it.", "");
         return;
       }
       var skipped = result.skipped ? " (" + result.skipped + " skipped)" : "";
-      setStatus("Velocity applied to " + result.changed + " keyframe(s)." + skipped, "success");
+      setStatus((named ? named + ": velocity" : "Velocity") + " applied to " + result.changed + " keyframe(s)." + skipped, "success");
     });
   }
+
+  // The current speed curve, for client/curve-favorites.js (02 Favorites).
+  window.MF.curves = {
+    get: function () {
+      return { inInfluence: influenceValue(els.inValue, 64), outInfluence: influenceValue(els.outValue, 64) };
+    },
+    // load a curve into 01 Curves; `apply` = also put it on the selected keyframes
+    set: function (inInfluence, outInfluence, label) {
+      els.inValue.value = String(clamp(Math.round(inInfluence), 1, 99));
+      els.outValue.value = String(clamp(Math.round(outInfluence), 1, 99));
+      els.inSlider.value = els.inValue.value;
+      els.outSlider.value = els.outValue.value;
+      drawCurve();
+      applyCurve(label || "Favorite");
+    },
+    samples: function (inInfluence, outInfluence, count) {
+      return velocityCurveSamples(count || 64, controlPointsFor(inInfluence, outInfluence));
+    },
+    onDraw: null
+  };
 
   // ---------------------------------------------------------------
   // Colour picker
@@ -5094,7 +5124,7 @@
       els.outValue.value = els.outSlider.value;
       drawCurve();
     });
-    els.applyCurve.addEventListener("click", applyCurve);
+    els.applyCurve.addEventListener("click", function () { applyCurve(); });
 
     // The sliders change the same curve, so they get the same dashed
     // comparison while being dragged.

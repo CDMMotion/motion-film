@@ -476,6 +476,10 @@ main::-webkit-scrollbar-thumb { background: var(--panel-raised); border-radius: 
 .settings-divider { margin: 12px 0 10px; border-top: 1px solid var(--line); }
 .settings-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; color: var(--text); font-size: 10.5px; line-height: 1.35; }
 .settings-note { margin-top: 7px; color: var(--muted); font-size: 9.5px; line-height: 1.45; }
+/* Elastic shortcut field (Tools › 04 Elastic): click, then press the keys (elastic.js) */
+.settings-key-input { flex-shrink: 0; width: 118px; padding: 4px 6px; border: 1px solid var(--line); border-radius: 6px; outline: none; color: var(--text); background: var(--panel-soft); font-size: 10.5px; text-align: center; cursor: pointer; caret-color: transparent; }
+.settings-key-input.is-capturing { border-color: var(--accent); color: var(--accent-bright); }
+.settings-key-input:disabled { opacity: .45; cursor: default; }
 .settings-number-input { flex-shrink: 0; width: 58px; padding: 4px 6px; border: 1px solid var(--line); border-radius: 6px; color: var(--text); background: var(--panel-soft); font-size: 10.5px; text-align: right; }
 /* Pill toggle -- same look as .effects-master-toggle, reused for the
    settings popover's on/off switches. */
@@ -861,3 +865,38 @@ main::-webkit-scrollbar-thumb { background: var(--panel-raised); border-radius: 
 .ta-card:hover .ta-fav, .ta-fav.is-on { opacity: 1; }
 .ta-fav:hover { color: #ffc93d; }
 .ta-empty { margin: 14px 0 4px; color: var(--dim); font-size: 10px; text-align: center; }
+
+/* ---------------------------------------------------------------
+   Home › 02 / FAVORITES (curve-favorites.js): the ★ on 01 Curves and
+   the favorite curve tiles (first 4 + the library).
+   --------------------------------------------------------------- */
+.curve-fav { position: absolute; top: 7px; left: 7px; z-index: 2; display: flex; align-items: center; justify-content: center; width: 26px; height: 26px; padding: 0; border: 1px solid var(--line); border-radius: 7px; color: var(--muted); background: var(--panel-raised); cursor: pointer; transition: color .15s ease, border-color .15s ease; }
+.curve-fav svg { fill: none; stroke: currentColor; stroke-width: 1.3; stroke-linejoin: round; }
+.curve-fav:hover { border-color: var(--accent); color: var(--accent-bright); }
+.curve-fav.is-on { color: #ffc93d; border-color: rgba(255, 201, 61, .45); }
+.curve-fav.is-on svg { fill: currentColor; }
+.fav-count { color: var(--dim); font-size: 9px; font-weight: 650; white-space: nowrap; }
+.fav-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
+.fav-tile { position: relative; display: flex; flex-direction: column; align-items: stretch; gap: 3px; min-width: 0; padding: 5px 5px 6px; border: 1px solid var(--line); border-radius: 8px; color: var(--text); background: var(--panel-soft); cursor: pointer; transition: border-color .15s ease; }
+.fav-tile:hover { border-color: var(--accent); }
+.fav-tile.is-dragging { opacity: .4; }
+.fav-tile.is-over { border-color: var(--accent); box-shadow: inset 3px 0 0 var(--accent); }
+.fav-graph { display: block; width: 100%; height: 38px; }
+.fav-num { position: absolute; top: 3px; left: 6px; color: var(--dim); font-size: 8px; font-weight: 700; pointer-events: none; }
+.fav-label { color: var(--muted); font-size: 9.5px; font-weight: 700; text-align: center; white-space: nowrap; }
+.fav-tile:hover .fav-label { color: var(--accent-bright); }
+.fav-remove { position: absolute; top: 2px; right: 3px; display: none; width: 15px; height: 15px; border-radius: 4px; color: var(--muted); font-size: 12px; line-height: 14px; text-align: center; }
+.fav-tile:hover .fav-remove { display: block; }
+.fav-remove:hover { color: #eaa0b1; background: rgba(0, 0, 0, .3); }
+.fav-library-toggle { width: 100%; margin-top: 8px; }
+.fav-library { margin-top: 8px; }
+.fav-library .lf-hint { margin-top: 7px; }
+#fav-empty { margin-top: 0; }
+
+/* Tools › 04 / ELASTIC (elastic.js) */
+.elastic-buttons { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
+.elastic-buttons .lf-tool { height: 34px; padding: 0 6px; }
+.elastic-buttons .lf-tool:disabled { opacity: .45; }
+.elastic-shortcut { display: flex; align-items: center; gap: 8px; margin-top: 10px; }
+.elastic-shortcut-label { flex: 1 1 auto; color: var(--muted); font-size: 10px; font-weight: 650; }
+#elastic-note.is-warn { color: #e6aa3c; }

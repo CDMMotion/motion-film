@@ -1990,3 +1990,14 @@ velho ainda segura -> "Cannot start http server for devtools"). Dá pra
 continuar rodando ExtendScript pela 8094 (MF - Camadas), que usa o
 mesmo motor. Erro de sintaxe num script mandado por evalScript abre um
 diálogo modal no AE e trava todo evalScript até alguém clicar OK.
+
+## Painel Elastic (atalho, Windows)
+
+`installer/helper/MFHelper.cs` (compilado em `motion-film/bin/win/` por
+`installer/build-helper.ps1`; rodar esse script depois de mexer no .cs
+-- o symlink de dev usa o .exe local) + `client/elastic.js` +
+`host/elastic.jsx`. Detalhes no README, "Painel Elastic no atalho".
+Os controles ficam em Tools › 04 / ELASTIC. As curvas favoritas já
+existem (Home › 02 / FAVORITES, `client/curve-favorites.js`, chave
+`motionfilm-curve-favorites`); próximo passo: mostrar as favoritas 1-4
+na janelinha do atalho (nova linha `pick curve <n>` no protocolo).

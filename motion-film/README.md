@@ -5577,3 +5577,70 @@ toda de novo.
   legendas Spotlight nos tempos certos, originais removidas; One at a
   time lido pelos marcadores; ler de volta uma legenda Viral (selecionando
   só uma linha) dá as 6 palavras em ordem.
+
+## Changelog -- Painel Elastic no atalho (Ctrl + L), Windows
+
+Pedido do usuário: o painel de elástico do Afterflix Velocity (atalho
+que abre uma janelinha com Position / Scale / Rotation). As curvas de
+velocidade favoritas entram nessa mesma janela depois. Nada copiado
+deles (o deles usa um .exe próprio + presets .ffx de pseudo-efeito);
+só a ideia.
+
+- **`installer/helper/MFHelper.cs` -> `motion-film/bin/win/MFHelper.exe`**
+  (WinForms, .NET Framework 4; compilado por
+  `installer/build-helper.ps1`, que o `build.ps1` chama antes de
+  empacotar -- `bin/` fica fora do git). Segura o atalho
+  (`RegisterHotKey`) só enquanto o After Effects está em primeiro plano
+  (confere a janela da frente a cada 150 ms), abre a janelinha no mouse
+  (cores do painel via `theme`), 1-3 ou clique escolhe, Esc / clicar
+  fora fecha e devolve o foco ao AE. Protocolo de linhas no stdin/stdout
+  (cabeçalho do .cs); sai quando o stdin fecha (painel ou AE fechados).
+  Um app de janela não tem console: escrever no stdout com
+  `Console.OpenStandardOutput()` (setar `Console.OutputEncoding` lança
+  IOException).
+- **`client/elastic.js`**: o painel principal inicia o helper (Node
+  `child_process`), manda tema e atalho, recebe `pick <alvo>` e aplica;
+  reinicia se cair (máx. 3/min). Settings: liga/desliga + campo do
+  atalho (clicar e apertar; precisa Ctrl/Alt/Shift + tecla, ou F1-F12),
+  em `motionfilm-elastic`. Avisa quando o atalho está em uso por outro
+  programa -- o Afterflix Velocity também usa Ctrl + L, quem registrar
+  primeiro ganha. `MF.elastic.open()` abre a janelinha por código.
+- **`host/elastic.jsx`** (`$.evalFile` sob demanda): `mfElastic(kind)`
+  põe nas camadas selecionadas com o alvo animado (2+ keys; posição com
+  dimensões separadas = cada dimensão) a expressão nossa
+  `v * amp/100 * sin(2πft) / (2πf) * e^(-decay*t)` depois de cada
+  keyframe a partir do 2º (amp 100 = continua com a velocidade da
+  chegada) + 3 Slider Control "Elastic <alvo> · Amplitude / Frequency /
+  Decay" (70 / 2.5 / 5; reaplicar mantém). Chegada com ease não balança.
+  Um undo; seleção de camadas e keyframes restaurada.
+- Mac: ainda não (o rsync do Mac exclui `bin/`; o painel diz "só no
+  Windows").
+- Testado ao vivo: helper iniciado pelo painel aberto no AE, janelinha
+  aberta, tecla 1 -> Position aplicado na camada de teste (x 800 -> 832
+  -> 788 -> 804 -> 800).
+
+## Changelog -- Home › 02 / FAVORITES (curvas de velocidade favoritas) + Tools › 04 / ELASTIC
+
+Pedido do usuário: uma seção de curvas favoritas entre Curves e Layer
+(que já era "03 / LAYER"), salvando pela estrela no canto da curva; e
+o Elastic também na aba Tools, com o atalho visível e editável ali.
+
+- **Estrela no 01 / CURVES** (`#curve-fav`, canto superior esquerdo do
+  gráfico): salva a curva atual (IN / OUT); amarela quando essa curva já
+  é favorita, clicar de novo tira.
+- **`client/curve-favorites.js`** (02 / FAVORITES): as 4 primeiras como
+  blocos (gráfico + "IN / OUT", número 1-4), botão "Library (N)" mostra
+  todas. Clique = carrega no 01 Curves e aplica nos keyframes
+  selecionados (sem keyframe selecionado: "loaded -- select keyframes");
+  arrastar reordena; × remove; nova entra primeiro. Em
+  `motionfilm-curve-favorites` (-> settings.json) -- a janelinha do
+  Elastic vai ler daí depois.
+- **`panel.js`**: `window.MF.curves` (get / set / samples / onDraw) e
+  `applyCurve(label)` com mensagem de favorita.
+- **Tools › 04 / ELASTIC**: botões Position / Scale / Rotation (mesmo
+  `mfElastic` da janelinha), campo do atalho + liga/desliga e uma linha
+  explicando o atalho (ou avisando que está ocupado). Saiu do popover
+  Settings.
+- Testado ao vivo (painel reaberto pela 8094): favorita 80/20 salva e
+  aplicada em 2 keyframes (out 20 / in 80), botão Elastic Scale ok,
+  aviso de Ctrl + L ocupado pelo Afterflix Velocity.
