@@ -1497,13 +1497,23 @@
   // any category a pack names that isn't in it (e.g. a pack folder copied
   // in by hand) -- a pack always has somewhere visible to live.
   function getAllKitCategories() {
-    var categories = kitLoadLibrary().categories.slice();
+    var categories = kitLoadLibrary().categories.filter(function (c) { return c !== KIT_TRANSITIONS; });
     (kitPacksCache || kitRefreshPacks()).forEach(function (p) {
-      if (p.category && categories.indexOf(p.category) === -1) {
+      if (p.category && p.category !== KIT_TRANSITIONS && categories.indexOf(p.category) === -1) {
         categories.push(p.category);
       }
     });
     return categories;
+  }
+
+  // Kit › Transitions: built into the extension (client/transitions.js),
+  // always first in the rail, can't be deleted and never holds packs --
+  // so it's left out of getAllKitCategories (the packs' own topics, used
+  // by the save / delete / export pickers). A user topic with the same
+  // name is hidden behind it.
+  var KIT_TRANSITIONS = "Transitions";
+  function getKitRailCategories() {
+    return [KIT_TRANSITIONS].concat(getAllKitCategories());
   }
 
   function kitEnsureCategory(category) {
@@ -1548,7 +1558,7 @@
     });
     kitRefreshPacks();
     if (kitState.category === category) {
-      kitState.category = getAllKitCategories()[0] || "";
+      kitState.category = KIT_TRANSITIONS;
     }
     kitDeleteMode = false;
     kitExportMode = false;
@@ -1572,7 +1582,7 @@
   // if the user already deleted "Text reveal" (any built-in topic is
   // deletable now, see deleteKitCategory), this needs to land on
   // whatever topic is ACTUALLY first, not one that's been hidden.
-  var kitState = { category: getAllKitCategories()[0] || "" };
+  var kitState = { category: KIT_TRANSITIONS };
 
   // Armed by the footer's "Delete preset" button (see initKitSaveTools):
   // while true, tiles stop applying on click and instead delete on a
@@ -1624,12 +1634,12 @@
       return;
     }
     root.innerHTML = "";
-    var categories = getAllKitCategories();
+    var categories = getKitRailCategories();
     for (var i = 0; i < categories.length; i += 1) {
       (function (category) {
         var btn = document.createElement("button");
         btn.type = "button";
-        btn.className = "kit-category" + (category === kitState.category ? " is-active" : "");
+        btn.className = "kit-category" + (category === kitState.category ? " is-active" : "") + (category === KIT_TRANSITIONS ? " is-builtin" : "");
         btn.textContent = category;
         btn.addEventListener("click", function () {
           // Picking a category from the sidebar always means "just
@@ -1673,7 +1683,7 @@
       // click" listener would immediately close the one this click just opened.
       event.stopPropagation();
       openNamePopover(addBtn, "Group name", function (name) {
-        if (getAllKitCategories().indexOf(name) !== -1) {
+        if (name === KIT_TRANSITIONS || getAllKitCategories().indexOf(name) !== -1) {
           setStatus("“" + name + "” already exists.", "error");
           return;
         }
@@ -1690,6 +1700,12 @@
   function renderKitPresets() {
     var root = $("kit-presets");
     if (!root) {
+      return;
+    }
+    var builtin = kitState.category === KIT_TRANSITIONS && window.MF.transitions;
+    root.classList.toggle("is-transitions", !!builtin);
+    if (builtin) {
+      window.MF.transitions.render(root);
       return;
     }
     root.innerHTML = "";

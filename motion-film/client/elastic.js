@@ -3,12 +3,12 @@
  *
  * Starts bin/win/MFHelper.exe (source: installer/helper/MFHelper.cs),
  * which holds the shortcut (default Ctrl + L) while After Effects is in
- * front and shows a small popup at the mouse: Position / Scale /
- * Rotation. A pick comes back here and host/elastic.jsx (loaded with
+ * front and shows a small popup above the mouse: Position / Scale /
+ * Rotation / Select (any selected animated property). A pick comes back here and host/elastic.jsx (loaded with
  * $.evalFile) puts the elastic expression + its sliders on the selected
  * layers. Lines in / out: see MFHelper.cs.
  *
- * Tools › 04 / ELASTIC: the same three buttons, the shortcut (click the
+ * Tools › 04 / ELASTIC: the same four buttons, the shortcut (click the
  * field, press the keys) and on / off, with a line saying how to use it.
  * Saved in "motionfilm-elastic" (mirrored to settings.json).
  * The helper lives as long as this panel: it quits when its stdin
@@ -177,7 +177,7 @@
     if (!state.enabled) {
       text = "Shortcut off -- the buttons above still work.";
     } else if (helperState === "ok") {
-      text = "Press " + state.label + " with After Effects in front: the Elastic popup opens at the mouse (1-3 picks). Animate with 2+ keyframes and a fast arrival. Click the field to change the keys.";
+      text = "Press " + state.label + " with After Effects in front: the Elastic popup opens above the mouse (1-4 picks). Animate with 2+ keyframes and a fast arrival. Click the field to change the keys.";
     } else if (helperState === "busy") {
       text = state.label + " is already taken by another program (e.g. Afterflix Velocity) -- click the field and press another shortcut.";
     } else if (helperState === "missing") {

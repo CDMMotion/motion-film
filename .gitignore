@@ -17,3 +17,8 @@ motion-film/client/assets/kit-previews/*
 
 # Mac: whisper-cli compilado no GitHub Actions (installer/mac/build-whisper.sh)
 motion-film/bin/
+
+# Kit › Transitions: raw AI images/videos stay local; only the light scene
+# clips the preview lab renders over (dev/transitions-lab.jsx) are kept
+dev/transitions-scenes/*
+!dev/transitions-scenes/lab/

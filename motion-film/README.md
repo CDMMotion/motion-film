@@ -5591,7 +5591,9 @@ só a ideia.
   `installer/build-helper.ps1`, que o `build.ps1` chama antes de
   empacotar -- `bin/` fica fora do git). Segura o atalho
   (`RegisterHotKey`) só enquanto o After Effects está em primeiro plano
-  (confere a janela da frente a cada 150 ms), abre a janelinha no mouse
+  (confere a janela da frente a cada 150 ms), abre a janelinha acima do
+  mouse (a borda de baixo 28 px acima do ponteiro, pra não cobrir o que
+  está embaixo; sem espaço em cima, abre embaixo)
   (cores do painel via `theme`), 1-3 ou clique escolhe, Esc / clicar
   fora fecha e devolve o foco ao AE. Protocolo de linhas no stdin/stdout
   (cabeçalho do .cs); sai quando o stdin fecha (painel ou AE fechados).
@@ -5644,3 +5646,100 @@ o Elastic também na aba Tools, com o atalho visível e editável ali.
 - Testado ao vivo (painel reaberto pela 8094): favorita 80/20 salva e
   aplicada em 2 keyframes (out 20 / in 80), botão Elastic Scale ok,
   aviso de Ctrl + L ocupado pelo Afterflix Velocity.
+
+## Changelog -- Elastic "Select": qualquer propriedade animada + Floor
+
+Pedido do usuário: um botão "Select" que põe o elástico em qualquer
+parâmetro (não só Position / Scale / Rotation). Ele colou como
+referência a expressão "overSHOOT+" do BOUNCr (código ofuscado de
+produto pago) -- NÃO foi copiada; a nossa já usava a mesma física e
+ganhou a ideia do "Floor".
+
+- `mfElastic("selected")` (`host/elastic.jsx`): pega
+  `comp.selectedProperties` -- propriedades selecionadas ou com
+  keyframes selecionados -- com 2+ keyframes, `canSetExpression` e valor
+  1D/2D/3D/cor (opacidade, efeitos, máscaras, shapes...); pula os
+  próprios sliders "Elastic". Um trio "Elastic · Amplitude / Frequency /
+  Decay" por camada + checkbox "Elastic · Floor" (ligado: quica de volta
+  em vez de passar do ponto, `-|sin|`). As propriedades são guardadas
+  como caminho de índices e achadas de novo depois de adicionar os
+  efeitos (as referências antigas podem ficar inválidas); keyframes
+  selecionados restaurados.
+- Na expressão, ler os controles com `effect(...)(1).value`: sem o
+  `.value` o resultado é a propriedade (objeto) e `if (floor)` era
+  sempre verdadeiro -- o Floor ficava sempre ligado (achado no teste).
+- Janelinha: 4º botão "Select" (tecla 4), janela mais larga. Tools ›
+  04 / ELASTIC: 4º botão, grade `auto-fit`.
+- Testado ao vivo: opacidade + Blurriness do Gaussian Blur com keys
+  selecionados -> 80 -> 84,3 -> 80 -> 78,4 (Floor: 80 -> 75,7, só
+  abaixo); tecla 4 na janelinha aplicou na opacidade.
+
+## Changelog -- Kit › Transitions (nossa versão do Afterflix Transitions)
+
+Pedido do usuário: os efeitos do Afterflix Transitions dentro da aba
+Kit, numa categoria especial "Transitions" que vem com a extensão, fica
+no topo e não pode ser apagada. Layout: 6 quadrados (Principal,
+Glitch, Film Burn, Camera, Blur, Shake) -> abre o grupo com uma seta
+de voltar, duração (e direção quando cabe) e os cards; hover toca a
+prévia, clique aplica na timeline. Nada copiado deles (código, presets,
+prévias): 55 efeitos com código e valores nossos, e prévias renderizadas
+de uma cena de amostra nossa.
+
+- **`host/transitions.jsx`** (`$.evalFile` sob demanda): cada efeito =
+  uma camada de ajuste (+ camada de luz nos Film Burn) só com efeitos
+  nativos (Motion Tile espelhado, Transform com motion blur próprio,
+  Directional / Gaussian / CC Radial Fast Blur, Exposure, Optics
+  Compensation, Turbulent Displace, Mosaic, Wave Warp, Noise, Color
+  Balance (HLS), Fractal Noise + Tint + Glow, VR Chromatic Aberrations
+  como RGB split -- funciona em 2D). As cenas nunca são mexidas.
+  Onde: 2 camadas selecionadas que se encostam -> o corte; senão o
+  indicador de tempo. Slots: "cut" (centrado), "in" (Camera In começa no
+  ponto), "out" (termina nele); aplicar de novo no mesmo ponto + slot
+  troca. Comment `MFT|<uid>|<slot>|<tempo>|<id>`; a camada de ajuste e a
+  de luz reaproveitam um sólido cada ("Mótion Film — Transitions
+  ADJ/Light"). Erro no meio = remove o que já criou. Um undo.
+  - `cutMove`: rest -> pico A meio quadro antes do corte (HOLD) -> pico
+    B NO corte (1º quadro da cena B) -> rest; cut keys lineares, rest
+    keys com ease. (Com os 2 keys a ±meio quadro o 1º quadro da B ainda
+    pegava o valor da A.)
+  - Hue/Saturation: Master Hue/Saturation NÃO aceitam keyframe por
+    script (canVaryOverTime false) -> Color Balance (HLS).
+  - Transform effect: com Uniform Scale ligado a escala é o parâmetro 4
+    ("Scale Height"), não o 5.
+  - Directional Blur depois do Transform puxa a borda transparente
+    (canto preto) -> blur antes do movimento / Motion Tile antes.
+  - Máscara: "Mask Expansion" é `ADBE Mask Offset`.
+- **`client/transitions-catalog.js`** (grupos, nomes, direções, slot,
+  duração padrão, capa) + **`client/transitions.js`** (UI).
+  `panel.js`: `KIT_TRANSITIONS` fica fora de `getAllKitCategories` (os
+  pickers de salvar / apagar / exportar pack nunca a oferecem) e entra
+  primeiro no trilho por `getKitRailCategories`; uma categoria do usuário
+  com o mesmo nome fica escondida. `renderKitPresets` entrega a área a
+  `MF.transitions.render`.
+- **Prévias**: `client/assets/transitions/<id>.mp4` + `.jpg`, 480x270,
+  ~5,7 MB no total, geradas por **`dev/transitions-lab.jsx`** (fora da
+  extensão: cena de amostra + `mftLabFrames` / `mftLabRender`). A cena
+  de amostra são 2 vídeos nossos em `dev/transitions-scenes/` (semáforo
+  preto/cromado com símbolo verde, imagem GPT Image 2.5 -> Seedance 2.5
+  em órbita linear -> curva de velocidade da órbita do Blender do
+  usuário aplicada quadro a quadro, saída acelerando até o fim):
+  `cena1-orbita.mp4` (X) termina no corte, `cena2-orbita.mp4` (check)
+  começa nele. Pra refazer: `mftLabSample(480, 270,
+  ".../lab/cena1-960.mp4", ".../lab/cena2-960.mp4")`, `mftLabRender(id,
+  dirs[0], frames do grupo, ".../<id>.mp4", slot)` e depois recomprimir
+  cada `.mp4` com x264 (`-profile:v main -pix_fmt yuv420p -crf 23
+  -movflags +faststart`): o H.264 do AE dava 28 MB pras 55 com vídeo
+  real, o x264 dá 5 MB sem diferença visível, e toca no CEP (conferido
+  ao vivo nos 6 grupos). Capa `.jpg` = quadro perto do corte (slot cut)
+  ou no meio do efeito (in/out).
+- **Hover da prévia**: o vídeo carregava só no hover (`preload="none"`)
+  e o `play()` saía antes de ele estar pronto -- o Chromium do CEP corria
+  pelos quadros que já tinha e travava (relato do usuário). Agora cada
+  card já nasce com `src` + `preload="auto"` (~170 KB cada, no máximo
+  10 por tela) e `bindHover` só toca com `readyState >= 4` (ou no
+  `canplaythrough`, se o mouse chegou antes). Medido ao vivo: tempo do
+  vídeo = tempo real, loop sem engasgo.
+- Testado ao vivo: os 55 efeitos aplicados na cena de amostra e
+  conferidos quadro a quadro; pelo painel: Whip no corte, Flash trocando
+  o Whip, Camera In/Out no mesmo corte, Burn Sweep no indicador de
+  tempo; projeto do usuário limpo no fim.

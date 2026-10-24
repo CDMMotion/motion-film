@@ -2001,3 +2001,12 @@ Os controles ficam em Tools › 04 / ELASTIC. As curvas favoritas já
 existem (Home › 02 / FAVORITES, `client/curve-favorites.js`, chave
 `motionfilm-curve-favorites`); próximo passo: mostrar as favoritas 1-4
 na janelinha do atalho (nova linha `pick curve <n>` no protocolo).
+
+## Kit › Transitions
+
+Categoria fixa no topo da aba Kit (nossa versão do Afterflix
+Transitions): `host/transitions.jsx` (55 efeitos, camada de ajuste no
+corte / indicador de tempo), `client/transitions-catalog.js`,
+`client/transitions.js`, prévias em `client/assets/transitions/`
+geradas por `dev/transitions-lab.jsx`. Detalhes e armadilhas no README,
+"Kit › Transitions".

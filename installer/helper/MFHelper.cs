@@ -8,7 +8,8 @@
 // The shortcut (RegisterHotKey, mods: 1 Alt, 2 Ctrl, 4 Shift, 8 Win) is
 // only held while After Effects is the foreground app, so it never
 // steals the keys from other programs. The popup opens at the mouse,
-// shows Position / Scale / Rotation; 1-3 or a click picks, Esc or
+// shows Position / Scale / Rotation / Select (any selected animated
+// property); 1-4 or a click picks, Esc or
 // clicking elsewhere closes, and focus goes back to After Effects.
 // Exits when stdin closes (panel or After Effects closed).
 //
@@ -190,12 +191,12 @@ class Host : Form
 
 class Popup : Form
 {
-    static readonly string[] Kinds = { "position", "scale", "rotation" };
-    static readonly string[] Labels = { "Position", "Scale", "Rotation" };
+    static readonly string[] Kinds = { "position", "scale", "rotation", "selected" };
+    static readonly string[] Labels = { "Position", "Scale", "Rotation", "Select" };
 
     readonly Host host;
     readonly float s;
-    Rectangle[] buttons = new Rectangle[3];
+    Rectangle[] buttons = new Rectangle[4];
     int hover = -1;
     bool busy;
     string status = "";
@@ -213,16 +214,20 @@ class Popup : Form
         StartPosition = FormStartPosition.Manual;
         DoubleBuffered = true;
         BackColor = host.Panel;
-        Size = new Size(S(336), S(104));
+        Size = new Size(S(430), S(104));
         Font = new Font("Segoe UI", 9f);
-        // at the mouse, inside the screen
+        // above the mouse (its bottom edge a little over the pointer, so it
+        // doesn't cover what's under it), below when there's no room;
+        // always inside the screen
         Point c = Cursor.Position;
         Rectangle area = Screen.FromPoint(c).WorkingArea;
         int x = Math.Max(area.Left + 8, Math.Min(c.X - Width / 2, area.Right - Width - 8));
-        int y = Math.Max(area.Top + 8, Math.Min(c.Y - S(26), area.Bottom - Height - 8));
+        int y = c.Y - Height - S(28);
+        if (y < area.Top + 8) { y = c.Y + S(28); }
+        y = Math.Max(area.Top + 8, Math.Min(y, area.Bottom - Height - 8));
         Location = new Point(x, y);
-        int bw = (Width - S(16) * 2 - S(8) * 2) / 3;
-        for (int i = 0; i < 3; i++) { buttons[i] = new Rectangle(S(16) + i * (bw + S(8)), S(44), bw, S(44)); }
+        int bw = (Width - S(16) * 2 - S(8) * 3) / 4;
+        for (int i = 0; i < 4; i++) { buttons[i] = new Rectangle(S(16) + i * (bw + S(8)), S(44), bw, S(44)); }
         closer.Tick += delegate { closer.Stop(); Close(); };
     }
 
@@ -247,15 +252,15 @@ class Popup : Form
     {
         if (e.KeyCode == Keys.Escape) { Close(); return; }
         int n = -1;
-        if (e.KeyCode >= Keys.D1 && e.KeyCode <= Keys.D3) { n = e.KeyCode - Keys.D1; }
-        if (e.KeyCode >= Keys.NumPad1 && e.KeyCode <= Keys.NumPad3) { n = e.KeyCode - Keys.NumPad1; }
+        if (e.KeyCode >= Keys.D1 && e.KeyCode <= Keys.D4) { n = e.KeyCode - Keys.D1; }
+        if (e.KeyCode >= Keys.NumPad1 && e.KeyCode <= Keys.NumPad4) { n = e.KeyCode - Keys.NumPad1; }
         if (n >= 0) { Pick(n); }
     }
 
     protected override void OnMouseMove(MouseEventArgs e)
     {
         int h = -1;
-        for (int i = 0; i < 3; i++) { if (buttons[i].Contains(e.Location)) { h = i; } }
+        for (int i = 0; i < 4; i++) { if (buttons[i].Contains(e.Location)) { h = i; } }
         if (h != hover) { hover = h; Cursor = h >= 0 ? Cursors.Hand : Cursors.Default; Invalidate(); }
     }
 
@@ -263,7 +268,7 @@ class Popup : Form
 
     protected override void OnMouseUp(MouseEventArgs e)
     {
-        for (int i = 0; i < 3; i++) { if (buttons[i].Contains(e.Location)) { Pick(i); } }
+        for (int i = 0; i < 4; i++) { if (buttons[i].Contains(e.Location)) { Pick(i); } }
     }
 
     void Pick(int n)
@@ -324,7 +329,7 @@ class Popup : Form
             Size w = TextRenderer.MeasureText(g, "Mótion Film ", Font, Size.Empty, TextFormatFlags.NoPadding);
             TextRenderer.DrawText(g, "Elastic", bold, new Point(S(38) + w.Width, S(11)), text, TextFormatFlags.NoPadding);
         }
-        string right = status.Length > 0 ? status : "1–3 apply · Esc close";
+        string right = status.Length > 0 ? status : "1–4 apply · Esc close";
         Color rc = status.Length > 0 ? (statusError ? Color.FromArgb(234, 160, 177) : host.Accent) : dim;
         using (var small = new Font("Segoe UI", 8f))
         {
@@ -332,7 +337,7 @@ class Popup : Form
             TextRenderer.DrawText(g, right, small, box, rc, TextFormatFlags.Right | TextFormatFlags.NoPadding | TextFormatFlags.EndEllipsis);
         }
 
-        for (int i = 0; i < 3; i++)
+        for (int i = 0; i < 4; i++)
         {
             Rectangle r = buttons[i];
             bool on = hover == i && !busy;
