@@ -394,32 +394,57 @@
   // ---------------------------------------------------------------
   // Criar pasta
   // ---------------------------------------------------------------
+  // Unidades da seleção da timeline: layer solto, ou uma pasta inteira
+  // (cabeçalho + bloco). Selecionar cabeçalho e conteúdo não conta o
+  // conteúdo duas vezes: tudo que está DENTRO de uma pasta cujo cabeçalho
+  // foi selecionado já vai junto com ela. Em ordem de timeline.
+  function selectedUnits(st, comp) {
+    var sel = sortByIndex(toArray(comp.selectedLayers));
+    var covered = {};
+    var units = [];
+    var skipped = 0;
+    for (var i = 0; i < sel.length; i += 1) {
+      var hg = st.byHeader[sel[i].id];
+      if (hg) {
+        var inner = descendants(st, hg);
+        for (var b = 0; b < inner.length; b += 1) { covered[inner[b].id] = true; }
+      }
+    }
+    for (var j = 0; j < sel.length; j += 1) {
+      var L = sel[j];
+      if (covered[L.id]) { continue; }
+      var asHeader = st.byHeader[L.id];
+      if (!asHeader && L.locked) { skipped += 1; continue; }
+      units.push({ head: L, layers: asHeader ? block(st, asHeader) : [L] });
+    }
+    return { units: units, skipped: skipped, any: sel.length > 0 };
+  }
+
+  // Tira um membro direto dos dados da pasta (não move nem mexe no layer).
+  function detach(g, id) {
+    g.data.members = without(g.data.members, id);
+    delete g.data.hid[id];
+    delete g.data.base[id];
+    if (g.data.matte === id) { g.data.matte = 0; }
+    if (g.data.fx === id) { g.data.fx = 0; }
+  }
+
+  // Último layer do bloco da pasta que não está entre os que vão mudar de
+  // lugar: é ali embaixo que eles entram (ou saem).
+  function blockEnd(st, g, moving) {
+    var blk = block(st, g);
+    for (var i = blk.length - 1; i >= 0; i -= 1) {
+      if (!moving[blk[i].id]) { return blk[i]; }
+    }
+    return g.header;
+  }
+
   function lfGroup(opts) {
     opts = opts || {};
     return run("Group", function (st, comp) {
-      var sel = sortByIndex(comp.selectedLayers.slice ? comp.selectedLayers.slice(0) : toArray(comp.selectedLayers));
-      if (!sel.length) { return { ok: false, error: "Select layers to group." }; }
-      // Unidades: layer solto, ou uma pasta inteira (cabeçalho + bloco).
-      // Selecionar cabeçalho e conteúdo não conta o conteúdo duas vezes.
-      // covered = tudo que está DENTRO de uma pasta cujo cabeçalho foi
-      // selecionado (o cabeçalho em si não): esses já vão junto com ela.
-      var covered = {};
-      var units = [];
-      var skipped = 0;
-      for (var i = 0; i < sel.length; i += 1) {
-        var hg = st.byHeader[sel[i].id];
-        if (hg) {
-          var inner = descendants(st, hg);
-          for (var b = 0; b < inner.length; b += 1) { covered[inner[b].id] = true; }
-        }
-      }
-      for (var j = 0; j < sel.length; j += 1) {
-        var L = sel[j];
-        if (covered[L.id]) { continue; }
-        var asHeader = st.byHeader[L.id];
-        if (!asHeader && L.locked) { skipped += 1; continue; }
-        units.push({ head: L, layers: asHeader ? block(st, asHeader) : [L] });
-      }
+      var picked = selectedUnits(st, comp);
+      var units = picked.units;
+      var skipped = picked.skipped;
       if (!units.length) {
         return { ok: false, error: skipped ? "Selected layers are locked." : "Select layers to group." };
       }
@@ -428,13 +453,7 @@
       // Tira as unidades das pastas antigas.
       for (var u = 0; u < units.length; u += 1) {
         var old = ownerOf(st, units[u].head.id);
-        if (old) {
-          old.data.members = without(old.data.members, units[u].head.id);
-          delete old.data.hid[units[u].head.id];
-          delete old.data.base[units[u].head.id];
-          if (old.data.matte === units[u].head.id) { old.data.matte = 0; }
-          if (old.data.fx === units[u].head.id) { old.data.fx = 0; }
-        }
+        if (old) { detach(old, units[u].head.id); }
       }
 
       var name = uniqueName(st, opts.name || "Group");
@@ -501,9 +520,9 @@
     for (var i = 0; i < g.children.length; i += 1) { setTree(g.children[i], folded); }
   }
 
-  // mode: toggle | recursive (Alt) | solo (Shift: abre e fecha as irmãs)
-  // | soloRecursive (Shift+Alt). accordion: abrir pela linha fecha irmãs.
-  function lfToggle(gid, mode, accordion) {
+  // mode: toggle | open | recursive (Alt) | solo (Shift: abre e fecha as
+  // irmãs) | soloRecursive (Shift+Alt).
+  function lfToggle(gid, mode) {
     return run("Fold", function (st) {
       var g = findGroup(st, gid);
       if (mode === "recursive") {
@@ -512,39 +531,134 @@
         if (mode === "soloRecursive") { setTree(g, false); } else { g.data.folded = false; }
         var sib = siblingsOf(st, g);
         for (var i = 0; i < sib.length; i += 1) { sib[i].data.folded = true; }
+      } else if (mode === "open") {
+        g.data.folded = false;
       } else {
         g.data.folded = !g.data.folded;
-        if (!g.data.folded && accordion) {
-          var sib2 = siblingsOf(st, g);
-          for (var j = 0; j < sib2.length; j += 1) { sib2[j].data.folded = true; }
-        }
       }
       applyFolds(st);
       return { ok: true };
     });
   }
 
-  // Fold/Unfold da barra: pastas identificadas pela seleção (cabeçalho
-  // selecionado = a pasta; membro selecionado = a pasta dele); nenhuma
-  // identificada (ou all=true, Alt) = todas.
-  function lfFoldAll(fold, all) {
-    return run(fold ? "Fold" : "Unfold", function (st, comp) {
-      if (!st.groups.length) { return { ok: false, error: "No folders in this comp." }; }
-      var targets = [];
-      if (!all) {
-        var sel = comp.selectedLayers;
-        for (var i = 0; i < sel.length; i += 1) {
-          var g = st.byHeader[sel[i].id] || ownerOf(st, sel[i].id);
-          if (g && !has(targets, g)) { targets.push(g); }
+  // Header spans grow with what came in (the folder and the ones above it).
+  function fitUp(st, g) {
+    while (g) { fitHeader(st, g); g = g.parent; }
+  }
+
+  // Botão "Add": os layers selecionados na timeline entram na pasta
+  // selecionada no painel, no fim dela (saem da pasta onde estavam).
+  function lfAdd(gid) {
+    return run("Add to folder", function (st, comp) {
+      var g = findGroup(st, gid);
+      var picked = selectedUnits(st, comp);
+      // não entram: a própria pasta e as que estão acima dela (laço) nem
+      // quem já é membro direto dela
+      var above = {};
+      for (var p = g; p; p = p.parent) { above[p.header.id] = true; }
+      var units = [];
+      for (var i = 0; i < picked.units.length; i += 1) {
+        var u = picked.units[i];
+        if (above[u.head.id] || has(g.data.members, u.head.id)) { continue; }
+        units.push(u);
+      }
+      if (!units.length) {
+        if (!picked.any) { return { ok: false, error: "Select layers in the timeline to add to “" + g.data.name + "”." }; }
+        if (picked.units.length) { return { ok: false, error: "Those layers are already in “" + g.data.name + "”." }; }
+        return { ok: false, error: picked.skipped ? "Selected layers are locked." : "Select layers in the timeline to add." };
+      }
+      var moving = {};
+      var ordered = [];
+      for (var m = 0; m < units.length; m += 1) {
+        for (var x = 0; x < units[m].layers.length; x += 1) {
+          moving[units[m].layers[x].id] = true;
+          ordered.push(units[m].layers[x]);
         }
       }
-      if (!targets.length) { targets = st.groups; }
-      var changed = 0;
-      for (var t = 0; t < targets.length; t += 1) {
-        if (!!targets[t].data.folded !== !!fold) { targets[t].data.folded = !!fold; changed += 1; }
+      var anchor = blockEnd(st, g, moving);
+      for (var d = 0; d < units.length; d += 1) {
+        var old = ownerOf(st, units[d].head.id);
+        if (old) { detach(old, units[d].head.id); save(old); }
+      }
+      for (var n = 0; n < units.length; n += 1) {
+        var head = units[n].head;
+        g.data.members.push(head.id);
+        g.data.base[head.id] = !!head.shy;
+        // "Parent to folder" ligado: quem entra segue o Null também
+        if (g.data.parented.length && !st.byHeader[head.id]) {
+          var hasParent = false;
+          try { hasParent = !!head.parent; } catch (e) {}
+          if (!hasParent) {
+            withUnlocked(head, function (L) { L.parent = g.header; });
+            g.data.parented.push(head.id);
+          }
+        }
+      }
+      save(g);
+      placeAfter(ordered, anchor);
+      st = scan(comp);
+      g = st.byGid[gid];
+      fitUp(st, g);
+      applyFolds(st);
+      var count = units.length;
+      return { ok: true, message: "Added " + count + " layer" + (count === 1 ? "" : "s") + " to “" + g.data.name + "”" + (g.data.folded ? " (folded)" : "") };
+    });
+  }
+
+  // Botão "Remove": os layers selecionados saem da pasta onde estão e
+  // ficam logo abaixo dela (numa subpasta, sobem um nível: entram na mãe).
+  function lfRemove() {
+    return run("Remove from folder", function (st, comp) {
+      var picked = selectedUnits(st, comp);
+      var units = [];
+      for (var i = 0; i < picked.units.length; i += 1) {
+        if (ownerOf(st, picked.units[i].head.id)) { units.push(picked.units[i]); }
+      }
+      if (!units.length) {
+        return { ok: false, error: picked.any ? "The selected layers aren't in a folder." : "Select layers in the timeline to take out of their folder." };
+      }
+      // De baixo pra cima: cada um vai pra logo abaixo do bloco, então a
+      // ordem entre eles se mantém.
+      for (var k = units.length - 1; k >= 0; k -= 1) {
+        var u = units[k];
+        var id = u.head.id;
+        var owner = ownerOf(st, id);
+        if (!owner) { continue; }
+        if (owner.data.hid[id]) { setShy(u.head, !!owner.data.base[id]); }
+        // solta o que a pasta ligou nele: parent no Null, matte do grupo
+        if (has(owner.data.parented, id)) {
+          try { if (u.head.parent && u.head.parent.id === owner.header.id) { withUnlocked(u.head, function (L) { L.parent = null; }); } } catch (e1) {}
+          owner.data.parented = without(owner.data.parented, id);
+        }
+        if (owner.data.matte) {
+          if (owner.data.matte === id) {
+            for (var a = 0; a < owner.data.members.length; a += 1) {
+              var M = st.byId[owner.data.members[a]];
+              try { if (M && M.trackMatteLayer && M.trackMatteLayer.id === id) { withUnlocked(M, function (L) { L.removeTrackMatte(); }); } } catch (e2) {}
+            }
+          } else {
+            try { if (u.head.trackMatteLayer && u.head.trackMatteLayer.id === owner.data.matte) { withUnlocked(u.head, function (L) { L.removeTrackMatte(); }); } } catch (e3) {}
+          }
+        }
+        var moving = {};
+        for (var x = 0; x < u.layers.length; x += 1) { moving[u.layers[x].id] = true; }
+        var anchor = blockEnd(st, owner, moving);
+        detach(owner, id);
+        save(owner);
+        var up = owner.parent;
+        if (up) {
+          var pos = up.data.members.length;
+          for (var q = 0; q < up.data.members.length; q += 1) { if (up.data.members[q] === owner.header.id) { pos = q + 1; } }
+          up.data.members.splice(pos, 0, id);
+          up.data.base[id] = !!u.head.shy;
+          save(up);
+        }
+        placeAfter(u.layers, anchor);
+        st = scan(comp);
       }
       applyFolds(st);
-      return { ok: true, message: changed ? (fold ? "Folded " : "Opened ") + changed + " folder" + (changed === 1 ? "" : "s") : (fold ? "All folded" : "All open") };
+      var count = units.length;
+      return { ok: true, message: "Took " + count + " layer" + (count === 1 ? "" : "s") + " out of " + (count === 1 ? "its folder" : "their folders") };
     });
   }
 
@@ -1013,7 +1127,8 @@
   $.global.lfState = lfState;
   $.global.lfGroup = lfGroup;
   $.global.lfToggle = lfToggle;
-  $.global.lfFoldAll = lfFoldAll;
+  $.global.lfAdd = lfAdd;
+  $.global.lfRemove = lfRemove;
   $.global.lfRename = lfRename;
   $.global.lfColor = lfColor;
   $.global.lfSelect = lfSelect;

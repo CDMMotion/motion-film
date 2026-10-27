@@ -20,15 +20,14 @@
   var LABEL_NAMES = ["None", "Red", "Yellow", "Aqua", "Pink", "Lavender", "Peach", "Sea Foam", "Blue", "Green",
     "Purple", "Orange", "Brown", "Fuchsia", "Cyan", "Sandstone", "Dark Green"];
 
-  var KEY_ACCORDION = "motionfilm-folders-accordion";
   var KEY_COLOR_MEMBERS = "motionfilm-folders-color-members";
 
   var ICONS = {
     chevron: '<svg viewBox="0 0 12 12" width="10" height="10" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M4.5 2.5 8 6l-3.5 3.5" stroke-linecap="round" stroke-linejoin="round"/></svg>',
     group: '<svg viewBox="0 0 20 20" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M2.5 6.2a1.7 1.7 0 0 1 1.7-1.7h3.4l1.7 1.9h6.5a1.7 1.7 0 0 1 1.7 1.7v6.2a1.7 1.7 0 0 1-1.7 1.7H4.2a1.7 1.7 0 0 1-1.7-1.7z" stroke-linejoin="round"/><path d="M10 9.2v4M8 11.2h4" stroke-linecap="round"/></svg>',
-    fold: '<svg viewBox="0 0 20 20" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M6 3.5 10 7.5l4-4M6 16.5l4-4 4 4" stroke-linecap="round" stroke-linejoin="round"/></svg>',
-    unfold: '<svg viewBox="0 0 20 20" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M6 7.5 10 3.5l4 4M6 12.5l4 4 4-4" stroke-linecap="round" stroke-linejoin="round"/></svg>',
-    accordion: '<svg viewBox="0 0 20 20" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="3" y="3.5" width="14" height="3.4" rx="1"/><rect x="3" y="8.3" width="14" height="3.4" rx="1"/><rect x="3" y="13.1" width="14" height="3.4" rx="1"/></svg>',
+    // a layer bar with + / − : into / out of the folder
+    add: '<svg viewBox="0 0 20 20" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="2.5" y="6.5" width="10" height="7" rx="1.5"/><path d="M16 7v6M13 10h6" stroke-linecap="round"/></svg>',
+    remove: '<svg viewBox="0 0 20 20" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="2.5" y="6.5" width="10" height="7" rx="1.5"/><path d="M13 10h6" stroke-linecap="round"/></svg>',
     solo: '<svg viewBox="0 0 16 16" width="11" height="11" fill="currentColor"><circle cx="8" cy="8" r="3.4"/></svg>',
     eye: '<svg viewBox="0 0 16 16" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M1.5 8S4 3.5 8 3.5 14.5 8 14.5 8 12 12.5 8 12.5 1.5 8 1.5 8z"/><circle cx="8" cy="8" r="2"/></svg>',
     lock: '<svg viewBox="0 0 16 16" width="11" height="11" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="3.5" y="7" width="9" height="6.5" rx="1.2"/><path d="M5.5 7V5.2a2.5 2.5 0 0 1 5 0V7"/></svg>',
@@ -39,6 +38,7 @@
   var labelNames = null; // nomes de label do AE do usuário (lfLabels)
   var busy = false;
   var editing = null; // grupo sendo renomeado (não redesenha a lista no meio)
+  var selectedId = null; // pasta selecionada no painel (destino do Add)
   var lastSig = "";
 
   function $(id) { return document.getElementById(id); }
@@ -123,11 +123,33 @@
   // Lista
   // ---------------------------------------------------------------
   function signature(st) {
-    return JSON.stringify([st.compId, st.groups]);
+    return JSON.stringify([st.compId, st.groups, selectedId]);
+  }
+
+  function findById(id) {
+    for (var i = 0; i < state.groups.length; i += 1) { if (state.groups[i].id === id) { return state.groups[i]; } }
+    return null;
+  }
+
+  function syncAddButton() {
+    var b = $("lf-add");
+    if (!b) { return; }
+    var g = selectedId ? findById(selectedId) : null;
+    b.disabled = !g;
+    b.title = g ? "Add the layers selected in the timeline to “" + g.name + "”" : "Select a folder below, then add the layers selected in the timeline to it";
+  }
+
+  function select(id) {
+    selectedId = id;
+    lastSig = "";
+    render(state);
   }
 
   function render(st) {
     state = st;
+    // a pasta selecionada sumiu (outra comp, apagada): nada selecionado
+    if (selectedId && !findById(selectedId)) { selectedId = null; }
+    syncAddButton();
     if (editing) { return; } // não troca a linha que está sendo renomeada
     var sig = signature(st);
     if (sig === lastSig) { return; }
@@ -162,14 +184,15 @@
 
   function buildRow(g) {
     var row = document.createElement("div");
-    row.className = "lf-row" + (g.folded ? " is-folded" : "") + (g.ancestorFolded ? " is-dimmed" : "");
+    row.className = "lf-row" + (g.folded ? " is-folded" : "") + (g.ancestorFolded ? " is-dimmed" : "") + (g.id === selectedId ? " is-selected" : "");
     row.style.setProperty("--lf-depth", g.depth);
     row.setAttribute("data-id", g.id);
-    row.title = "Click: fold/open · Shift: open only this · Alt: with subfolders · Right-click: more";
+    row.title = "Click: select and open (again: fold) · Arrow: fold/open · Shift: open only this · Alt: with subfolders · Right-click: more";
 
     var chev = document.createElement("span");
     chev.className = "lf-chev";
     chev.innerHTML = ICONS.chevron;
+    chev.title = "Fold / open";
 
     var dot = document.createElement("span");
     dot.className = "lf-dot";
@@ -226,16 +249,32 @@
     // O clique simples espera um instante: se for o 1o clique de um duplo
     // clique (renomear), não abre/fecha -- antes ele redesenhava a linha
     // no meio do duplo clique e a caixa de nome piscava e sumia.
+    // Clique: seleciona a pasta (destino do Add) e abre se estiver
+    // fechada; na pasta já selecionada, abre/fecha. Shift/Alt: como antes.
     var clickTimer = null;
+    function foldMode(event) {
+      return event.shiftKey && event.altKey ? "soloRecursive" : event.shiftKey ? "solo" : event.altKey ? "recursive" : "toggle";
+    }
     row.addEventListener("click", function (event) {
       if (editing) { return; }
       if (event.detail > 1) { return; }
-      var mode = event.shiftKey && event.altKey ? "soloRecursive" : event.shiftKey ? "solo" : event.altKey ? "recursive" : "toggle";
+      var mode = foldMode(event);
       clearTimeout(clickTimer);
       clickTimer = setTimeout(function () {
         clickTimer = null;
-        if (!editing) { act("lfToggle", [g.id, mode, storeGet(KEY_ACCORDION, "0") === "1"], true); }
+        if (editing) { return; }
+        var wasSelected = selectedId === g.id;
+        if (!wasSelected) { select(g.id); }
+        if (mode !== "toggle") { act("lfToggle", [g.id, mode], true); }
+        else if (wasSelected) { act("lfToggle", [g.id, "toggle"], true); }
+        else if (g.folded) { act("lfToggle", [g.id, "open"], true); }
       }, 230);
+    });
+    // A setinha só abre/fecha (não muda a seleção).
+    chev.addEventListener("click", function (event) {
+      event.stopPropagation();
+      if (editing) { return; }
+      act("lfToggle", [g.id, foldMode(event)], true);
     });
     name.addEventListener("dblclick", function (event) {
       event.stopPropagation();
@@ -455,21 +494,11 @@
   // ---------------------------------------------------------------
   // Barra
   // ---------------------------------------------------------------
-  function setAccordionButton() {
-    var b = $("lf-accordion");
-    if (!b) { return; }
-    var on = storeGet(KEY_ACCORDION, "0") === "1";
-    b.setAttribute("aria-checked", on ? "true" : "false");
-    b.classList.toggle("is-on", on);
-  }
-
   function init() {
     if (!$("lf-tree")) { return; }
     $("lf-group").innerHTML = ICONS.group + "<span>Group</span>";
-    $("lf-fold").innerHTML = ICONS.fold;
-    $("lf-unfold").innerHTML = ICONS.unfold;
-    $("lf-accordion").innerHTML = ICONS.accordion;
-    setAccordionButton();
+    $("lf-add").innerHTML = ICONS.add + "<span>Add</span>";
+    $("lf-remove").innerHTML = ICONS.remove + "<span>Remove</span>";
 
     // Group pede o nome primeiro (mesma janelinha do "Save" dos Packs).
     // Shift/Alt valem do clique no botão.
@@ -488,14 +517,11 @@
         }, "Group");
       }, 0);
     });
-    $("lf-fold").addEventListener("click", function (event) { act("lfFoldAll", [true, !!event.altKey]); });
-    $("lf-unfold").addEventListener("click", function (event) { act("lfFoldAll", [false, !!event.altKey]); });
-    $("lf-accordion").addEventListener("click", function () {
-      var on = storeGet(KEY_ACCORDION, "0") !== "1";
-      storeSet(KEY_ACCORDION, on ? "1" : "0");
-      setAccordionButton();
-      status(on ? "Accordion on: opening a folder folds the others at the same level." : "Accordion off.", "success");
+    $("lf-add").addEventListener("click", function () {
+      if (!selectedId) { status("Select a folder in the list first.", "error"); return; }
+      act("lfAdd", [selectedId]);
     });
+    $("lf-remove").addEventListener("click", function () { act("lfRemove", []); });
 
     document.addEventListener("click", closeMenu);
     document.addEventListener("keydown", function (event) { if (event.key === "Escape") { closeMenu(); } });

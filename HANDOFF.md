@@ -187,8 +187,15 @@ item selecionado vira um PNG. Três peças:
   recusa IP em `allowedDomains` ("must be a valid URL"), por isso o
   servidor escuta em 127.0.0.1 E ::1.
   Os botões do AE só enfileiram um comando; o plugin responde com push.
-  PNGs vão pra `<pasta do .aep>/Figma Assets/` ou, sem projeto salvo,
-  `Documentos/Mótion Figma Layers/Assets/`.
+  PNGs vão pra `<pasta do .aep>/Mótion Figma Layers/<lote>/`, o MESMO
+  nome da pasta do painel de projeto (`Mótion Figma Layers › <lote>`);
+  `mflBatchName` dá nome único (" 2", " 3"...) pra reimportação nunca
+  colidir no Collect Files. Projeto não salvo: `mflPickFolder` abre a
+  escolha de pasta uma vez por sessão (até salvar o projeto); cancelar
+  cancela a importação. Antes (até 0.13.0) iam pra `Figma Assets/<frame>_
+  <data>` ou `Documentos/Mótion Figma Layers/Assets/`, com a pasta do
+  painel reaproveitada e arquivos `_a1` repetidos -- causa das imagens
+  offline em collects.
 - **Construtor** `host/figma.jsx` (`mflBuild(jsonPath)`), carregado pela
   própria janela via `$.evalFile` (fora do host.jsx, recarrega a cada
   abertura da janela). Lê o JSON de um arquivo temporário.

@@ -13,10 +13,11 @@
  *      POST /push  -> the extracted selection: payload JSON + PNGs as
  *                     base64. Sent as text/plain so the browser treats it
  *                     as a "simple" request (no CORS preflight).
- *    PNGs are written next to the .aep ("Figma Assets/…") or, for an
- *    unsaved project, to Documents/Mótion Figma Layers/Assets; the payload
- *    goes to a temp JSON file and host/figma.jsx mflBuild() reads it (no
- *    multi-MB strings through evalScript).
+ *    PNGs are written next to the .aep in "Mótion Figma Layers/<import>/",
+ *    the same names as the project panel folders (so Collect Files keeps
+ *    them); for an unsaved project the person picks the folder once per
+ *    session. The payload goes to a temp JSON file and host/figma.jsx
+ *    mflBuild() reads it (no multi-MB strings through evalScript).
  *
  * 2. The two buttons (Camadas / Rasterizar): they don't read anything
  *    themselves; they queue a command that the Figma plugin picks up on
@@ -405,11 +406,10 @@
     return s || "figma";
   }
 
-  function stamp() {
-    var d = new Date();
-    function p(n) { return (n < 10 ? "0" : "") + n; }
-    return d.getFullYear() + p(d.getMonth() + 1) + p(d.getDate()) + "-" + p(d.getHours()) + p(d.getMinutes()) + p(d.getSeconds());
-  }
+  // the project panel folder that holds every import, and its twin on disk
+  var ROOT_FOLDER = "Mótion Figma Layers";
+  // unsaved project: the folder picked for this session's images
+  var session = { imagesDir: "" };
 
   function finishCommand(id) {
     if (!id || !bridge.commands[id]) { return null; }
@@ -449,19 +449,48 @@
       var os = nodeRequire("os");
       var Buffer = nodeRequire("buffer").Buffer;
 
+      // the Figma side already answered: a folder dialog below may take a
+      // while, so the "Figma didn't answer" timer must not fire meanwhile
+      var pending = bridge.commands[body.commandId];
+      if (pending) { clearTimeout(pending.timer); }
+
       var loaded = await ensureHostScript();
       if (!loaded) { throw new Error("Não consegui carregar host/figma.jsx."); }
 
-      var proj = await hostCallAsync("mflProjectDir", []);
-      var baseDir = (proj && proj.dir)
-        ? path.join(proj.dir, "Figma Assets")
-        : path.join(os.homedir(), "Documents", "Mótion Figma Layers", "Assets");
-      var first = (payload.groups && payload.groups[0]) || {};
-      var batch = sanitize(first.name || (first.container && first.container.name) || payload.fileName) + "_" + stamp();
-      var dir = path.join(baseDir, batch);
+      // PNGs live next to the project, in folders that mirror the project
+      // panel: <pasta>/Mótion Figma Layers/<lote>/ = "Mótion Figma Layers ›
+      // <lote>" in AE. Unsaved project: the person picks <pasta> once per
+      // session (until the project is saved).
+      var assets = body.assets || [];
+      var batch = "";
+      var dir = "";
+      if (mode !== "comp") {
+        var proj = await hostCallAsync("mflProjectDir", []);
+        var root = "";
+        if (proj && proj.dir) {
+          session.imagesDir = "";
+          root = path.join(proj.dir, ROOT_FOLDER);
+        } else if (assets.length) {
+          if (!session.imagesDir) {
+            setStatus("O projeto ainda não foi salvo: escolha no After Effects onde salvar as imagens desta sessão…", null, 120000);
+            var picked = await hostCallAsync("mflPickFolder", []);
+            if (!picked || !picked.dir) {
+              var cancelled = "Importação cancelada: escolha uma pasta para as imagens (ou salve o projeto antes).";
+              setStatus(cancelled, "error", 6000);
+              return { ok: false, error: cancelled };
+            }
+            session.imagesDir = picked.dir;
+          }
+          root = path.join(session.imagesDir, ROOT_FOLDER);
+        }
+        var first = (payload.groups && payload.groups[0]) || {};
+        var base = sanitize(first.name || (first.container && first.container.name) || payload.fileName || (mode === "raster" ? "Figma PNG" : "Figma Layers"));
+        var named = await hostCallAsync("mflBatchName", [base, root.replace(/\\/g, "/")]);
+        batch = (named && named.name) || base;
+        dir = root ? path.join(root, batch) : "";
+      }
 
       var assetPaths = {};
-      var assets = body.assets || [];
       if (assets.length) {
         fs.mkdirSync(dir, { recursive: true });
         for (var i = 0; i < assets.length; i += 1) {
@@ -473,7 +502,7 @@
       }
 
       var tmp = path.join(os.tmpdir(), "mfl_payload_" + Date.now() + ".json");
-      fs.writeFileSync(tmp, JSON.stringify({ payload: payload, assetPaths: assetPaths }), "utf8");
+      fs.writeFileSync(tmp, JSON.stringify({ payload: payload, assetPaths: assetPaths, batchName: batch }), "utf8");
       var result = await hostCallAsync("mflBuild", [tmp.replace(/\\/g, "/")]);
       // Fica uma cópia do que o Figma mandou (só o JSON, sem os PNGs) para
       // diagnosticar uma importação que saiu diferente do Figma.

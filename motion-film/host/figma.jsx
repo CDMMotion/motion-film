@@ -655,7 +655,9 @@
 
     var rootName = payload.mode === "raster" ? "Figma PNG" : "Figma Layers";
     ctx.rootFolder = findOrCreateFolder("Mótion Figma Layers");
-    var batchName = String(groups[0].name || (groups[0].container && groups[0].container.name) || rootName);
+    // data.batchName comes from mflBatchName: unique, and the same name as
+    // the folder on disk that holds this import's PNGs
+    var batchName = String(data.batchName || groups[0].name || (groups[0].container && groups[0].container.name) || rootName);
     ctx.batchFolder = findOrCreateFolder(batchName, ctx.rootFolder);
     ctx.assetFolder = ctx.batchFolder;
     ctx.precompFolder = ctx.batchFolder;
@@ -797,11 +799,46 @@
     return stringify({ ok: true, dir: "", name: "" });
   }
 
+  // Name for one import: the project folder "Mótion Figma Layers › <name>"
+  // and the disk folder "<diskRoot>/<name>" share it. A name already used
+  // by either gets " 2", " 3"... so a re-import never mixes with (or
+  // overwrites) an earlier one -- Collect Files mirrors the project folders,
+  // and two PNGs with the same name in one folder would collide there.
+  function mflBatchName(base, diskRoot) {
+    base = String(base || "Figma");
+    var taken = {};
+    try {
+      var root = app.project.rootFolder;
+      for (var i = 1; i <= root.numItems; i += 1) {
+        var it = root.item(i);
+        if (it instanceof FolderItem && it.name === "Mótion Figma Layers") {
+          for (var j = 1; j <= it.numItems; j += 1) { taken[it.item(j).name] = true; }
+        }
+      }
+    } catch (scanError) {}
+    for (var n = 1; n < 1000; n += 1) {
+      var name = n === 1 ? base : base + " " + n;
+      if (taken[name]) { continue; }
+      if (diskRoot && new Folder(diskRoot + "/" + name).exists) { continue; }
+      return stringify({ ok: true, name: name });
+    }
+    return stringify({ ok: true, name: base + " " + new Date().getTime() });
+  }
+
+  // Unsaved project: where this session's Figma images go
+  function mflPickFolder() {
+    var f = null;
+    try { f = Folder.myDocuments.selectDlg("O projeto ainda não foi salvo. Escolha onde salvar as imagens do Figma desta sessão (de preferência a pasta onde o projeto vai ficar):"); } catch (dialogError) {}
+    return stringify({ ok: true, dir: f ? f.fsName : "" });
+  }
+
   function mflInfo() {
     return stringify({ ok: true, ae: app.version, loaded: true });
   }
 
   $.global.mflBuild = mflBuild;
   $.global.mflProjectDir = mflProjectDir;
+  $.global.mflBatchName = mflBatchName;
+  $.global.mflPickFolder = mflPickFolder;
   $.global.mflInfo = mflInfo;
 }());

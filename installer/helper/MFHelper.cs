@@ -11,6 +11,9 @@
 // shows Position / Scale / Rotation / Select (any selected animated
 // property); 1-4 or a click picks, Esc or
 // clicking elsewhere closes, and focus goes back to After Effects.
+// A pick hides the popup and hands focus back to After Effects right
+// away (no extra click on the timeline); only an error shows it again,
+// without taking focus, for a moment.
 // Exits when stdin closes (panel or After Effects closed).
 //
 // Built with the .NET Framework csc by installer\build-helper.ps1 into
@@ -169,12 +172,13 @@ class Host : Form
     {
         if (popup != null) { popup.Activate(); return; }
         IntPtr back = Native.GetForegroundWindow();
-        popup = new Popup(this, back);
-        popup.FormClosed += delegate
+        var p = new Popup(this, back);
+        popup = p;
+        p.FormClosed += delegate
         {
             popup = null;
             Send("closed");
-            if (back != IntPtr.Zero) { Native.SetForegroundWindow(back); }
+            if (!p.HandedBack && back != IntPtr.Zero) { Native.SetForegroundWindow(back); }
         };
         popup.Show();
         popup.Activate();
@@ -195,7 +199,11 @@ class Popup : Form
     static readonly string[] Labels = { "Position", "Scale", "Rotation", "Select" };
 
     readonly Host host;
+    readonly IntPtr back;
     readonly float s;
+    bool waiting;      // picked: hidden until the panel answers
+    bool quiet;        // shown again for an error: don't take focus
+    public bool HandedBack;
     Rectangle[] buttons = new Rectangle[4];
     int hover = -1;
     bool busy;
@@ -206,6 +214,7 @@ class Popup : Form
     public Popup(Host host, IntPtr back)
     {
         this.host = host;
+        this.back = back;
         using (var g = CreateGraphics()) { s = g.DpiX / 96f; }
         FormBorderStyle = FormBorderStyle.None;
         ShowInTaskbar = false;
@@ -240,12 +249,12 @@ class Popup : Form
         try { Native.DwmSetWindowAttribute(Handle, 33, ref round, 4); } catch { }
     }
 
-    protected override bool ShowWithoutActivation { get { return false; } }
+    protected override bool ShowWithoutActivation { get { return quiet; } }
 
     protected override void OnDeactivate(EventArgs e)
     {
         base.OnDeactivate(e);
-        if (!closer.Enabled) { Close(); }
+        if (!waiting && !closer.Enabled) { Close(); }
     }
 
     protected override void OnKeyDown(KeyEventArgs e)
@@ -275,19 +284,29 @@ class Popup : Form
     {
         if (busy) { return; }
         busy = true;
-        status = "Applying…";
-        statusError = false;
-        Invalidate();
+        waiting = true;
         Host.Send("pick " + Kinds[n]);
+        // give After Effects the focus back while this process still owns
+        // the foreground (allowed now, maybe not after the popup is gone):
+        // the timeline is live again without a click
+        if (back != IntPtr.Zero) { HandedBack = Native.SetForegroundWindow(back); }
+        Hide();
+        closer.Interval = 5000; // the panel never answered: just go
+        closer.Start();
     }
 
     public void Finish(string message, bool error)
     {
+        closer.Stop();
         busy = false;
+        waiting = false;
+        if (!error) { Close(); return; }
         status = message;
-        statusError = error;
+        statusError = true;
+        quiet = true;
+        Show();
         Invalidate();
-        closer.Interval = error ? 1800 : 650;
+        closer.Interval = 1800;
         closer.Start();
     }
 

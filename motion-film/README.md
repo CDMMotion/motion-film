@@ -5743,3 +5743,71 @@ de uma cena de amostra nossa.
   conferidos quadro a quadro; pelo painel: Whip no corte, Flash trocando
   o Whip, Camera In/Out no mesmo corte, Burn Sweep no indicador de
   tempo; projeto do usuário limpo no fim.
+
+## Changelog -- Mótion Figma Layers: imagens junto do projeto (Collect Files)
+
+Relato do usuário: em alguns Collect Files as imagens vindas do Figma
+ficavam offline. Achado (só lendo disco/código, sem mexer no AE): as 30
+imagens do PC estavam todas em `Documentos/Mótion Figma Layers/Assets`
+(nenhuma pasta `Figma Assets` ao lado de projeto), fora da pasta do
+projeto; e a pasta do painel `Mótion Figma Layers › <frame>` era
+reaproveitada a cada reimportação, com arquivos recomeçando em `_a1` --
+o Collect Files espelha as pastas do painel em `(Footage)`, então dois
+PNGs diferentes com o mesmo nome caíam no mesmo lugar.
+
+Agora (pedido do usuário):
+- **Projeto salvo**: PNGs em `<pasta do .aep>/Mótion Figma Layers/<lote>/`,
+  o mesmo nome da pasta criada no painel de projeto.
+- **`mflBatchName(base, diskRoot)`** (`host/figma.jsx`): nome único pro
+  lote -- pula nomes já usados no painel (`Mótion Figma Layers › ...`) ou
+  no disco, com " 2", " 3"... A pasta do painel e a do disco têm sempre o
+  mesmo nome; reimportar não mistura nem sobrescreve.
+- **Projeto não salvo**: `mflPickFolder` abre a escolha de pasta do AE
+  (uma vez por sessão, `session.imagesDir` em `client/figma.js`, zerado
+  quando o projeto aparece salvo); as imagens vão pra
+  `<pasta escolhida>/Mótion Figma Layers/<lote>/`. Cancelar cancela a
+  importação. Importação sem imagens (só formas/texto, ou "Criar
+  composição") não pergunta nada.
+- O cronômetro de 90 s de "O Figma não respondeu" é desligado assim que
+  os dados chegam (a escolha de pasta pode demorar).
+- Projetos antigos continuam apontando pros caminhos antigos.
+
+## Changelog -- Folders: pasta selecionada + Add / Remove (saem Fold / Unfold / Accordion)
+
+Pedido do usuário: tirar os 3 botões do canto (fechar todas, abrir todas,
+modo acordeão) e as funções deles (`lfFoldAll` e o parâmetro accordion
+do `lfToggle` não existem mais), e no lugar dois botões pra organizar as
+pastas direto pela timeline:
+- **Add** (`lfAdd(gid)`): os layers selecionados na timeline entram na
+  pasta selecionada no painel, no fim do bloco dela (saem da pasta onde
+  estavam). Pasta inteira selecionada (cabeçalho) entra com o bloco; não
+  entra a própria pasta nem uma que está acima dela (laço). Com "Parent to
+  folder" ligado, quem entra segue o Null. Desligado sem pasta selecionada.
+- **Remove** (`lfRemove()`): os layers selecionados saem da pasta onde
+  estão e ficam logo abaixo do bloco dela (numa subpasta, sobem um nível e
+  viram membros da mãe). Shy volta ao do usuário, parent no Null e o matte
+  do grupo são soltos. Processado de baixo pra cima pra manter a ordem.
+- **Seleção no painel** (`selectedId` em `client/folders.js`, só memória):
+  clique na linha seleciona (borda verde) e abre se estiver fechada
+  (`lfToggle(gid, "open")`); clique na pasta já selecionada abre/fecha;
+  a setinha só abre/fecha sem mudar a seleção; Shift/Alt seguem iguais.
+- Helpers novos em `host/folders.jsx`: `selectedUnits` (a montagem de
+  "unidades" que o Group já fazia), `detach`, `blockEnd`, `fitUp`.
+- Testado no navegador com AE simulado (seleção, abre/fecha, chamadas
+  dos botões); o lado do AE ainda precisa do teste ao vivo numa comp
+  MF_TEST.
+
+## Changelog -- Elastic: o popup some assim que aplica
+
+Pedido do usuário: depois de escolher Position / Scale / Rotation /
+Select no popup do atalho, ele continuava aberto e era preciso clicar na
+timeline. Agora (`installer/helper/MFHelper.cs`):
+- a escolha esconde o popup na hora e devolve o foco pra janela do AE
+  que estava na frente (`SetForegroundWindow` ainda com o foco do helper,
+  quando o Windows deixa), sem clique extra;
+- deu certo: o popup fecha; deu erro: ele volta por 1,8 s com a mensagem,
+  sem pegar o foco (`ShowWithoutActivation`);
+- o painel não respondeu em 5 s: fecha mesmo assim.
+- Rebuild: `installer\build-helper.ps1` (bin/ fora do git). Com o AE
+  aberto o .exe em uso pode ser renomeado e trocado; vale ao reabrir o
+  painel.

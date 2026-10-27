@@ -636,6 +636,11 @@ main::-webkit-scrollbar-thumb { background: var(--panel-raised); border-radius: 
 .lf-row { display: flex; align-items: center; gap: 7px; min-height: 28px; padding: 3px 6px 3px calc(6px + var(--lf-depth, 0) * 14px); border: 1px solid var(--line); border-radius: 7px; background: var(--panel-soft); cursor: pointer; user-select: none; transition: border-color .15s ease, opacity .15s ease; }
 .lf-row:hover { border-color: rgba(var(--accent-rgb), .45); }
 .lf-row.is-dimmed { opacity: .45; }
+/* the folder picked in the list: where "Add" puts the layers */
+.lf-row.is-selected { border-color: var(--accent); background: rgba(var(--accent-rgb), .1); }
+.lf-row.is-selected .lf-name, .lf-row.is-selected.is-folded .lf-name { color: var(--accent-bright); }
+.lf-chev { padding: 3px; margin: -3px; border-radius: 4px; }
+.lf-chev:hover { color: var(--text); background: var(--panel-raised); }
 .lf-chev { display: flex; flex-shrink: 0; color: var(--dim); transform: rotate(90deg); transition: transform .15s ease; }
 .lf-row.is-folded .lf-chev { transform: rotate(0deg); }
 .lf-dot { flex-shrink: 0; width: 8px; height: 8px; border-radius: 50%; box-shadow: 0 0 0 1px rgba(0,0,0,.35); }
