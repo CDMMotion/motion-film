@@ -796,80 +796,33 @@ main::-webkit-scrollbar-thumb { background: var(--panel-raised); border-radius: 
 .cap-card .cap-screen { aspect-ratio: 1 / 1; }
 
 /* ---------------------------------------------------------------
-   Text Animation tab (textanim.js): the Home layout -- collapsible
-   .section boxes in a scrolling <main> -- with 01 PREVIEW (stage,
-   In / Out slots, timing, Apply) and 02 LIBRARY (filters + grid).
-   Buttons follow the other tabs: dark boxes that turn green only on
-   hover / when on (.lf-tool, .velocity-input), no filled green.
+   Text Animation tab (textanim.js): Home's section box with a live
+   preview, the six styles, four sliders, preview text + Replay, Apply.
    --------------------------------------------------------------- */
-.ta-stage { position: relative; display: flex; align-items: center; justify-content: center; height: 130px; overflow: hidden; border: 1px solid var(--line); border-radius: 9px; background: var(--panel-deep); perspective: 520px; }
-.ta-sample { color: #fff; font-weight: 800; line-height: 1.15; text-align: center; letter-spacing: -0.01em; white-space: nowrap; transform-style: preserve-3d; }
-.ta-line { display: block; transform-style: preserve-3d; }
-.ta-c { display: inline-block; white-space: pre; transform-style: preserve-3d; will-change: transform, opacity, filter; }
-.ta-stage-tag { position: absolute; top: 7px; left: 9px; color: var(--dim); font-size: 8px; font-weight: 800; letter-spacing: .14em; }
-
-.ta-slots { display: flex; flex-direction: column; gap: 6px; margin-top: 10px; }
-.ta-slot { display: flex; align-items: center; gap: 3px; padding: 3px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel-soft); transition: border-color .15s ease; }
-.ta-slot:hover { border-color: var(--line-strong); }
-.ta-slot.is-active { border-color: rgba(var(--accent-rgb), .45); }
-.ta-slot-toggle { flex: 0 0 auto; width: 34px; height: 26px; padding: 0; border: 1px solid var(--line); border-radius: 6px; color: var(--accent-bright); background: rgba(var(--accent-rgb), .1); font-size: 8.5px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; transition: border-color .15s ease, color .15s ease, background .15s ease; }
-.ta-slot-toggle:hover { border-color: var(--accent); }
-.ta-slot.is-off .ta-slot-toggle { color: var(--dim); background: var(--panel-raised); }
-.ta-slot.is-off .ta-slot-name { opacity: .4; }
-.ta-step, .ta-dice, .ta-slot-fav { flex: 0 0 auto; display: flex; align-items: center; justify-content: center; width: 24px; height: 24px; padding: 0; border: 0; border-radius: 6px; color: var(--muted); background: transparent; }
-.ta-step:hover, .ta-dice:hover, .ta-slot-fav:hover { color: var(--accent-bright); background: var(--panel-raised); }
-.ta-slot-fav svg, .ta-fav svg { fill: none; stroke: currentColor; stroke-width: 1.3; stroke-linejoin: round; }
-.ta-slot-fav.is-on, .ta-fav.is-on { color: #ffc93d; }
-.ta-slot-fav.is-on svg, .ta-fav.is-on svg { fill: currentColor; }
-.ta-slot-name { flex: 1 1 auto; display: flex; flex-direction: column; min-width: 0; padding: 0 4px; cursor: ns-resize; }
-.ta-slot-line { display: flex; gap: 6px; align-items: baseline; min-width: 0; color: var(--text); font-size: 10.5px; font-weight: 700; white-space: nowrap; }
-.ta-slot-num { color: var(--muted); font-size: 9.5px; font-weight: 800; }
-.ta-slot.is-active .ta-slot-num { color: var(--accent-bright); }
-.ta-slot-title { overflow: hidden; text-overflow: ellipsis; }
-.ta-slot-tags { overflow: hidden; color: var(--dim); font-size: 8.5px; font-weight: 650; text-overflow: ellipsis; white-space: nowrap; }
-
-.ta-opts { display: grid; grid-template-columns: 1fr 1fr 1.25fr; gap: 6px; margin-top: 10px; }
-.ta-opts .velocity-input { cursor: text; }
-.ta-num input { flex: 1 1 auto; width: auto; }
-.ta-num em { color: var(--dim); font-size: 9px; font-style: normal; }
-.ta-num input::-webkit-inner-spin-button, .ta-num input::-webkit-outer-spin-button { margin: 0; -webkit-appearance: none; }
-.ta-ease select { flex: 1 1 auto; min-width: 0; padding: 0; border: 0; outline: 0; color: var(--text); background: transparent; font-size: 11px; cursor: pointer; }
-.ta-ease select option { background: var(--panel-raised); }
+.ta-live { display: flex; align-items: center; gap: 5px; color: var(--muted); font-size: 8.5px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
+.ta-live i { width: 6px; height: 6px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 6px rgba(var(--accent-rgb), .7); }
+.ta-stage { display: flex; align-items: center; justify-content: center; height: 140px; overflow: hidden; border: 1px solid var(--line); border-radius: 10px; background: var(--panel-deep); }
+.ta-text { color: #fff; font-size: 34px; font-weight: 800; letter-spacing: -0.01em; white-space: pre; }
+.ta-text span { display: inline-block; white-space: pre; will-change: transform, opacity, filter; }
+.ta-styles { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 12px; }
+.ta-styles button { padding: 6px 11px; border: 1px solid var(--line); border-radius: 999px; color: var(--muted); background: var(--panel-soft); font-size: 10px; font-weight: 700; transition: border-color .15s ease, color .15s ease, background .15s ease; }
+.ta-styles button:hover { border-color: var(--accent); color: var(--accent-bright); }
+.ta-styles button.is-on { border-color: var(--accent); color: var(--accent-bright); background: rgba(var(--accent-rgb), .12); }
+.ta-sliders { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px 14px; margin-top: 12px; }
+.ta-slider { display: flex; flex-direction: column; gap: 4px; color: var(--muted); font-size: 9.5px; font-weight: 650; }
+.ta-slider > span { display: flex; justify-content: space-between; gap: 8px; }
+.ta-slider output { color: var(--accent-bright); font-weight: 700; }
+.ta-slider input { width: 100%; margin: 0; accent-color: var(--accent); }
+.ta-row { display: flex; gap: 6px; margin-top: 12px; }
+.ta-input { flex: 1 1 auto; min-width: 0; padding: 7px 9px; border: 1px solid var(--line); border-radius: 8px; outline: none; color: var(--text); background: var(--panel-soft); font-size: 10.5px; font-weight: 600; }
+.ta-input:focus { border-color: var(--accent); }
+.ta-replay { flex: 0 0 auto; height: auto; }
 .ta-actions { display: flex; gap: 6px; margin-top: 8px; }
 .ta-actions .lf-tool { height: 34px; }
 .ta-actions .lf-tool.is-primary { font-size: 10.5px; }
 .ta-actions .lf-tool:disabled { opacity: .45; }
 .ta-remove { flex: 0 0 auto; width: 40px; }
 .ta-remove:hover { border-color: var(--danger); color: #eaa0b1; }
-
-.ta-count { color: var(--dim); font-size: 9px; font-weight: 650; white-space: nowrap; }
-.ta-filters { display: flex; gap: 6px; }
-.ta-search { flex: 1 1 auto; min-width: 0; padding: 6px 8px; border: 1px solid var(--line); border-radius: 7px; outline: none; color: var(--text); background: var(--panel-soft); font-size: 10px; }
-.ta-search:focus { border-color: var(--accent); }
-.ta-unit { flex: 0 0 auto; }
-.ta-unit .segmented-option { padding: 5px 7px; font-size: 9.5px; }
-.ta-cats { display: flex; gap: 5px; margin-top: 8px; padding-bottom: 5px; overflow-x: auto; overflow-y: hidden; }
-.ta-cats::-webkit-scrollbar { height: 3px; }
-.ta-cats::-webkit-scrollbar-thumb { background: var(--line-strong); border-radius: 3px; }
-.ta-cats button { flex: 0 0 auto; padding: 4px 9px; border: 1px solid var(--line); border-radius: 999px; color: var(--muted); background: var(--panel-soft); font-size: 9.5px; font-weight: 700; white-space: nowrap; transition: border-color .15s ease, color .15s ease; }
-.ta-cats button:hover { color: var(--accent-bright); border-color: var(--accent); }
-.ta-cats button.is-on { color: var(--accent-bright); border-color: var(--accent); background: rgba(var(--accent-rgb), .12); }
-
-.ta-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(88px, 1fr)); gap: 7px; margin-top: 6px; }
-.ta-card { position: relative; display: flex; flex-direction: column; gap: 2px; min-width: 0; padding: 4px 4px 5px; border: 1px solid var(--line); border-radius: 8px; color: var(--muted); background: var(--panel-soft); text-align: left; transition: border-color .15s ease, color .15s ease; }
-.ta-card:hover { border-color: var(--accent); color: var(--text); }
-.ta-card.is-in { border-color: rgba(var(--accent-rgb), .7); }
-.ta-card.is-out { border-color: rgba(var(--accent-rgb), .45); border-style: dashed; }
-.ta-card-screen { position: relative; display: flex; align-items: center; justify-content: center; height: 58px; overflow: hidden; border-radius: 5px; background: var(--panel-deep); perspective: 260px; }
-.ta-card-sample { color: #fff; font-weight: 800; line-height: 1.1; text-align: center; white-space: nowrap; transform-style: preserve-3d; }
-.ta-card-num { position: absolute; left: 5px; bottom: 3px; color: rgba(255, 255, 255, .4); font-size: 8px; font-weight: 700; }
-.ta-card-3d { position: absolute; right: 5px; bottom: 3px; color: var(--muted); font-size: 7.5px; font-weight: 800; letter-spacing: .06em; }
-.ta-card-name { padding: 2px 2px 0; overflow: hidden; color: inherit; font-size: 9.5px; font-weight: 700; text-overflow: ellipsis; white-space: nowrap; }
-.ta-card-sub { padding: 0 2px; overflow: hidden; color: var(--dim); font-size: 8px; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
-.ta-fav { position: absolute; top: 7px; right: 7px; display: flex; padding: 2px; border-radius: 5px; color: rgba(255, 255, 255, .55); background: rgba(0, 0, 0, .35); opacity: 0; transition: opacity .15s ease; }
-.ta-card:hover .ta-fav, .ta-fav.is-on { opacity: 1; }
-.ta-fav:hover { color: #ffc93d; }
-.ta-empty { margin: 14px 0 4px; color: var(--dim); font-size: 10px; text-align: center; }
 
 /* ---------------------------------------------------------------
    Home › 02 / FAVORITES (curve-favorites.js): the ★ on 01 Curves and
@@ -904,7 +857,9 @@ main::-webkit-scrollbar-thumb { background: var(--panel-raised); border-radius: 
 .elastic-buttons .lf-tool:disabled { opacity: .45; }
 .elastic-shortcut { display: flex; align-items: center; gap: 8px; margin-top: 10px; }
 .elastic-shortcut-label { flex: 1 1 auto; color: var(--muted); font-size: 10px; font-weight: 650; }
-#elastic-note.is-warn { color: #e6aa3c; }
+#wheel-note.is-warn { color: #e6aa3c; }
+.wheel-key { padding: 4px 8px; border: 1px solid var(--line); border-radius: 6px; color: var(--text); background: var(--panel-soft); font-size: 10px; font-weight: 700; white-space: nowrap; }
+.elastic-shortcut .lf-tool { height: 26px; }
 
 /* ---------------------------------------------------------------
    Kit › Transitions (transitions.js): built-in category. The Kit grid

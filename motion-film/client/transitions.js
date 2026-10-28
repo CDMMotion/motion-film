@@ -330,6 +330,12 @@
       root = container;
       draw();
       refreshInfo();
+    },
+    // for the Wheel: one effect by id, with its group's duration / direction
+    run: function (id, callback) {
+      var t = CAT.byId[id];
+      if (!t) { callback({ ok: false, error: "Unknown transition." }); return; }
+      call("mftApply", { id: t.id, name: t.name, frames: framesOf(t.group), dir: dirFor(t) }, callback);
     }
   };
 

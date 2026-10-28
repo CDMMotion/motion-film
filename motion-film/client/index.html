@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Mótion Film</title>
-    <link rel="stylesheet" href="styles.css?v=0140a" />
+    <link rel="stylesheet" href="styles.css?v=0150b" />
   </head>
   <body>
     <div class="app-shell">
@@ -38,7 +38,7 @@
         </button>
       </nav>
         <div class="topbar-tools">
-          <span id="version-tag">v0.12.0</span>
+          <span id="version-tag">v0.15.0</span>
           <button id="settings-toggle" class="icon-button" type="button" aria-label="Open settings">•••</button>
         </div>
       </header>
@@ -495,94 +495,48 @@
         </div>
       </div>
 
-      <!-- Text Animation (textanim.js + textanim-library.js; AE side in
-           host/textanim.jsx). Same collapsible sections as Home:
-           01 PREVIEW = stage, In / Out slots, timing + Apply;
-           02 LIBRARY = search, categories, the preset grid. -->
+      <!-- Text Animation (textanim.js; AE side in host/textanim.jsx): letter
+           by letter -- a style, four sliders, a live preview, Apply. -->
       <div id="page-textanim" class="page" hidden>
         <main id="ta-main" class="ta">
-          <section class="section" data-section-id="ta-preview">
+          <section class="section" data-section-id="ta-text">
             <div class="section-tab" role="button" tabindex="0" aria-expanded="true">
-              <div class="section-heading">
+              <div class="section-heading compact">
                 <div>
-                  <div class="section-kicker">01 / PREVIEW</div>
+                  <div class="section-kicker">01 / TEXT ANIMATION</div>
                 </div>
+                <span class="ta-live"><i></i>Live preview</span>
               </div>
               <svg class="section-chevron" viewBox="0 0 12 12" width="10" height="10" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M2.5 4.5L6 8l3.5-3.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
             </div>
             <div class="section-body">
-              <div class="ta-stage" id="ta-stage">
-                <div class="ta-sample" id="ta-sample"></div>
-                <span class="ta-stage-tag" id="ta-stage-tag"></span>
+              <div class="ta-stage" id="ta-stage"><div class="ta-text" id="ta-text"></div></div>
+              <div class="ta-styles" id="ta-styles" role="group" aria-label="Animation style">
+                <button type="button" data-style="rise">Rise</button>
+                <button type="button" data-style="drop">Drop</button>
+                <button type="button" data-style="left">From Left</button>
+                <button type="button" data-style="fade">Fade</button>
+                <button type="button" data-style="scale">Scale Up</button>
+                <button type="button" data-style="blur">Blur In</button>
               </div>
-              <div class="ta-slots">
-                <div class="ta-slot" data-slot="in">
-                  <button type="button" class="ta-slot-toggle" aria-pressed="true" title="Use an entrance">In</button>
-                  <button type="button" class="ta-step" data-step="-1" title="Previous preset" aria-label="Previous preset"><svg viewBox="0 0 16 16" width="11" height="11" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M10 3.5 5.5 8l4.5 4.5"/></svg></button>
-                  <div class="ta-slot-name" title="Scroll to step through the presets">
-                    <span class="ta-slot-line"><b class="ta-slot-num"></b><span class="ta-slot-title"></span></span>
-                    <small class="ta-slot-tags"></small>
-                  </div>
-                  <button type="button" class="ta-step" data-step="1" title="Next preset" aria-label="Next preset"><svg viewBox="0 0 16 16" width="11" height="11" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3.5 10.5 8 6 12.5"/></svg></button>
-                  <button type="button" class="ta-dice" title="Random preset (from the list below)" aria-label="Random preset"><svg viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="2.5" y="2.5" width="11" height="11" rx="2.5"/><circle cx="5.75" cy="5.75" r=".9" fill="currentColor"/><circle cx="10.25" cy="10.25" r=".9" fill="currentColor"/><circle cx="8" cy="8" r=".9" fill="currentColor"/></svg></button>
-                  <button type="button" class="ta-slot-fav" title="Favorite" aria-label="Favorite"><svg viewBox="0 0 16 16" width="12" height="12"><path d="M8 1.9l1.8 3.8 4.1.5-3 2.8.8 4.1L8 11.1 4.3 13.1l.8-4.1-3-2.8 4.1-.5z"/></svg></button>
-                </div>
-                <div class="ta-slot" data-slot="out">
-                  <button type="button" class="ta-slot-toggle" aria-pressed="true" title="Use an exit">Out</button>
-                  <button type="button" class="ta-step" data-step="-1" title="Previous preset" aria-label="Previous preset"><svg viewBox="0 0 16 16" width="11" height="11" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M10 3.5 5.5 8l4.5 4.5"/></svg></button>
-                  <div class="ta-slot-name" title="Scroll to step through the presets">
-                    <span class="ta-slot-line"><b class="ta-slot-num"></b><span class="ta-slot-title"></span></span>
-                    <small class="ta-slot-tags"></small>
-                  </div>
-                  <button type="button" class="ta-step" data-step="1" title="Next preset" aria-label="Next preset"><svg viewBox="0 0 16 16" width="11" height="11" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3.5 10.5 8 6 12.5"/></svg></button>
-                  <button type="button" class="ta-dice" title="Random preset (from the list below)" aria-label="Random preset"><svg viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="2.5" y="2.5" width="11" height="11" rx="2.5"/><circle cx="5.75" cy="5.75" r=".9" fill="currentColor"/><circle cx="10.25" cy="10.25" r=".9" fill="currentColor"/><circle cx="8" cy="8" r=".9" fill="currentColor"/></svg></button>
-                  <button type="button" class="ta-slot-fav" title="Favorite" aria-label="Favorite"><svg viewBox="0 0 16 16" width="12" height="12"><path d="M8 1.9l1.8 3.8 4.1.5-3 2.8.8 4.1L8 11.1 4.3 13.1l.8-4.1-3-2.8 4.1-.5z"/></svg></button>
-                </div>
+              <div class="ta-sliders">
+                <label class="ta-slider" id="ta-amount-row"><span>Amount <output id="ta-out-amount"></output></span><input type="range" id="ta-amount" min="0" max="120" step="1" /></label>
+                <label class="ta-slider"><span>Delay between letters <output id="ta-out-delay"></output></span><input type="range" id="ta-delay" min="0" max="0.2" step="0.005" /></label>
+                <label class="ta-slider"><span>Duration <output id="ta-out-duration"></output></span><input type="range" id="ta-duration" min="0.2" max="2" step="0.05" /></label>
+                <label class="ta-slider"><span>Blur <output id="ta-out-blur"></output></span><input type="range" id="ta-blur" min="0" max="30" step="1" /></label>
               </div>
-              <div class="ta-opts">
-                <label class="velocity-input ta-num"><span>IN</span><input id="ta-dur-in" type="number" min="0.1" max="10" step="0.1" /><em>s</em></label>
-                <label class="velocity-input ta-num"><span>OUT</span><input id="ta-dur-out" type="number" min="0.1" max="10" step="0.1" /><em>s</em></label>
-                <label class="velocity-input ta-ease"><span>EASE</span>
-                  <select id="ta-ease">
-                    <option value="smooth">Smooth</option>
-                    <option value="strong">Strong</option>
-                    <option value="linear">Linear</option>
-                  </select>
-                </label>
+              <div class="ta-row">
+                <input type="text" id="ta-sample" class="ta-input" spellcheck="false" placeholder="Preview text" />
+                <button type="button" id="ta-replay" class="lf-tool ta-replay" title="Play the preview again"><svg viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M2.8 8a5.2 5.2 0 1 0 1.6-3.8"/><path d="M2.5 2.5v3h3"/></svg>Replay</button>
               </div>
               <div class="ta-actions">
-                <button type="button" id="ta-apply" class="lf-tool is-primary" title="Apply In / Out to the selected text layers. In starts at the layer's in point, Out ends at its out point.">
+                <button type="button" id="ta-apply" class="lf-tool is-primary" title="Animate the selected text layers, letter by letter, from their in point">
                   <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M5 6h10M10 6v12"/><path d="M15.5 13.5 18 16l3.5-4.5"/></svg>
                   Apply to text
                 </button>
                 <button type="button" id="ta-remove" class="lf-tool ta-remove" title="Remove the Mótion Film animation from the selected text layers" aria-label="Remove animation"><svg viewBox="0 0 28 28" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M6 8h16M11.5 8V6.2h5V8M9.5 8l1 15h7l1-15" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
               </div>
-            </div>
-          </section>
-
-          <section class="section" data-section-id="ta-library">
-            <div class="section-tab" role="button" tabindex="0" aria-expanded="true">
-              <div class="section-heading compact">
-                <div>
-                  <div class="section-kicker">02 / LIBRARY</div>
-                </div>
-                <span class="ta-count" id="ta-count"></span>
-              </div>
-              <svg class="section-chevron" viewBox="0 0 12 12" width="10" height="10" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M2.5 4.5L6 8l3.5-3.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
-            </div>
-            <div class="section-body">
-              <div class="ta-filters">
-                <input id="ta-search" class="ta-search" type="search" spellcheck="false" placeholder="Search name or #number" />
-                <div class="segmented ta-unit" id="ta-unit" role="tablist">
-                  <button type="button" class="segmented-option" data-unit="all" title="Every unit">All</button>
-                  <button type="button" class="segmented-option" data-unit="c" title="Character by character">Aa</button>
-                  <button type="button" class="segmented-option" data-unit="w" title="Word by word">Word</button>
-                  <button type="button" class="segmented-option" data-unit="l" title="Line by line">Line</button>
-                </div>
-              </div>
-              <div class="ta-cats" id="ta-cats" role="tablist" aria-label="Categories"></div>
-              <div class="ta-grid" id="ta-grid"></div>
-              <p class="ta-empty" id="ta-empty" hidden></p>
+              <div class="lf-hint">Starts at the layer&#39;s in point. The sliders stay on the layer (Effect Controls &#8250; MF Text) to fine-tune later.</div>
             </div>
           </section>
         </main>
@@ -675,11 +629,11 @@
                 <button type="button" class="lf-tool" data-elastic="selected" title="Elastic on any animated property you selected (or whose keyframes you selected): effects, masks, shapes, opacity... with a Floor option (bounce back instead of passing the value)"><svg viewBox="0 0 22 14" width="18" height="12" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M1 7c2-6 4-6 5 0s3 5 4.5 0 2.5-3.5 3.5 0 2-2 3 0 1.5 1 3 0"/></svg> Select</button>
               </div>
               <div class="elastic-shortcut">
-                <span class="elastic-shortcut-label">Shortcut</span>
-                <input id="elastic-hotkey" class="settings-key-input" type="text" readonly spellcheck="false" title="Click, then press the new shortcut" aria-label="Elastic popup shortcut" />
-                <button id="elastic-toggle" class="mf-switch" type="button" role="switch" aria-checked="true" aria-label="Turn the Elastic shortcut on or off"><span class="mf-switch-thumb"></span></button>
+                <span class="elastic-shortcut-label">Wheel</span>
+                <b class="wheel-key" id="wheel-key"></b>
+                <button type="button" id="wheel-open" class="lf-tool" title="Open MF - Wheel: the slices, groups and shortcut of the Wheel">Configure</button>
               </div>
-              <div class="lf-hint" id="elastic-note"></div>
+              <div class="lf-hint" id="wheel-note"></div>
             </div>
           </section>
         </main>
@@ -756,11 +710,12 @@
     <script src="captions.js?v=0140a"></script>
     <script src="folders.js?v=0140a"></script>
     <script src="scalecomp.js?v=0140a"></script>
-    <script src="elastic.js?v=0140a"></script>
+    <script src="wheel-core.js?v=0150a"></script>
+    <script src="wheel-runner.js?v=0150a"></script>
+    <script src="elastic.js?v=0150a"></script>
     <script src="curve-favorites.js?v=0140a"></script>
     <script src="transitions-catalog.js?v=0140a"></script>
-    <script src="transitions.js?v=0140a"></script>
-    <script src="textanim-library.js?v=0140a"></script>
-    <script src="textanim.js?v=0140a"></script>
+    <script src="transitions.js?v=0150a"></script>
+    <script src="textanim.js?v=0150b"></script>
   </body>
 </html>

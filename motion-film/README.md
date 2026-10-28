@@ -5811,3 +5811,68 @@ timeline. Agora (`installer/helper/MFHelper.cs`):
 - Rebuild: `installer\build-helper.ps1` (bin/ fora do git). Com o AE
   aberto o .exe em uso pode ser renomeado e trocado; vale ao reabrir o
   painel.
+
+## Changelog -- Text Animation refeita: letra por letra, no modelo da demo do SaaS-FX
+
+Pedido do usuário: a biblioteca de 2100 presets era repetitiva e ruim de
+navegar por número. A aba virou a ferramenta interativa da página do
+SaaS-FX (venmofx.com), com os mesmos botões e ordem -- estilos **Rise,
+Drop, From Left, Fade, Scale Up, Blur In**; sliders **Amount** (0-120
+px, só nos 3 primeiros), **Delay between letters** (0-0.2 s),
+**Duration** (0.2-2 s), **Blur** (0-30 px); texto da prévia + **Replay**
+-- mais Apply / remover. Código nosso: o comportamento é o padrão de
+qualquer entrada por letra (ease-out cúbico, atraso por índice).
+
+- `client/textanim.js`: prévia com Web Animations (uma por letra, sem
+  contar espaços, `cubic-bezier(.215,.61,.355,1)`), replay a cada
+  mudança; o texto da prévia segue a camada selecionada até você digitar
+  outro. Estado em `motionfilm-textanim`.
+- `host/textanim.jsx`: um Text Animator "MF Text" com Expression
+  Selector (Characters Excluding Spaces; amount = `100*(1-t)^3`, t =
+  (time - inPoint - (textIndex-1)*Delay)/Duration) + 4 Slider Control
+  "MF Text · Amount / Delay / Duration / Blur" que as expressões leem --
+  dá pra ajustar depois no Effect Controls. Rise/Drop/From Left =
+  Position por expressão, Scale Up = Scale 0 (âncora das letras no meio,
+  Grouping Alignment 0,-50), Blur In = Blur x 3.6. Reaplicar troca
+  (remove também "MF In"/"MF Out" da versão antiga).
+- Removido: `client/textanim-library.js` e a UI de slots/biblioteca.
+- Testado ao vivo: os 6 estilos aplicados numa camada de teste, sem
+  erro de expressão, letras entrando em sequência; Remove limpa tudo.
+
+## Changelog -- a Roda (Wheel): menu radial no Ctrl + Tab
+
+Pedido do usuário: uma "roda" aberta por atalho -- o mesmo atalho do
+Elastic, agora Ctrl + Tab -- com 2 a 8 fatias, cada uma podendo ser um
+grupo que abre mais 2 a 8 ao passar o mouse, configurada numa janela
+separada, visual clean. Versão nossa (só a ideia de menu radial).
+
+- **A roda** (`installer/helper/MFHelper.cs`, janela layered com
+  UpdateLayeredWindow): hub no centro com o nome da fatia sob o mouse,
+  fatias a partir do topo em sentido horário, grupo abre um anel externo
+  (até 46° por fatia, centrado no pai). Clique ou teclas 1-8 escolhem,
+  Esc / clique direito / clicar fora fecham, a engrenagem no hub abre a
+  janela de configuração. Escolher esconde a roda e devolve o foco ao AE;
+  um erro aparece por 1.8 s.
+- **Ações**: Elastic (Position / Scale / Rotation / Select), curvas
+  favoritas 1-8, Null / Adjustment / Solid, Text Animation (com as
+  configurações atuais da aba), qualquer efeito do Kit › Transitions,
+  31 comandos do AE prontos (Pre-compose, Split Layer, Easy Ease, Center
+  Anchor...; pelo id, que vale em qualquer idioma), outro comando pelo
+  nome do menu, adicionar um efeito (lista dos efeitos instalados),
+  rodar um script .jsx, aplicar um preset .ffx.
+- **Janela "MF - Wheel"** (`client/wheel.html|js|css`, nova extensão
+  `com.motionfilm.wheel` no manifest): prévia da roda (clique numa fatia
+  para editar), + / − fatias, mover, nome, Action / Group, fatias do
+  grupo com as próprias ações, campo do atalho (aceita Tab), liga/desliga,
+  voltar à roda padrão. Salva sozinha a cada mudança.
+- **Arquivos**: `Documents/Mótion Film Packs/wheel.json` (configuração),
+  `wheel-status.json` (estado do atalho, escrito pelo painel principal),
+  `wheel-pause.json` (enquanto a janela captura um atalho novo).
+- **Padrão**: Elastic (grupo), Curves (grupo 1-4), Null, Adjustment,
+  Pre-compose, Text Anim.
+- Tools › 04 / ELASTIC: os 4 botões continuam; embaixo, o atalho da roda
+  e o botão Configure (o campo de atalho do Elastic saiu).
+- Testado ao vivo: roda aberta pelo painel e clicada (Null criado; grupo
+  aberto no hover e o filho "3D" aplicado), configuração nova recarregada
+  sem reabrir nada, pausa do atalho durante a captura, `host/wheel.jsx`
+  (efeito, comando por id e por nome, erros).

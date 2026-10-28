@@ -17,6 +17,6 @@ if (-not $out) { $out = Join-Path $root 'motion-film\bin\win\MFHelper.exe' }
 New-Item -ItemType Directory -Force (Split-Path -Parent $out) | Out-Null
 $csc = Join-Path $env:WINDIR 'Microsoft.NET\Framework64\v4.0.30319\csc.exe'
 if (-not (Test-Path $csc)) { $csc = Join-Path $env:WINDIR 'Microsoft.NET\Framework\v4.0.30319\csc.exe' }
-& $csc /nologo /target:winexe /optimize+ /codepage:65001 "/out:$out" /r:System.Windows.Forms.dll /r:System.Drawing.dll $src
+& $csc /nologo /target:winexe /optimize+ /codepage:65001 "/out:$out" /r:System.Windows.Forms.dll /r:System.Drawing.dll /r:System.Web.Extensions.dll $src
 if ($LASTEXITCODE -ne 0) { throw "csc falhou ($LASTEXITCODE)" }
 Write-Host "OK: $out"

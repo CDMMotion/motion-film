@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>MF - Wheel</title>
+    <link rel="stylesheet" href="styles.css?v=0150b" />
+    <link rel="stylesheet" href="wheel.css?v=0150c" />
+  </head>
+  <body>
+    <!-- Settings of the Wheel (wheel.js). Same minimal shell as the other
+         satellite windows (palette.html / layers.html), #paint-keepalive
+         included. The Wheel itself works without this window: the main
+         panel (wheel-runner.js) reads the same file this one saves,
+         Documents/Mótion Film Packs/wheel.json. -->
+    <div class="app-shell">
+      <canvas id="paint-keepalive" width="8" height="8" aria-hidden="true"></canvas>
+      <div id="status" class="status" role="status" aria-live="polite" hidden></div>
+      <main class="wh">
+        <section class="section">
+          <div class="section-tab wh-tab">
+            <div class="section-heading compact">
+              <div><div class="section-kicker">MF / WHEEL</div></div>
+              <span class="wh-count"><button type="button" id="wh-less" title="One slice less">−</button><b id="wh-n"></b><span>slices</span><button type="button" id="wh-more" title="One slice more">+</button></span>
+            </div>
+          </div>
+          <div class="section-body">
+            <div class="wh-preview"><svg id="wh-svg" viewBox="0 0 400 400" aria-label="Wheel preview"></svg></div>
+            <p class="wh-hint">Click a slice to edit it. A group opens its own slices around it on hover.</p>
+
+            <div class="wh-editor" id="wh-editor">
+              <div class="wh-row">
+                <label class="wh-field wh-grow"><span>Label</span><input type="text" id="wh-label" maxlength="28" spellcheck="false" /></label>
+                <div class="wh-move">
+                  <button type="button" id="wh-left" title="Move counter-clockwise">‹</button>
+                  <button type="button" id="wh-right" title="Move clockwise">›</button>
+                </div>
+              </div>
+              <div class="segmented wh-kind" id="wh-kind">
+                <button type="button" class="segmented-option" data-kind="action">Action</button>
+                <button type="button" class="segmented-option" data-kind="group">Group</button>
+              </div>
+              <div id="wh-action-box"></div>
+              <div id="wh-group-box" hidden>
+                <div class="wh-sub-head"><span>Slices of the group</span><span class="wh-count small"><button type="button" id="wh-kid-less" title="One less">−</button><b id="wh-kid-n"></b><button type="button" id="wh-kid-more" title="One more">+</button></span></div>
+                <div id="wh-kids"></div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="section">
+          <div class="section-tab wh-tab">
+            <div class="section-heading compact"><div><div class="section-kicker">SHORTCUT</div></div></div>
+          </div>
+          <div class="section-body">
+            <div class="wh-row">
+              <input id="wh-hotkey" class="settings-key-input wh-key" type="text" readonly spellcheck="false" title="Click, then press the new shortcut" aria-label="Wheel shortcut" />
+              <button id="wh-enabled" class="mf-switch" type="button" role="switch" aria-checked="true" aria-label="Turn the Wheel shortcut on or off"><span class="mf-switch-thumb"></span></button>
+            </div>
+            <p class="wh-hint" id="wh-state"></p>
+            <button type="button" class="cap-link" id="wh-reset">Back to the default wheel</button>
+          </div>
+        </section>
+      </main>
+    </div>
+    <script src="shared-core.js?v=0150a"></script>
+    <script src="wheel-core.js?v=0150a"></script>
+    <script src="transitions-catalog.js?v=0150a"></script>
+    <script src="wheel.js?v=0150c"></script>
+  </body>
+</html>

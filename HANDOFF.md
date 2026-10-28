@@ -1998,16 +1998,34 @@ continuar rodando ExtendScript pela 8094 (MF - Camadas), que usa o
 mesmo motor. Erro de sintaxe num script mandado por evalScript abre um
 diálogo modal no AE e trava todo evalScript até alguém clicar OK.
 
-## Painel Elastic (atalho, Windows)
+## Roda (Wheel) -- menu radial no atalho (Windows)
 
-`installer/helper/MFHelper.cs` (compilado em `motion-film/bin/win/` por
-`installer/build-helper.ps1`; rodar esse script depois de mexer no .cs
--- o symlink de dev usa o .exe local) + `client/elastic.js` +
-`host/elastic.jsx`. Detalhes no README, "Painel Elastic no atalho".
-Os controles ficam em Tools › 04 / ELASTIC. As curvas favoritas já
-existem (Home › 02 / FAVORITES, `client/curve-favorites.js`, chave
-`motionfilm-curve-favorites`); próximo passo: mostrar as favoritas 1-4
-na janelinha do atalho (nova linha `pick curve <n>` no protocolo).
+Ctrl + Tab (configurável) com o AE na frente abre uma roda de 2-8
+fatias no mouse; uma fatia pode ser um grupo que abre mais 2-8 num anel
+externo ao passar o mouse. Substituiu o popup do Elastic (que agora é um
+grupo da roda padrão).
+
+- `installer/helper/MFHelper.cs` -> `motion-film/bin/win/MFHelper.exe`
+  (`installer/build-helper.ps1`; bin/ fora do git, recompilar depois de
+  mexer no .cs). Desenha a roda (janela layered) e devolve `pick <id>`.
+  Protocolo no cabeçalho do .cs.
+- `client/wheel-core.js`: arquivo `Documents/Mótion Film Packs/wheel.json`,
+  catálogo de ações, defaults. Compartilhado pelas duas janelas.
+- `client/wheel-runner.js` (painel principal): inicia o helper, manda a
+  roda/atalho/tema, recarrega quando o wheel.json muda e executa as
+  escolhas (Elastic, curvas favoritas, camadas, Text Animation,
+  Transitions; comandos de menu / efeitos / scripts / presets por
+  `host/wheel.jsx`). Escreve `wheel-status.json` (estado + heartbeat).
+- Janela "MF - Wheel" (`com.motionfilm.wheel`, porta debug 8096):
+  `client/wheel.html|js|css`, só configura -- a roda funciona com ela
+  fechada, mas precisa do painel principal aberto. Ao capturar um atalho
+  novo ela cria `wheel-pause.json` para o painel soltar o atual.
+- Tools › 04 / ELASTIC mostra o atalho e o botão Configure.
+
+Teste ao vivo: `MF.wheel.open()` pela 8092 + PostMessage
+WM_MOUSEMOVE/WM_LBUTTONDOWN/UP na janela do MFHelper (coordenadas do
+cliente; tamanho 424 px a 96 dpi, centro no meio). Comandos de menu que
+abrem diálogo (Pre-compose) travam o evalScript até fechar.
 
 ## Kit › Transitions
 

@@ -1,0 +1,45 @@
+/* MF - Wheel settings window (wheel.js). Reuses styles.css (sections,
+   segmented, switch, key field) and adds the preview + editor. */
+#paint-keepalive { position: fixed; left: 0; top: 0; width: 1px; height: 1px; opacity: .01; pointer-events: none; }
+.wh { padding-bottom: 12px; }
+.wh-tab { cursor: default; }
+.wh-tab:hover { border-color: var(--line-strong); }
+.wh-count { display: flex; align-items: center; gap: 6px; color: var(--muted); font-size: 9.5px; font-weight: 650; }
+.wh-count b { min-width: 10px; color: var(--text); font-size: 11px; text-align: center; }
+.wh-count button, .wh-move button { width: 22px; height: 22px; padding: 0; border: 1px solid var(--line); border-radius: 6px; color: var(--muted); background: var(--panel-soft); font-size: 13px; line-height: 1; }
+.wh-count button:hover, .wh-move button:hover { border-color: var(--accent); color: var(--accent-bright); }
+.wh-count button:disabled, .wh-move button:disabled { opacity: .35; pointer-events: none; }
+.wh-preview { display: flex; justify-content: center; padding: 6px; border: 1px solid var(--line); border-radius: 10px; background: var(--panel-deep); }
+.wh-preview svg { width: 100%; max-width: 300px; height: auto; }
+.wh-preview .sl { cursor: pointer; }
+.wh-preview .sl path { fill: var(--panel-raised); transition: fill .12s ease; }
+.wh-preview .sl:hover path { fill: color-mix(in srgb, var(--panel-raised) 70%, var(--accent)); }
+.wh-preview .sl.is-on path { fill: var(--accent); }
+.wh-preview .sl text { fill: var(--text); font: 600 12px Inter, "Segoe UI", sans-serif; pointer-events: none; }
+.wh-preview .sl.is-on text { fill: var(--accent-ink); }
+.wh-preview .kid path { fill: var(--panel-raised); opacity: .9; }
+.wh-preview .kid text { fill: var(--muted); font: 600 10.5px Inter, "Segoe UI", sans-serif; }
+.wh-preview .back { fill: color-mix(in srgb, var(--panel) 50%, #000); }
+.wh-preview .hub { fill: var(--panel-deep); stroke: var(--line-strong); }
+.wh-preview .hub-text { fill: var(--muted); font: 600 11px Inter, "Segoe UI", sans-serif; }
+.wh-preview .mark { stroke: var(--accent); stroke-width: 3.2; stroke-linecap: round; fill: none; pointer-events: none; }
+.wh-preview .sl.is-on .mark { stroke: var(--accent-ink); opacity: .75; }
+.wh-hint { margin: 7px 0 0; color: var(--dim); font-size: 9.5px; line-height: 1.45; }
+.wh-hint.is-warn { color: #e6aa3c; }
+.wh-editor { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--line); }
+.wh-row { display: flex; align-items: flex-end; gap: 8px; }
+.wh-grow { flex: 1 1 auto; min-width: 0; }
+.wh-move { display: flex; gap: 4px; padding-bottom: 3px; }
+.wh-field { display: flex; flex-direction: column; gap: 4px; color: var(--muted); font-size: 9.5px; font-weight: 650; }
+.wh-field input, .wh-field select, .wh-select, .wh-input { width: 100%; padding: 6px 8px; border: 1px solid var(--line); border-radius: 7px; outline: none; color: var(--text); background: var(--panel-soft); font-size: 10.5px; font-weight: 600; }
+.wh-field input:focus, .wh-select:focus, .wh-input:focus { border-color: var(--accent); }
+.wh-select option, .wh-select optgroup { background: var(--panel-raised); }
+.wh-kind { margin-top: 10px; }
+.wh-action { display: flex; flex-direction: column; gap: 6px; margin-top: 10px; }
+.wh-extra { display: flex; gap: 6px; }
+.wh-extra .lf-tool { flex: 0 0 auto; height: auto; }
+.wh-sub-head { display: flex; align-items: center; justify-content: space-between; margin: 12px 0 6px; color: var(--muted); font-size: 9.5px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; }
+.wh-kid { display: grid; grid-template-columns: 18px minmax(0, 1fr); gap: 6px; align-items: start; padding: 8px 0; border-top: 1px solid var(--line); }
+.wh-kid > i { padding-top: 7px; color: var(--dim); font-size: 9px; font-style: normal; font-weight: 700; }
+.wh-kid .wh-action { margin-top: 6px; }
+.wh-key { flex: 1 1 auto; width: auto; }
