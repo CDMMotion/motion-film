@@ -7,7 +7,7 @@
  * from Documents/Mótion Film Packs/wheel.json (wheel-core.js) -- again
  * whenever the "MF - Wheel" settings window saves that file -- and runs
  * what comes back as "pick <id>":
- *   elastic / textanim / transition / curve / layer   Mótion Film tools
+ *   elastic / textanim / textfav / transition / curve / layer   Mótion Film tools
  *   command / effect / script / preset               host/wheel.jsx
  * The helper's state (shortcut held, taken by another program...) is
  * written next to the settings as wheel-status.json for that window.
@@ -98,6 +98,13 @@
         return;
       case "textanim":
         if (window.MF.textanim) { window.MF.textanim.run(done); } else { done({ ok: false, error: "Text Animation isn't loaded." }); }
+        return;
+      case "textfav":
+        var tf = [];
+        try { tf = JSON.parse(window.localStorage.getItem("motionfilm-textanim-favorites") || "[]"); } catch (e) {}
+        var t = tf[(a.n | 0) - 1];
+        if (!t || !window.MF.textanim || !window.MF.textanim.apply) { done({ ok: false, error: "There's no favorite text animation " + a.n + " yet (Text Animation › 02 / Favorites)." }); return; }
+        window.MF.textanim.apply(t, done);
         return;
       case "transition":
         if (window.MF.transitions && window.MF.transitions.run) { window.MF.transitions.run(a.id, done); } else { done({ ok: false, error: "Transitions aren't loaded." }); }

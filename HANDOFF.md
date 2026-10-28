@@ -1981,15 +1981,17 @@ sessão): entender a organização/objetivos é ok, mas nenhum código
 protegido/proprietário de terceiros é copiado ou incorporado. Vale manter
 esse mesmo cuidado se aparecer mais pesquisa desse tipo.
 
-## Aba Text Animation (nossa versão do AfterFlix Animations)
+## Aba Text Animation
 
-Biblioteca de 2100 entradas/saídas de texto gerada por código nosso
-(`client/textanim-library.js`), UI em `client/textanim.js`, AE em
-`host/textanim.jsx` (`$.evalFile` sob demanda). Um preset = visual
-escondido de um Text Animator + Range Selector; o host cria "MF In" /
-"MF Out" nos textos selecionados. Detalhes e armadilhas (matchName
-`ADBE Text Track Type`; addProperty com matchName errado aborta o
-script sem catch) no README, "Aba Text Animation".
+Ferramenta de entrada no modelo da demo do SaaS-FX (a biblioteca de 2100
+presets foi removida): Letter / Word / Line by line, 6 estilos (Rise,
+Drop, From Left, Fade, Scale Up, Blur In) e 4 sliders. UI e prévia em
+`client/textanim.js`, AE em `host/textanim.jsx` (`$.evalFile` sob
+demanda): um animator "MF Text" com Expression Selector (Based On 2/3/4)
+lendo 4 Slider Control "MF Text · ...". Detalhes no README, changelogs
+"Text Animation refeita" e "Text Animation: letra, palavra ou linha".
+Armadilhas: matchName `ADBE Text Track Type`; addProperty com matchName
+errado aborta o script sem catch.
 
 Teste ao vivo: a ponte 8092 some se o painel principal for fechado e
 reaberto rápido demais (o motor novo tenta abrir a porta enquanto o
@@ -2035,3 +2037,15 @@ corte / indicador de tempo), `client/transitions-catalog.js`,
 `client/transitions.js`, prévias em `client/assets/transitions/`
 geradas por `dev/transitions-lab.jsx`. Detalhes e armadilhas no README,
 "Kit › Transitions".
+
+## Tools › Carousel
+
+Nossa versão do Carousel do SaaS-FX: `host/carousel.jsx` (null "MF
+Carousel N" + expressões em Position / Scale / Opacity / Orientation / Z
+Rotation das camadas) e `client/carousel.js` (prévia Spherical / Radial /
+Rectangular / Curved Line com pinos arrastáveis, ligada ao carrossel
+selecionado). Counter: `host/counter.jsx` + `client/counter.js` (aba
+Text Animation). Detalhes no README, "Tools › 05 /
+CAROUSEL". As expressões acham o null pelo nome: renomear o null quebra
+o carrossel (aplicar de novo conserta).
+

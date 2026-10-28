@@ -17,6 +17,7 @@
  *   { type: "curve", n }                 favorite curve n (Home › 02)
  *   { type: "layer", kind: null|adjustment|solid }
  *   { type: "textanim" }                 Text Animation with its current settings
+ *   { type: "textfav", n }               favorite text animation n (Text Animation › 02)
  *   { type: "transition", id }           Kit › Transitions effect
  *   { type: "command", id, name }        an After Effects menu command (id
  *                                        works in any AE language; name as fallback)
@@ -84,6 +85,9 @@
     { group: "Text", items: [
       { label: "Text Anim", action: { type: "textanim" } }
     ] },
+    { group: "Text favorites", items: [1, 2, 3, 4, 5, 6, 7, 8].map(function (n) {
+      return { label: "Text " + n, action: { type: "textfav", n: n } };
+    }) },
     { group: "After Effects", items: COMMANDS.map(function (c) {
       return { label: c.label, action: { type: "command", id: c.id, name: c.name } };
     }) }
@@ -184,6 +188,7 @@
       case "curve": return "Favorite curve " + a.n;
       case "layer": return "New " + a.kind;
       case "textanim": return "Text Animation (current settings)";
+      case "textfav": return "Favorite text animation " + a.n;
       case "transition": return "Transition " + a.id;
       case "command": return "AE command: " + (a.name || a.id);
       case "effect": return "Effect: " + (a.name || a.match);

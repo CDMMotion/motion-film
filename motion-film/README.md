@@ -5876,3 +5876,141 @@ separada, visual clean. Versão nossa (só a ideia de menu radial).
   aberto no hover e o filho "3D" aplicado), configuração nova recarregada
   sem reabrir nada, pausa do atalho durante a captura, `host/wheel.jsx`
   (efeito, comando por id e por nome, erros).
+
+## Changelog -- Text Animation: letra, palavra ou linha
+
+Pedido do usuário: além de letra por letra, poder animar palavra por
+palavra e linha por linha. Um seletor de três opções fica acima dos
+estilos -- **Letter by letter / Word by word / Line by line**.
+
+- `host/textanim.jsx`: o Based On do Expression Selector vira 2
+  (Characters Excluding Spaces), 3 (Words) ou 4 (Lines); a expressão
+  é a mesma (textIndex conta a unidade escolhida). No Scale Up, o
+  Anchor Point Grouping acompanha (Character / Word / Line), para cada
+  palavra ou linha crescer do próprio meio.
+- `client/textanim.js`: `by` salvo em `motionfilm-textanim`; a prévia
+  anima letras, palavras (contadas em todas as linhas) ou linhas, e
+  mostra até 3 linhas do texto da camada (o padrão em Line by line tem
+  2 linhas). O slider vira "Delay between letters / words / lines" e
+  vai até 0.5 s em palavras e linhas (0.2 s em letras). A Roda usa o
+  modo atual.
+- Testado ao vivo: os 3 modos x Rise / Scale Up / Blur In numa camada
+  de 2 linhas, sem erro de expressão; Remove limpa tudo.
+
+## Changelog -- Tools › 05 / CAROUSEL (Radial e Curved Line)
+
+Pedido do usuário: a ferramenta Carousel da demo do SaaS-FX
+(venmofx.com), com os modos Radial e Curved Line e os 3 pinos
+arrastáveis, dentro da aba Tools. Código nosso (só o comportamento).
+
+- **Radial**: as camadas selecionadas viram um anel 3D que gira;
+  Rotation X inclina o anel, Rotation Y vira de lado. A profundidade fica
+  com a câmera padrão do AE (cartão da frente maior e na frente).
+- **Curved Line**: os cartões correm por uma curva que passa pelos pinos
+  Start / Middle / End (quadrática pelo Middle em t = 0.5, passo igual
+  por comprimento em cada metade); maior e na frente no Middle, menor e
+  sumindo nas pontas.
+- `host/carousel.jsx` (`cxApply / cxUpdate / cxRemove / cxState`): cria o
+  null "MF Carousel N" com Speed (cartões/s), Offset (cartões; dá pra
+  animar para parar e andar), Curved Line, Radius, Rotation X/Y, Start /
+  Middle / End (Point Control, arrastáveis no viewer), Focus / Edge
+  Scale. Cada camada vira 3D e ganha expressões em Position, Scale e
+  Opacity (marcadas com `// MF Carousel:`); Remove tira as expressões e
+  devolve 2D a quem era 2D; o null some quando fica sem cartões.
+  Aplicar de novo nas mesmas camadas reaproveita o null.
+- `client/carousel.js`: prévia com a mesma matemática das expressões,
+  num quadro com a proporção da comp ativa (os pinos caem no mesmo
+  lugar da comp); pinos arrastáveis, Reset, Speed, play/pause. Com um
+  carrossel na seleção (o null ou um cartão) a seção fica ligada a ele e
+  as mudanças vão ao vivo para o null. Estado em `motionfilm-carousel`.- Testado ao vivo no AE 26.5: Radial e Curved Line sem erro de
+  expressão (frames renderizados conferidos), cartão do meio no pino
+  Middle, link ao vivo pelo painel (selecionar um cartão liga; slider e
+  modo mudam o null), Remove pelo null volta tudo para 2D e apaga o null.
+
+## Changelog -- Carousel com 4 estilos, Text Animation com 10 estilos + Bounce, Counter
+
+Pedido do usuário: implementar o que aparece em 5 vídeos do SaaS-FX no
+Instagram (venmo.fx), inclusive as ferramentas de texto que faltavam.
+Código nosso; só o comportamento e os nomes das opções.
+
+**Carousel** (`host/carousel.jsx`, `client/carousel.js`), refeito:
+- Estilos em grade 2x2: **Spherical** (esfera de cartões girando),
+  **Radial** (anel; Spread < 360 vira arco aberto), **Rectangular**
+  (parede em grade rolando de lado), **Curved Line**.
+- Size, Spread, Rotation X / Y, **Facing** Forward / Screen (virados
+  pra câmera, `lookAt(camera, posição)`) / Center (de costas pro centro).
+- Curved Line: **Gap** (0 = Auto), **Side size**, **Middle size**,
+  **Middle width**, **Softness**, **Follow curve** (gira com a tangente).
+- Speed agora em % do percurso por segundo (Offset também em %).
+- No null: Style e Facing são Dropdown Menu Control
+  (`setPropertyParameters`); expressões em Position, Scale, Opacity,
+  Orientation e Z Rotation. Armadilha: `effect(n)(1)` é a propriedade,
+  não o valor -- `if (prop)` é sempre verdadeiro; ler `.value`.
+- Testado ao vivo: os 4 estilos e os 3 Facing sem erro de expressão
+  (frames renderizados um por vez -- `saveFrameToPng` é assíncrono), link
+  ao vivo mudando Style / Facing / Size do null.
+
+**Text Animation**: + **From Right, Zoom Out** (escala 250%), **Rotate
+In** (-90°), **Tracking In** (Amount x 4 de tracking) e **Bounce / No
+bounce** (checkbox "MF Text · Bounce"; ease-out back que passa e volta,
+`cubic-bezier(.34,1.56,.64,1)` na prévia). Testado: 10 estilos x Bounce
+sem erro de expressão, frames conferidos.
+
+**Counter** (Text Animation › 02 / COUNTER; `host/counter.jsx`,
+`client/counter.js`): Count to, Currency (None / $ / € / R$, R$ com
+milhar em ponto), Duration; Source Text por expressão lendo "MF Counter ·
+From / To / Duration". Sem texto selecionado cria uma camada no meio.
+Testado: R$ 12.500, €949, $1,000,000; Remove limpa.
+
+Typing e Exploder aparecem só no menu dos vídeos, sem mostrar como
+funcionam -- ficaram de fora.
+- Bounce mais forte (pedido do usuário: "para sem balançar muito"): virou
+  um balanço elástico, `1 - exp(-6t) * cos(5*pi*t)` -- passa ~30%, volta
+  ~9%, passa ~3% e assenta. A prévia usa a mesma curva em 41 keyframes
+  lineares (cubic-bezier não faz oscilação). Medido no AE (Line by line,
+  Rise 100 px): 100 -> -30 -> +9 -> -3 -> 0.
+
+## Changelog -- Text Animation › 02 / FAVORITES
+
+Pedido do usuário: favoritos na ferramenta de texto, como os das curvas.
+
+- `client/textanim-favorites.js` (mesmo desenho de `curve-favorites.js`):
+  a ★ no canto da prévia salva a animação atual (Letter / Word / Line,
+  Bounce, estilo, Amount, Delay, Duration, Blur) e fica cheia quando ela
+  já é favorita (clicar de novo remove). A seção 02 / FAVORITES mostra as
+  4 primeiras como tiles -- um "Abc" que toca a animação ao passar o
+  mouse, nome do estilo e "Letter · Bounce · 0.8 s" -- e o botão Library
+  mostra todas. Clique = carrega na 01 e aplica nos textos selecionados
+  (sem seleção, só carrega); arrastar reordena; × remove. Salvo em
+  `motionfilm-textanim-favorites`. O Counter virou 03.
+- `client/textanim.js`: a prévia virou `animateInto(host, texto,
+  settings, escala)` (usada também pelos tiles) e `MF.textanim` ganhou
+  get / load / apply / selected / name / by / onChange.
+- Roda: nova ação "Text favorite 1-8" (grupo "Text favorites" no MF -
+  Wheel; `wheel-runner.js` lê os favoritos e aplica com
+  `MF.textanim.apply`).
+- Testado: no navegador (salvar, estrela, tiles, hover, carregar,
+  remover) e no AE (clique no tile com um texto selecionado aplicou Word
+  / Rotate In / Bounce / 0.1 s).
+
+## Changelog -- Folders funcionam numa comp duplicada
+
+Bug relatado: duplicar uma comp com pastas e mexer nas pastas da cópia
+não funcionava. Causa: as pastas guardam os membros por `layer.id`, e o
+Duplicate do AE dá ids novos a todas as camadas -- na cópia os ids eram
+os da original, `scan` os tratava como apagados e salvava a pasta vazia.
+
+- `host/folders.jsx`: `adopt` troca, em todos os campos da pasta
+  (members, base, hid, parented, matte, fx, ov), um id que não está na comp
+  pelo da camada gêmea: `app.project.layerByID(id)` acha a original na
+  outra comp e a gêmea é a de mesma posição e mesmo nome (ou a única com
+  esse nome). A pasta é salva com os ids novos e fica independente da
+  original.
+- `recover`: cópias já abertas antes da correção ficaram com pastas
+  vazias, mas com o mesmo id de pasta da original -- uma pasta vazia pega
+  os membros da pasta de mesmo id em outra comp (uma vez por cabeçalho por
+  sessão).
+- Testado ao vivo: pasta com subpasta, dobrada na original; na cópia
+  aparecem Outer (6) / Inner (2), abrem e fecham sem mexer na original;
+  cópia "estragada" (membros vazios) recuperada, com ids só dela.
+

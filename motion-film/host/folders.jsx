@@ -78,7 +78,7 @@
   }
 
   function scan(comp) {
-    var st = { comp: comp, byId: {}, list: [], groups: [], byGid: {}, byHeader: {} };
+    var st = { comp: comp, byId: {}, list: [], groups: [], byGid: {}, byHeader: {}, twins: {} };
     for (var i = 1; i <= comp.numLayers; i += 1) {
       var L = comp.layer(i);
       st.byId[L.id] = L;
@@ -94,6 +94,9 @@
         st.byHeader[L.id] = g;
       }
     }
+    // Comp duplicada: as pastas vêm com os ids da comp original; troca
+    // pelos das camadas gêmeas daqui antes de descartar os que faltam.
+    for (var a = 0; a < st.groups.length; a += 1) { recover(st, st.groups[a]); adopt(st, st.groups[a]); }
     // Membros que não existem mais saem; liga pai/filhos.
     for (var k = 0; k < st.groups.length; k += 1) {
       var gr = st.groups[k];
@@ -115,6 +118,92 @@
       }
     }
     return st;
+  }
+
+  // A camada desta comp que é a cópia da camada `id` de outra comp (Duplicate
+  // da comp dá ids novos a tudo): mesma posição e mesmo nome, ou a única
+  // com esse nome. null se o id não é de outra comp ou não tem gêmea.
+  function twinOf(st, id) {
+    if (st.twins.hasOwnProperty(id)) { return st.twins[id]; }
+    var out = null;
+    var L0 = null;
+    try { L0 = app.project.layerByID(id); } catch (e) {}
+    if (L0) {
+      var other = null;
+      try { other = L0.containingComp; } catch (e2) {}
+      if (other && other.id !== st.comp.id) {
+        var comp = st.comp;
+        if (L0.index <= comp.numLayers && comp.layer(L0.index).name === L0.name) {
+          out = comp.layer(L0.index);
+        } else {
+          var hits = 0;
+          for (var i = 1; i <= comp.numLayers; i += 1) {
+            if (comp.layer(i).name === L0.name) { out = comp.layer(i); hits += 1; }
+          }
+          if (hits !== 1) { out = null; }
+        }
+      }
+    }
+    st.twins[id] = out ? out.id : 0;
+    return st.twins[id];
+  }
+
+  // Cópias abertas antes desta correção perderam a lista de membros (os ids
+  // da original foram descartados e a pasta salva vazia), mas o id da pasta
+  // ficou igual ao da original: uma pasta vazia pega os membros da pasta de
+  // mesmo id em outra comp (adopt troca pelos ids daqui). Uma vez por
+  // cabeçalho por sessão.
+  function recover(st, g) {
+    if (g.data.members.length) { return; }
+    var seen = $.global.__mfFolderRecover || ($.global.__mfFolderRecover = {});
+    var key = st.comp.id + ":" + g.header.id;
+    if (seen[key]) { return; }
+    seen[key] = true;
+    for (var i = 1; i <= app.project.numItems; i += 1) {
+      var item = app.project.item(i);
+      if (!(item instanceof CompItem) || item.id === st.comp.id) { continue; }
+      for (var j = 1; j <= item.numLayers; j += 1) {
+        var d = readData(item.layer(j));
+        if (d && d.id === g.data.id && d.members.length) {
+          g.data.members = d.members.slice(0);
+          if (!g.data.parented.length) { g.data.parented = d.parented.slice(0); }
+          if (!g.data.matte) { g.data.matte = d.matte || 0; }
+          if (!g.data.fx) { g.data.fx = d.fx || 0; }
+          g.dirty = true;
+          return;
+        }
+      }
+    }
+  }
+
+  // Troca, em todos os campos da pasta, os ids de fora pelos das gêmeas.
+  function adopt(st, g) {
+    var d = g.data;
+    var changed = false;
+    function one(id) {
+      if (!id || st.byId[id]) { return id; }
+      var t = twinOf(st, id);
+      if (t) { changed = true; return t; }
+      return id;
+    }
+    function list(a) {
+      var out = [];
+      for (var i = 0; i < a.length; i += 1) { out.push(one(a[i])); }
+      return out;
+    }
+    function obj(o) {
+      var out = {};
+      for (var k in o) { if (o.hasOwnProperty(k)) { out[one(Number(k)) || k] = o[k]; } }
+      return out;
+    }
+    d.members = list(d.members);
+    d.parented = list(d.parented);
+    d.base = obj(d.base);
+    d.hid = obj(d.hid);
+    if (d.matte) { d.matte = one(d.matte); }
+    if (d.fx) { d.fx = one(d.fx); }
+    for (var key in d.ov) { if (d.ov.hasOwnProperty(key)) { d.ov[key] = obj(d.ov[key]); } }
+    if (changed) { g.dirty = true; }
   }
 
   // Todos os layers dentro da pasta (membros + subpastas inteiras), sem o

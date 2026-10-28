@@ -130,6 +130,7 @@
     switch (a.type) {
       case "elastic": case "layer": return "a:" + a.type + ":" + a.kind;
       case "curve": return "a:curve:" + a.n;
+      case "textfav": return "a:textfav:" + a.n;
       case "textanim": return "a:textanim";
       case "transition": return "a:transition:" + a.id;
       case "command":

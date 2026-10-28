@@ -1,11 +1,14 @@
 /*
- * Mótion Film -- Text Animation tab: letter-by-letter entrances.
+ * Mótion Film -- Text Animation tab: entrances letter by letter, word by
+ * word or line by line.
  *
- * Pick a style (Rise, Drop, From Left, Fade, Scale Up, Blur In), tune
- * Amount (Rise / Drop / From Left only), Delay between letters, Duration
- * and Blur, watch the live preview, Apply to the selected text layers.
- * Every letter eases out (cubic) from its own start, (index x delay)
- * after the one before -- the same math host/textanim.jsx writes into
+ * Pick how (Letter / Word / Line), Bounce or not, a style (Rise, Drop,
+ * From Left / Right, Fade, Scale Up, Zoom Out, Blur In, Rotate In, Tracking
+ * In), tune Amount (the moves and Tracking In only), Delay
+ * between the units, Duration and Blur, watch the live preview, Apply to
+ * the selected text layers. Every unit eases out (cubic) from its own
+ * start, (index x delay) after the one before -- the same math
+ * host/textanim.jsx writes into
  * the layer, where the four values stay as sliders (Effect Controls ›
  * MF Text) so they can be tuned without applying again.
  *
@@ -19,17 +22,20 @@
   if (!document.getElementById("page-textanim")) { return; }
 
   var KEY = "motionfilm-textanim";
-  var DEFAULTS = { style: "rise", amount: 40, delay: 0.04, duration: 0.7, blur: 5, sample: "" };
-  var STYLES = { rise: 1, drop: 1, left: 1, fade: 1, scale: 1, blur: 1 };
-  var MOVES = { rise: true, drop: true, left: true }; // the styles that use Amount
+  var DEFAULTS = { by: "letter", style: "rise", amount: 40, delay: 0.04, duration: 0.7, blur: 5, bounce: false, sample: "" };
+  var STYLES = { rise: 1, drop: 1, left: 1, right: 1, fade: 1, scale: 1, zoomout: 1, blur: 1, rotate: 1, tracking: 1 };
+  var BY = { letter: "letters", word: "words", line: "lines" };
+  var MOVES = { rise: true, drop: true, left: true, right: true, tracking: true }; // the styles that use Amount
   var state = {};
   var k;
   for (k in DEFAULTS) { state[k] = DEFAULTS[k]; }
   try {
     var saved = JSON.parse(window.localStorage.getItem(KEY) || "{}");
     if (STYLES[saved.style]) { state.style = saved.style; }
+    if (BY[saved.by]) { state.by = saved.by; }
     ["amount", "delay", "duration", "blur"].forEach(function (n) { if (typeof saved[n] === "number") { state[n] = saved[n]; } });
     if (typeof saved.sample === "string") { state.sample = saved.sample; }
+    if (typeof saved.bounce === "boolean") { state.bounce = saved.bounce; }
   } catch (e) {}
   function save() {
     try { window.localStorage.setItem(KEY, JSON.stringify(state)); } catch (e) {}
@@ -41,6 +47,7 @@
   }
 
   var layerText = ""; // the selected text layer's text, when there is one
+  var layerCount = 0; // selected text layers
 
   // ------------------------------------------------------------------ host
 
@@ -71,44 +78,94 @@
 
   // ------------------------------------------------------------------ preview
 
+  // up to 3 lines (the typed text is one line; a layer can have more)
   function previewText() {
-    return state.sample || layerText || "Mótion Film";
+    var t = state.sample || layerText || (state.by === "line" ? "Mótion Film\nText Animation" : "Mótion Film");
+    return t.replace(/\r\n?/g, "\n").split("\n").slice(0, 3).join("\n");
   }
 
-  function fromFrame(style) {
-    var f = { opacity: 0, filter: "blur(" + (style === "blur" ? state.blur * 3.6 : state.blur) + "px)", transform: "translate(0px, 0px) scale(1)" };
-    if (style === "rise") { f.transform = "translate(0px, " + state.amount + "px) scale(1)"; }
-    if (style === "drop") { f.transform = "translate(0px, " + (-state.amount) + "px) scale(1)"; }
-    if (style === "left") { f.transform = "translate(" + (-state.amount) + "px, 0px) scale(1)"; }
-    if (style === "scale") { f.transform = "translate(0px, 0px) scale(0)"; }
-    return f;
+  function settings() {
+    return { by: state.by, style: state.style, amount: state.amount, delay: state.delay, duration: state.duration, blur: state.blur, bounce: state.bounce };
+  }
+
+  // where unit i of n starts from (tracking spreads the units apart);
+  // k scales the distances down for small previews
+  function startOf(o, i, n, k) {
+    var x = 0, y = 0, sc = 1, r = 0, a = o.amount * k, style = o.style;
+    if (style === "rise") { y = a; }
+    if (style === "drop") { y = -a; }
+    if (style === "left") { x = -a; }
+    if (style === "right") { x = a; }
+    if (style === "scale") { sc = 0; }
+    if (style === "zoomout") { sc = 2.5; }
+    if (style === "rotate") { r = -90; }
+    if (style === "tracking") { x = (i - (n - 1) / 2) * a * 0.35; }
+    return { x: x, y: y, sc: sc, r: r, blur: (style === "blur" ? o.blur * 3.6 : o.blur) * k };
+  }
+
+  // the frame at progress e (0 = start, 1 = in place; past 1 = overshoot),
+  // the same mix AE's animator does with the selector at 100 * (1 - e)
+  function frameAt(p, e) {
+    var a = 1 - e;
+    return {
+      opacity: Math.max(0, Math.min(1, e)),
+      filter: "blur(" + Math.max(0, p.blur * a).toFixed(2) + "px)",
+      transform: "translate(" + (p.x * a).toFixed(2) + "px, " + (p.y * a).toFixed(2) + "px) scale(" + Math.max(0, 1 + (p.sc - 1) * a).toFixed(4) + ") rotate(" + (p.r * a).toFixed(2) + "deg)"
+    };
+  }
+
+  // Bounce: the elastic swing of host/textanim.jsx, as keyframes
+  function elastic(t) { return t >= 1 ? 1 : 1 - Math.exp(-6 * t) * Math.cos(5 * Math.PI * t); }
+
+  // Fills host with text animated by settings o (also used by the
+  // favorites' tiles); returns the animations.
+  function animateInto(host, text, o, k) {
+    var list = [];
+    host.innerHTML = "";
+    // the units counted like AE's "Based On": letters without spaces,
+    // words across all lines, or lines
+    var units = [];
+    function animate(el) { units.push(el); }
+    text.split("\n").forEach(function (lineText) {
+      var line = document.createElement("div");
+      line.className = "ta-line";
+      host.appendChild(line);
+      if (o.by === "line") {
+        line.textContent = lineText || " ";
+        if (/\S/.test(lineText)) { animate(line); }
+        return;
+      }
+      var parts = o.by === "word" ? lineText.split(/(\s+)/) : lineText.split("");
+      parts.forEach(function (part) {
+        if (!part) { return; }
+        var span = document.createElement("span");
+        span.textContent = part;
+        line.appendChild(span);
+        if (/\S/.test(part)) { animate(span); }
+      });
+    });
+    units.forEach(function (el, i) {
+      if (!el.animate) { return; }
+      var p = startOf(o, i, units.length, k || 1);
+      var frames = [frameAt(p, 0), frameAt(p, 1)];
+      if (o.bounce) {
+        frames = [];
+        for (var f = 0; f <= 40; f += 1) { frames.push(frameAt(p, elastic(f / 40))); }
+      }
+      list.push(el.animate(frames, {
+        duration: o.duration * 1000,
+        delay: i * o.delay * 1000,
+        easing: o.bounce ? "linear" : "cubic-bezier(0.215, 0.61, 0.355, 1)",
+        fill: "both"
+      }));
+    });
+    return list;
   }
 
   var animations = [];
   function play() {
-    var host = $("ta-text");
     animations.forEach(function (a) { try { a.cancel(); } catch (e) {} });
-    animations = [];
-    host.innerHTML = "";
-    var text = previewText().replace(/\r\n?/g, "\n").split("\n")[0];
-    var from = fromFrame(state.style);
-    var to = { opacity: 1, filter: "blur(0px)", transform: "translate(0px, 0px) scale(1)" };
-    var n = 0; // letters only, like AE's "Characters Excluding Spaces"
-    for (var i = 0; i < text.length; i += 1) {
-      var span = document.createElement("span");
-      span.textContent = text.charAt(i);
-      host.appendChild(span);
-      if (/\s/.test(text.charAt(i))) { continue; }
-      if (span.animate) {
-        animations.push(span.animate([from, to], {
-          duration: state.duration * 1000,
-          delay: n * state.delay * 1000,
-          easing: "cubic-bezier(0.215, 0.61, 0.355, 1)",
-          fill: "both"
-        }));
-      }
-      n += 1;
-    }
+    animations = animateInto($("ta-text"), previewText(), settings(), 1);
     fitText();
   }
 
@@ -117,9 +174,8 @@
     var stage = $("ta-stage");
     var host = $("ta-text");
     host.style.fontSize = "34px";
-    var w = host.scrollWidth || 1;
-    var room = stage.clientWidth * 0.86;
-    if (w > room && room > 0) { host.style.fontSize = Math.max(12, 34 * room / w).toFixed(1) + "px"; }
+    var k = Math.min(1, (stage.clientWidth * 0.86) / (host.scrollWidth || 1), (stage.clientHeight * 0.8) / (host.scrollHeight || 1));
+    if (k < 1 && k > 0) { host.style.fontSize = Math.max(12, 34 * k).toFixed(1) + "px"; }
   }
 
   var replayTimer = null;
@@ -138,9 +194,24 @@
   };
 
   function render() {
+    Array.prototype.forEach.call(document.querySelectorAll("#ta-by button"), function (b) {
+      var on = b.getAttribute("data-by") === state.by;
+      b.classList.toggle("is-active", on);
+      b.setAttribute("aria-pressed", on ? "true" : "false");
+    });
+    $("ta-delay-name").textContent = "Delay between " + BY[state.by];
+    // words and lines want longer gaps than letters
+    var maxDelay = state.by === "letter" ? 0.2 : 0.5;
+    $("ta-delay").max = maxDelay;
+    if (state.delay > maxDelay) { state.delay = maxDelay; }
     Array.prototype.forEach.call(document.querySelectorAll("#ta-styles button"), function (b) {
       var on = b.getAttribute("data-style") === state.style;
       b.classList.toggle("is-on", on);
+      b.setAttribute("aria-pressed", on ? "true" : "false");
+    });
+    Array.prototype.forEach.call(document.querySelectorAll("#ta-bounce button"), function (b) {
+      var on = (b.getAttribute("data-bounce") === "on") === state.bounce;
+      b.classList.toggle("is-active", on);
       b.setAttribute("aria-pressed", on ? "true" : "false");
     });
     $("ta-amount-row").hidden = !MOVES[state.style];
@@ -151,9 +222,26 @@
     var input = $("ta-sample");
     if (document.activeElement !== input) { input.value = state.sample || layerText || ""; }
     input.placeholder = layerText ? layerText : "Mótion Film";
+    if (typeof api.onChange === "function") { api.onChange(); }
   }
 
   function bind() {
+    Array.prototype.forEach.call(document.querySelectorAll("#ta-by button"), function (b) {
+      b.addEventListener("click", function () {
+        state.by = b.getAttribute("data-by");
+        save();
+        render();
+        play();
+      });
+    });
+    Array.prototype.forEach.call(document.querySelectorAll("#ta-bounce button"), function (b) {
+      b.addEventListener("click", function () {
+        state.bounce = b.getAttribute("data-bounce") === "on";
+        save();
+        render();
+        play();
+      });
+    });
     Array.prototype.forEach.call(document.querySelectorAll("#ta-styles button"), function (b) {
       b.addEventListener("click", function () {
         state.style = b.getAttribute("data-style");
@@ -169,7 +257,7 @@
         $("ta-out-" + n).textContent = FORMAT[n](state[n]);
         replaySoon();
       });
-      input.addEventListener("change", save);
+      input.addEventListener("change", function () { save(); render(); });
     });
     var sample = $("ta-sample");
     // typing sets your own preview text; clearing it goes back to the layer's
@@ -183,7 +271,7 @@
       var button = $("ta-apply");
       if (button.disabled) { return; }
       button.disabled = true;
-      call("taApply", { style: state.style, amount: state.amount, delay: state.delay, duration: state.duration, blur: state.blur }, function (res) {
+      call("taApply", settings(), function (res) {
         button.disabled = false;
         status(res.ok ? res.message : res.error, res.ok ? "success" : "error");
       });
@@ -207,7 +295,8 @@
     call("taState", undefined, function (res) {
       polling = false;
       if (!res || !res.ok) { return; }
-      var t = res.count > 0 ? String(res.text || "").replace(/\r/g, " ") : "";
+      layerCount = res.count || 0;
+      var t = res.count > 0 ? String(res.text || "").replace(/\r\n?/g, "\n") : "";
       if (t !== layerText) {
         layerText = t;
         render();
@@ -216,13 +305,39 @@
     });
   }
 
-  // for the Wheel: apply with the current settings
-  window.MF = window.MF || {};
-  window.MF.textanim = {
-    run: function (callback) {
-      call("taApply", { style: state.style, amount: state.amount, delay: state.delay, duration: state.duration, blur: state.blur }, callback);
-    }
+  var NAMES = { rise: "Rise", drop: "Drop", left: "From Left", right: "From Right", fade: "Fade", scale: "Scale Up", zoomout: "Zoom Out", blur: "Blur In", rotate: "Rotate In", tracking: "Tracking In" };
+
+  // the settings o, cleaned (a favorite read from storage, say)
+  function clean(o) {
+    o = o || {};
+    var out = settings();
+    if (STYLES[o.style]) { out.style = o.style; }
+    if (BY[o.by]) { out.by = o.by; }
+    ["amount", "delay", "duration", "blur"].forEach(function (n) { if (typeof o[n] === "number" && isFinite(o[n])) { out[n] = o[n]; } });
+    if (typeof o.bounce === "boolean") { out.bounce = o.bounce; }
+    return out;
+  }
+
+  // for the favorites (textanim-favorites.js) and the Wheel
+  var api = {
+    run: function (callback) { call("taApply", settings(), callback); },
+    get: settings,
+    load: function (o) {
+      o = clean(o);
+      for (var n in o) { state[n] = o[n]; }
+      save();
+      render();
+      play();
+    },
+    apply: function (o, callback) { call("taApply", clean(o), callback); },
+    selected: function () { return layerCount; },
+    animateInto: animateInto,
+    name: function (o) { return NAMES[o.style] || o.style; },
+    by: function (o) { return { letter: "Letter", word: "Word", line: "Line" }[o.by] || ""; },
+    onChange: null
   };
+  window.MF = window.MF || {};
+  window.MF.textanim = api;
 
   bind();
   render();
