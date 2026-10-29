@@ -42,6 +42,14 @@
   window.MF = window.MF || {};
   window.MF.setStatus = function (message, type) { setStatus(message, type); };
   window.MF.openNamePopover = function (trigger, placeholder, onSave, defaultValue) { openNamePopover(trigger, placeholder, onSave, defaultValue); };
+  // For the background polls of the other tabs (textanim, carousel,
+  // captions, transitions): while the panel is blurred the user is
+  // working in AE -- maybe typing in a text layer in the viewport, where
+  // any host call can commit the edit and throw the caret back to the
+  // start -- so they skip their host call and catch up through
+  // onPanelBack (focus / pointer back on the panel). See pollTick.
+  window.MF.panelActive = function () { return panelActive; };
+  window.MF.onPanelBack = function (fn) { panelBackCallbacks.push(fn); };
 
   function setStatus(message, type) {
     if (!message) {
@@ -5319,6 +5327,7 @@
   // typing directly in a text layer). Drives whether pollTick runs at
   // all -- see its comment.
   var panelActive = true;
+  var panelBackCallbacks = [];
 
   var forceFullRefreshAt = 0;
   function forceFullRefresh() {
@@ -5331,6 +5340,9 @@
     forceFullRefreshAt = now;
     refreshTransform(true);
     refreshEffectsManager(true);
+    for (var i = 0; i < panelBackCallbacks.length; i += 1) {
+      try { panelBackCallbacks[i](); } catch (backError) {}
+    }
   }
 
   // The 700ms poll. ANY evalScript that touches the selected text layer

@@ -717,7 +717,59 @@
     return out;
   }
 
+  // Captions edited by hand (Captions › Review): the empty ones go, the
+  // rest in time order. A changed one (c.dirty) gets fresh times from its
+  // words with the same linger / min / max / chain rules as
+  // buildCaptions; untouched ones keep theirs; none overlaps the next.
+  // Reels / Viral (P): a caption left without a highlighted word gets one
+  // picked, variants follow the order. Simple styles: lines re-wrapped.
+  function finishEdited(captions, rules, P, viral) {
+    var list = captions.filter(function (c) { return c.words && c.words.length; }).map(function (c) {
+      var start = Infinity;
+      var end = 0;
+      var words = c.words.map(function (w) {
+        start = Math.min(start, w.start);
+        end = Math.max(end, w.end);
+        return { text: w.text, start: w.start, end: w.end, accent: !!w.accent, eos: !!w.eos };
+      });
+      return { start: c.dirty ? start : c.start, end: c.dirty ? end : c.end, dirty: !!c.dirty, words: words };
+    });
+    list.sort(function (a, b) { return a.start - b.start; });
+    list.forEach(function (c, i) {
+      var next = list[i + 1];
+      var end = c.end;
+      if (c.dirty) {
+        end = Math.max(c.end + rules.linger, c.start + rules.minDuration);
+        end = Math.min(end, c.start + Math.max(rules.maxDuration, c.end - c.start));
+        if (next && next.start - end < CHAIN_GAP) {
+          end = next.start;
+        }
+      }
+      if (next) {
+        end = Math.min(end, next.start);
+      }
+      if (end <= c.start) {
+        end = c.start + 0.05;
+      }
+      c.start = round3(c.start);
+      c.end = round3(end);
+      var texts = c.words.map(function (w) { return w.text; });
+      if (viral) {
+        if (!c.words.some(function (w) { return w.accent; })) {
+          pickHighlight(c.words, (P && P.maxPre) || 3, (P && P.maxPost) || 4).forEach(function (k) { c.words[k].accent = true; });
+        }
+        c.variant = i;
+        c.text = texts.join(" ");
+      } else {
+        c.text = (wrapLines(texts, rules.maxChars, rules.maxLines) || [texts.join(" ")]).join("\r");
+      }
+      delete c.dirty;
+    });
+    return list;
+  }
+
   return {
+    finishEdited: finishEdited,
     pickHighlight: pickHighlight,
     planHighlights: planHighlights,
     readWav16: readWav16,

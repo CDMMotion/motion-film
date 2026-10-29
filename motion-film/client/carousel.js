@@ -433,8 +433,9 @@
   // ------------------------------------------------------------------ selection
 
   var polling = false;
-  function poll() {
+  function poll(force) {
     if (polling || $("page-effects").hidden || !window.__adobe_cep__) { return; }
+    if (!force && window.MF && window.MF.panelActive && !window.MF.panelActive()) { return; } // see MF.panelActive (panel.js)
     polling = true;
     call("cxState", undefined, function (res) {
       polling = false;
@@ -458,5 +459,6 @@
   render();
   refresh();
   window.requestAnimationFrame(frameLoop);
-  setInterval(poll, 1500);
+  setInterval(function () { poll(false); }, 1500);
+  if (window.MF && window.MF.onPanelBack) { window.MF.onPanelBack(function () { poll(true); }); }
 }());

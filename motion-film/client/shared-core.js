@@ -16,6 +16,39 @@
   window.MF = window.MF || {};
 
   // ---------------------------------------------------------------
+  // Range sliders (styles.css "Range sliders"): the filled part of the
+  // track is drawn up to --p. Kept current on every drag, every value
+  // set from code (the input value setter is wrapped once, for ranges
+  // only) and for sliders the code never touched (first hover / load).
+  // ---------------------------------------------------------------
+  (function rangeFill() {
+    function paint(el) {
+      var min = el.min === "" ? 0 : Number(el.min);
+      var max = el.max === "" ? 100 : Number(el.max);
+      var p = max > min ? (Number(el.value) - min) / (max - min) * 100 : 0;
+      el.style.setProperty("--p", Math.max(0, Math.min(100, p)).toFixed(2) + "%");
+    }
+    function isRange(el) { return el && el.tagName === "INPUT" && el.type === "range"; }
+    var desc = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value");
+    if (desc && desc.set) {
+      Object.defineProperty(HTMLInputElement.prototype, "value", {
+        configurable: true,
+        enumerable: desc.enumerable,
+        get: desc.get,
+        set: function (v) {
+          desc.set.call(this, v);
+          if (this.type === "range") { paint(this); }
+        }
+      });
+    }
+    document.addEventListener("input", function (e) { if (isRange(e.target)) { paint(e.target); } }, true);
+    document.addEventListener("pointerover", function (e) { if (isRange(e.target)) { paint(e.target); } }, true);
+    function paintAll() { Array.prototype.forEach.call(document.querySelectorAll("input[type=\"range\"]"), paint); }
+    if (document.readyState === "loading") { document.addEventListener("DOMContentLoaded", paintAll); } else { paintAll(); }
+    window.addEventListener("load", paintAll);
+  }());
+
+  // ---------------------------------------------------------------
   // User data ON DISK (v0.9.7). CEP keeps localStorage in a TEMP cache
   // folder keyed by the AE version (%TEMP%\cep_cache\AEFT_26.5_<id>), so
   // an AE update or a disk cleanup silently wiped colours, palettes and

@@ -350,7 +350,10 @@
   }());
 
   // keep "cut / time indicator" current while it's on screen
-  setInterval(function () {
+  // not while the panel is blurred (see MF.panelActive, panel.js)
+  function refreshIfShown() {
     if (root && root.isConnected && root.offsetParent !== null && !busy) { refreshInfo(); }
-  }, 1500);
+  }
+  setInterval(function () { if (!(window.MF && window.MF.panelActive && !window.MF.panelActive())) { refreshIfShown(); } }, 1500);
+  if (window.MF && window.MF.onPanelBack) { window.MF.onPanelBack(refreshIfShown); }
 }());

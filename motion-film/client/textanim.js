@@ -2,9 +2,10 @@
  * Mótion Film -- Text Animation tab: entrances letter by letter, word by
  * word or line by line.
  *
- * Pick how (Letter / Word / Line), Bounce or not, a style (Rise, Drop,
- * From Left / Right, Fade, Scale Up, Zoom Out, Blur In, Rotate In, Tracking
- * In), tune Amount (the moves and Tracking In only), Delay
+ * Three boxes on top: the style (a list: Rise, Drop, From Left / Right,
+ * Fade, Scale Up, Zoom Out, Blur In, Rotate In, Tracking In -- hovering
+ * one previews it), what comes in one after the other (Letters / Words /
+ * Lines) and a Bounce switch. Then tune Amount (the moves and Tracking In only), Delay
  * between the units, Duration and Blur, watch the live preview, Apply to
  * the selected text layers. Every unit eases out (cubic) from its own
  * start, (index x delay) after the one before -- the same math
@@ -12,8 +13,8 @@
  * the layer, where the four values stay as sliders (Effect Controls ›
  * MF Text) so they can be tuned without applying again.
  *
- * The preview text follows the selected text layer until you type your
- * own. Settings live under "motionfilm-textanim" (mirrored to
+ * The preview shows the selected text layer's text (click it, or its ↻,
+ * to play it again). Settings live under "motionfilm-textanim" (mirrored to
  * settings.json).
  */
 (function () {
@@ -22,7 +23,7 @@
   if (!document.getElementById("page-textanim")) { return; }
 
   var KEY = "motionfilm-textanim";
-  var DEFAULTS = { by: "letter", style: "rise", amount: 40, delay: 0.04, duration: 0.7, blur: 5, bounce: false, sample: "" };
+  var DEFAULTS = { by: "letter", style: "rise", amount: 40, delay: 0.04, duration: 0.7, blur: 5, bounce: false };
   var STYLES = { rise: 1, drop: 1, left: 1, right: 1, fade: 1, scale: 1, zoomout: 1, blur: 1, rotate: 1, tracking: 1 };
   var BY = { letter: "letters", word: "words", line: "lines" };
   var MOVES = { rise: true, drop: true, left: true, right: true, tracking: true }; // the styles that use Amount
@@ -34,7 +35,6 @@
     if (STYLES[saved.style]) { state.style = saved.style; }
     if (BY[saved.by]) { state.by = saved.by; }
     ["amount", "delay", "duration", "blur"].forEach(function (n) { if (typeof saved[n] === "number") { state[n] = saved[n]; } });
-    if (typeof saved.sample === "string") { state.sample = saved.sample; }
     if (typeof saved.bounce === "boolean") { state.bounce = saved.bounce; }
   } catch (e) {}
   function save() {
@@ -80,7 +80,7 @@
 
   // up to 3 lines (the typed text is one line; a layer can have more)
   function previewText() {
-    var t = state.sample || layerText || (state.by === "line" ? "Mótion Film\nText Animation" : "Mótion Film");
+    var t = layerText || (state.by === "line" ? "Mótion Film\nText Animation" : "Mótion Film");
     return t.replace(/\r\n?/g, "\n").split("\n").slice(0, 3).join("\n");
   }
 
@@ -165,7 +165,9 @@
   var animations = [];
   function play() {
     animations.forEach(function (a) { try { a.cancel(); } catch (e) {} });
-    animations = animateInto($("ta-text"), previewText(), settings(), 1);
+    var o = settings();
+    if (hoverStyle) { o.style = hoverStyle; }
+    animations = animateInto($("ta-text"), previewText(), o, 1);
     fitText();
   }
 
@@ -196,8 +198,9 @@
   function render() {
     Array.prototype.forEach.call(document.querySelectorAll("#ta-by button"), function (b) {
       var on = b.getAttribute("data-by") === state.by;
-      b.classList.toggle("is-active", on);
-      b.setAttribute("aria-pressed", on ? "true" : "false");
+      b.classList.toggle("is-on", on);
+      b.setAttribute("aria-selected", on ? "true" : "false");
+      if (on) { $("ta-by-label").textContent = b.textContent; }
     });
     $("ta-delay-name").textContent = "Delay between " + BY[state.by];
     // words and lines want longer gaps than letters
@@ -207,49 +210,87 @@
     Array.prototype.forEach.call(document.querySelectorAll("#ta-styles button"), function (b) {
       var on = b.getAttribute("data-style") === state.style;
       b.classList.toggle("is-on", on);
-      b.setAttribute("aria-pressed", on ? "true" : "false");
+      b.setAttribute("aria-selected", on ? "true" : "false");
+      if (on) { $("ta-style-label").textContent = b.textContent; }
     });
-    Array.prototype.forEach.call(document.querySelectorAll("#ta-bounce button"), function (b) {
-      var on = (b.getAttribute("data-bounce") === "on") === state.bounce;
-      b.classList.toggle("is-active", on);
-      b.setAttribute("aria-pressed", on ? "true" : "false");
-    });
+    $("ta-bounce").classList.toggle("is-on", state.bounce);
+    $("ta-bounce").setAttribute("aria-checked", state.bounce ? "true" : "false");
     $("ta-amount-row").hidden = !MOVES[state.style];
     ["amount", "delay", "duration", "blur"].forEach(function (n) {
       $("ta-" + n).value = state[n];
       $("ta-out-" + n).textContent = FORMAT[n](state[n]);
     });
-    var input = $("ta-sample");
-    if (document.activeElement !== input) { input.value = state.sample || layerText || ""; }
-    input.placeholder = layerText ? layerText : "Mótion Film";
     if (typeof api.onChange === "function") { api.onChange(); }
   }
 
+  // A box that opens its list under it; a pick (or a click outside / Esc)
+  // closes it. onHover(value) previews an option, onHover(null) = left.
+  var openDrop = null;
+  function closeDrop() {
+    if (!openDrop) { return; }
+    openDrop.menu.hidden = true;
+    openDrop.box.setAttribute("aria-expanded", "false");
+    openDrop.root.classList.remove("is-open");
+    var leave = openDrop.onHover;
+    openDrop = null;
+    if (leave) { leave(null); }
+  }
+  function dropdown(rootId, attr, onPick, onHover) {
+    var root = $(rootId);
+    var box = root.querySelector(".ta-box");
+    var menu = root.querySelector(".ta-menu");
+    box.addEventListener("click", function (e) {
+      e.stopPropagation();
+      var was = openDrop && openDrop.root === root;
+      closeDrop();
+      if (was) { return; }
+      openDrop = { root: root, box: box, menu: menu, onHover: onHover };
+      menu.hidden = false;
+      box.setAttribute("aria-expanded", "true");
+      root.classList.add("is-open");
+    });
+    Array.prototype.forEach.call(menu.querySelectorAll("button"), function (b) {
+      b.addEventListener("click", function (e) {
+        e.stopPropagation();
+        var value = b.getAttribute(attr);
+        if (openDrop) { openDrop.onHover = null; }
+        closeDrop();
+        onPick(value);
+      });
+      if (onHover) {
+        b.addEventListener("mouseenter", function () { onHover(b.getAttribute(attr)); });
+      }
+    });
+    if (onHover) { menu.addEventListener("mouseleave", function () { onHover(null); }); }
+  }
+
+  var hoverStyle = null; // a style hovered in the list, shown in the preview
   function bind() {
-    Array.prototype.forEach.call(document.querySelectorAll("#ta-by button"), function (b) {
-      b.addEventListener("click", function () {
-        state.by = b.getAttribute("data-by");
-        save();
-        render();
-        play();
-      });
+    dropdown("ta-style-drop", "data-style", function (value) {
+      hoverStyle = null;
+      state.style = value;
+      save();
+      render();
+      play();
+    }, function (value) {
+      if (value === hoverStyle) { return; }
+      hoverStyle = value;
+      play();
     });
-    Array.prototype.forEach.call(document.querySelectorAll("#ta-bounce button"), function (b) {
-      b.addEventListener("click", function () {
-        state.bounce = b.getAttribute("data-bounce") === "on";
-        save();
-        render();
-        play();
-      });
+    dropdown("ta-by-drop", "data-by", function (value) {
+      state.by = value;
+      save();
+      render();
+      play();
     });
-    Array.prototype.forEach.call(document.querySelectorAll("#ta-styles button"), function (b) {
-      b.addEventListener("click", function () {
-        state.style = b.getAttribute("data-style");
-        save();
-        render();
-        play();
-      });
+    $("ta-bounce").addEventListener("click", function () {
+      state.bounce = !state.bounce;
+      save();
+      render();
+      play();
     });
+    document.addEventListener("click", closeDrop);
+    document.addEventListener("keydown", function (e) { if (e.key === "Escape") { closeDrop(); } });
     ["amount", "delay", "duration", "blur"].forEach(function (n) {
       var input = $("ta-" + n);
       input.addEventListener("input", function () {
@@ -259,14 +300,11 @@
       });
       input.addEventListener("change", function () { save(); render(); });
     });
-    var sample = $("ta-sample");
-    // typing sets your own preview text; clearing it goes back to the layer's
-    sample.addEventListener("input", function () {
-      state.sample = sample.value === layerText ? "" : sample.value;
-      save();
-      replaySoon();
+    // the ↻ on the preview, or a click anywhere on it, plays it again
+    $("ta-stage").addEventListener("click", function (e) {
+      if (e.target.closest && e.target.closest("#ta-fav")) { return; }
+      play();
     });
-    $("ta-replay").addEventListener("click", play);
     $("ta-apply").addEventListener("click", function () {
       var button = $("ta-apply");
       if (button.disabled) { return; }
@@ -289,8 +327,11 @@
   // ------------------------------------------------------------------ selection
 
   var polling = false;
-  function poll() {
+  // reads the selected text layer: never while the panel is blurred (the
+  // user may be typing in that layer -- see MF.panelActive in panel.js)
+  function poll(force) {
     if (polling || $("page-textanim").hidden || !window.__adobe_cep__) { return; }
+    if (!force && window.MF && window.MF.panelActive && !window.MF.panelActive()) { return; }
     polling = true;
     call("taState", undefined, function (res) {
       polling = false;
@@ -300,7 +341,7 @@
       if (t !== layerText) {
         layerText = t;
         render();
-        if (!state.sample) { play(); }
+        play();
       }
     });
   }
@@ -342,5 +383,6 @@
   bind();
   render();
   play();
-  setInterval(poll, 1500);
+  setInterval(function () { poll(false); }, 1500);
+  if (window.MF && window.MF.onPanelBack) { window.MF.onPanelBack(function () { poll(true); }); }
 }());

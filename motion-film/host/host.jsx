@@ -3957,9 +3957,17 @@
     }
   }
 
+  // Cameras and lights: AE refuses applyPreset on them (an alert per
+  // layer, no exception -- the camera kept its default place), so they
+  // always go through the JSON template, also in packs that have an .ffx
+  // for them.
+  function kitFfxSkips(layer) {
+    try { return layer instanceof CameraLayer || layer instanceof LightLayer; } catch (e) { return false; }
+  }
+
   function kitSaveLayerFfx(layer, template) {
     var cap = kitFfxCapture;
-    if (!cap) {
+    if (!cap || kitFfxSkips(layer)) {
       return;
     }
     var selectedGroups = [];
@@ -4031,7 +4039,7 @@
   // first key lands where it was relative to the layer. Returns false
   // (caller falls back to the JSON template) when there's no .ffx.
   function kitApplyLayerFfx(layer, template, timeOffset) {
-    if (!template.ffx || !kitFfxDir) {
+    if (!template.ffx || !kitFfxDir || kitFfxSkips(layer)) {
       return false;
     }
     var file = new File(kitFfxDir + "/" + template.ffx);
@@ -6483,6 +6491,70 @@
     });
   }
 
+  // Captions › Adjust › Frame: the active comp's current frame as a PNG
+  // behind the big previews. Our caption layers showing at that time are
+  // switched off first so they don't double the preview, and back on by
+  // captionsFrameDone once the panel sees the file (saveFrameToPng
+  // finishes after it returns).
+  var captionsFrameHidden = [];
+
+  function captionsGrabFrame(path) {
+    var comp = activeComp();
+    if (!comp) {
+      return stringify({ ok: false, error: "Open the composition first." });
+    }
+    if (typeof comp.saveFrameToPng !== "function") {
+      return stringify({ ok: false, error: "This After Effects can't save a frame (needs 2023 or newer)." });
+    }
+    captionsFrameDone();
+    var t = comp.time;
+    var hide = [];
+    for (var i = 1; i <= comp.numLayers; i += 1) {
+      var layer = comp.layer(i);
+      if (layer.enabled && String(layer.comment).indexOf(CAPTION_TAG) === 0 && layer.inPoint <= t && layer.outPoint > t) {
+        hide.push(layer);
+      }
+    }
+    if (hide.length) {
+      app.beginUndoGroup("Mótion Film: Preview frame");
+      for (var h = 0; h < hide.length; h += 1) {
+        try { hide[h].enabled = false; } catch (hideError) {}
+      }
+      app.endUndoGroup();
+    }
+    captionsFrameHidden = hide;
+    try {
+      comp.saveFrameToPng(t, new File(path));
+    } catch (saveError) {
+      captionsFrameDone();
+      return stringify({ ok: false, error: "Couldn't save the frame: " + String(saveError) });
+    }
+    return stringify({ ok: true, width: comp.width, height: comp.height });
+  }
+
+  function captionsFrameDone() {
+    var list = captionsFrameHidden;
+    captionsFrameHidden = [];
+    if (list.length) {
+      app.beginUndoGroup("Mótion Film: Preview frame");
+      for (var i = 0; i < list.length; i += 1) {
+        try { list[i].enabled = true; } catch (showError) {} // layer deleted meanwhile
+      }
+      app.endUndoGroup();
+    }
+    return stringify({ ok: true });
+  }
+
+  // Captions › Review: a caption's time button moves the playhead there.
+  function captionsSeek(t) {
+    var comp = activeComp();
+    if (!comp) {
+      return stringify({ ok: false, error: "Open the composition first." });
+    }
+    comp.time = Math.max(0, Math.min(comp.duration - comp.frameDuration, Number(t) || 0));
+    return stringify({ ok: true });
+  }
+
   // ---------------------------------------------------------------
   // Colour Palette satellite window (client/palette.js)
   //
@@ -7011,6 +7083,9 @@
   $.global.getSelectedCaptionWords = getSelectedCaptionWords;
   $.global.getCaptionFonts = getCaptionFonts;
   $.global.getCaptionsSummary = getCaptionsSummary;
+  $.global.captionsGrabFrame = captionsGrabFrame;
+  $.global.captionsFrameDone = captionsFrameDone;
+  $.global.captionsSeek = captionsSeek;
   $.global.checkCaptionFonts = checkCaptionFonts;
   $.global.captureLayerStylePreset = captureLayerStylePreset;
   $.global.applyStylePresetToSelectedLayers = applyStylePresetToSelectedLayers;

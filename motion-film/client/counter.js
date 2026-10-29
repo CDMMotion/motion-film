@@ -1,10 +1,11 @@
 /*
  * Mótion Film -- Text Animation tab › 02 / COUNTER.
  *
- * A number counting up to "Count to" over Duration (cubic ease-out), with
- * an optional currency ($, € or R$). The preview counts the same way
- * host/counter.jsx does in AE: on the selected text layers, or a new one
- * in the middle of the comp when none is selected. Settings live under
+ * A number counting From -> To over Duration (cubic ease-out), with an
+ * optional currency ($, € or R$). The preview counts the same way
+ * host/counter.jsx keys it in AE (two keyframes, so the speed can be
+ * reshaped in the Graph Editor): on the selected text layers, or a new
+ * one in the middle of the comp when none is selected. Settings live under
  * "motionfilm-counter" (mirrored to settings.json).
  */
 (function () {
@@ -19,9 +20,10 @@
     eur: { prefix: "€", sep: "," },
     brl: { prefix: "R$ ", sep: "." }
   };
-  var state = { to: 1000, currency: "none", duration: 2 };
+  var state = { from: 0, to: 1000, currency: "none", duration: 2 };
   try {
     var saved = JSON.parse(window.localStorage.getItem(KEY) || "{}");
+    if (typeof saved.from === "number") { state.from = saved.from; }
     if (typeof saved.to === "number") { state.to = saved.to; }
     if (CURRENCY[saved.currency]) { state.currency = saved.currency; }
     if (typeof saved.duration === "number") { state.duration = saved.duration; }
@@ -74,7 +76,7 @@
   function tick(now) {
     if (!start) { start = now; }
     var t = Math.min(1, (now - start) / (state.duration * 1000));
-    $("ct-num").textContent = format(Math.round(state.to * (1 - Math.pow(1 - t, 3))));
+    $("ct-num").textContent = format(Math.round(state.from + (state.to - state.from) * (1 - Math.pow(1 - t, 3))));
     fit();
     raf = t < 1 ? window.requestAnimationFrame(tick) : 0;
   }
@@ -93,8 +95,10 @@
   // ------------------------------------------------------------------ controls
 
   function render() {
-    var input = $("ct-to");
-    if (document.activeElement !== input) { input.value = state.to; }
+    ["from", "to"].forEach(function (n) {
+      var input = $("ct-" + n);
+      if (document.activeElement !== input) { input.value = state[n]; }
+    });
     Array.prototype.forEach.call(document.querySelectorAll("#ct-currency button"), function (b) {
       var on = b.getAttribute("data-currency") === state.currency;
       b.classList.toggle("is-active", on);
@@ -105,14 +109,17 @@
   }
 
   function bind() {
-    $("ct-to").addEventListener("input", function () {
-      var v = parseFloat(String($("ct-to").value).replace(/[^\d.-]/g, ""));
-      if (!isFinite(v)) { return; }
-      state.to = Math.max(-1000000, Math.min(1000000, Math.round(v)));
-      save();
-      play();
+    ["from", "to"].forEach(function (n) {
+      var input = $("ct-" + n);
+      input.addEventListener("input", function () {
+        var v = parseFloat(String(input.value).replace(/[^\d.-]/g, ""));
+        if (!isFinite(v)) { return; }
+        state[n] = Math.max(-1000000, Math.min(1000000, Math.round(v)));
+        save();
+        play();
+      });
+      input.addEventListener("change", render);
     });
-    $("ct-to").addEventListener("change", render);
     Array.prototype.forEach.call(document.querySelectorAll("#ct-currency button"), function (b) {
       b.addEventListener("click", function () {
         state.currency = b.getAttribute("data-currency");
@@ -131,7 +138,7 @@
       var button = $("ct-apply");
       if (button.disabled) { return; }
       button.disabled = true;
-      call("ctApply", { to: state.to, currency: state.currency, duration: state.duration }, function (res) {
+      call("ctApply", { from: state.from, to: state.to, currency: state.currency, duration: state.duration }, function (res) {
         button.disabled = false;
         status(res.ok ? res.message : res.error, res.ok ? "success" : "error");
       });

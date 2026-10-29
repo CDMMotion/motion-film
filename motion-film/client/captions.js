@@ -142,7 +142,7 @@
 
   var STORE_KEY = "motionfilm-captions";
   var settings = {
-    v: 2, mode: "viral", lang: "auto", range: "comp", group: "all",
+    v: 2, mode: "viral", lang: "auto", range: "comp", group: "all", review: true,
     styles: {}, rules: { classic: {}, dynamic: {}, word: {}, viral: {} },
     viral: { preset: "spotlight", anims: {}, opts: copy(VIRAL_OPTS) }
   };
@@ -156,6 +156,7 @@
     if (saved.lang) { settings.lang = saved.lang; }
     if (saved.range === "comp" || saved.range === "work") { settings.range = saved.range; }
     if (saved.group) { settings.group = saved.group; }
+    if (typeof saved.review === "boolean") { settings.review = saved.review; }
     SIMPLE.forEach(function (m) {
       var st = defaultStyle(m.id);
       var s = saved.styles && saved.styles[m.id];
@@ -434,7 +435,8 @@
   // ---- simple styles (DOM)
 
   function buildSimple(p, mode, st) {
-    var key = "simple|" + mode + "|" + st.textCase + "|" + st.justify;
+    var lines = previewLines(p) || SIMPLE_BY[mode].sample;
+    var key = "simple|" + mode + "|" + st.textCase + "|" + st.justify + "|" + lines.join("/");
     if (p.built === key) { return; }
     p.built = key;
     p.el.innerHTML = "";
@@ -449,7 +451,6 @@
     var t = 0.35;
     var j = 0;
     var oneAtATime = mode === "word";
-    var lines = SIMPLE_BY[mode].sample;
     (oneAtATime ? [lines.join(" ")] : lines).forEach(function (line) {
       var lineEl = document.createElement("div");
       lineEl.className = "cap-line";
@@ -631,7 +632,7 @@
     var W = 0.86 * w * (p.opts.zoom || 1) * scale;
     var palette = P.palette && P.palette.length ? P.palette : [{}];
     var accentRole = Object.assign({}, P.accent, palette[(p.opts.variant || 0) % palette.length]);
-    var rows = CL.rows(sampleWords(P), P);
+    var rows = CL.rows(previewWords(p) || sampleWords(P), P);
     rows.forEach(function (r) {
       r.roleObj = r.role === "accent" ? accentRole : P[r.role];
       r.size = r.roleObj.size * k;
@@ -693,7 +694,7 @@
   function drawViral(p, now) {
     var P = p.opts.getPreset();
     var o = settings.viral.opts;
-    var key = "viral|" + P.id + "|" + JSON.stringify(p.opts.card ? 0 : [o.position, o.posX, o.posY, o.scale]) + "|" + JSON.stringify(P.accent) + JSON.stringify(P.base) + "|" + (p.el.clientWidth) + "x" + (p.el.clientHeight);
+    var key = "viral|" + P.id + "|" + JSON.stringify(p.opts.card ? 0 : [o.position, o.posX, o.posY, o.scale]) + "|" + previewSig(p) + "|" + JSON.stringify(P.accent) + JSON.stringify(P.base) + "|" + (p.el.clientWidth) + "x" + (p.el.clientHeight);
     buildViral(p, P, key);
     var v = p.viral;
     var ctx = p.canvas.getContext("2d");
@@ -835,6 +836,7 @@
     previews.forEach(function (p) {
       if (onScreen(p.el, box.top, box.bottom)) {
         try { drawPreview(p, now); } catch (e) {}
+        if (p.snap) { guides(p, p.snap.x, p.snap.y); } // a rebuild wipes them
       }
     });
     rafId = window.requestAnimationFrame(tick);
@@ -988,6 +990,7 @@
       p.el.style.aspectRatio = String(compAspect());
       bigPreviews.push(p);
     });
+    applyFrame();
   }
 
   function compAspect() {
@@ -1258,6 +1261,7 @@
     bridge.hostCall("getCaptionsSummary", [settings.range], function (r) {
       var before = compAspect();
       summary = r && r.ok ? r : null;
+      if (frame.url && (!summary || !summary.comp || summary.comp.id !== frame.compId)) { clearFrame(); }
       renderPill();
       updateGenerate();
       if (before !== compAspect()) { bigPreviews.forEach(function (p) { p.built = ""; p.el.style.aspectRatio = String(compAspect()); }); }
@@ -1552,10 +1556,13 @@
       if (!words.length) { throw new Error("No speech recognized in “" + label + "”."); }
       words.forEach(function (w) { w.start += rendered.start; w.end += rendered.start; });
       var captions = captionsFor(words, r);
+      if (settings.review) { return { review: captions, compId: rendered.compId }; }
       step("layers", null);
       note(captions.length + " captions");
       return createLayers(captions, rendered.compId);
-    }).then(finishOk).catch(finishError);
+    }).then(function (r) {
+      if (r && r.review) { reviewReady(r.review, r.compId); } else { finishOk(r); }
+    }).catch(finishError);
   }
 
   // ------------------------------------------------------------------ restyle
@@ -1588,6 +1595,658 @@
       note(caps.length + " captions");
       return createLayers(core.planHighlights(caps, effectivePreset()), r.compId, replace);
     }).then(finishOk).catch(finishError);
+  }
+
+  // ------------------------------------------------------------------ review
+  // With "Review the text before creating" on, Generate stops after the
+  // transcription: 01 Generate shows the captions as rows of words to fix
+  // before any layer is made. Drag a word to another place (or between
+  // two rows: a caption of its own), double-click to retype it (spaces
+  // split it), Shift+click picks the highlighted word (Reels / Viral),
+  // Enter starts a new caption at the selected word, Del removes it.
+  // Changed captions get fresh times from their words on Create
+  // (core.finishEdited). The big previews show the selected caption. Kept
+  // in localStorage so a reopened panel still has it.
+
+  var REVIEW_KEY = "motionfilm-captions-review";
+  var REVIEW_KEYS = [
+    { keyCode: 8 }, { keyCode: 46 }, { keyCode: 13 }, { keyCode: 27 }, { keyCode: 37 }, { keyCode: 39 }, { keyCode: 113 },
+    { keyCode: 90, ctrlKey: true }, { keyCode: 89, ctrlKey: true }, { keyCode: 90, ctrlKey: true, shiftKey: true }
+  ];
+  var review = null; // { compId, fps, caps: [{ start, end, variant, dirty, words: [{ id, text, start, end, accent, eos }] }] }
+  var reviewSel = null; // selected word id
+  var reviewPast = [];
+  var reviewFuture = [];
+  var reviewUid = 1;
+  var reviewDrag = null;
+  var reviewLastClick = { id: null, t: 0 };
+
+  function reviewSave() {
+    try {
+      if (review) { window.localStorage.setItem(REVIEW_KEY, JSON.stringify(review)); } else { window.localStorage.removeItem(REVIEW_KEY); }
+    } catch (e) {}
+  }
+
+  function reviewLoad() {
+    var saved = null;
+    try { saved = JSON.parse(window.localStorage.getItem(REVIEW_KEY) || "null"); } catch (e) { saved = null; }
+    if (saved && Array.isArray(saved.caps) && saved.caps.length) {
+      review = saved;
+      review.caps.forEach(function (c) { c.words.forEach(function (w) { w.id = reviewUid++; }); });
+    }
+  }
+
+  // While the rows are open, these keys come to the panel instead of AE
+  // (only when the panel has focus); the rest of the time AE keeps them.
+  function reviewKeys(on) {
+    try { window.__adobe_cep__.registerKeyEventsInterest(JSON.stringify(on ? REVIEW_KEYS : [])); } catch (e) {}
+  }
+
+  function reviewReady(captions, compId) {
+    endJob();
+    hideProc();
+    review = {
+      compId: compId,
+      fps: summary && summary.comp ? summary.comp.fps : 30,
+      caps: captions.map(function (c) {
+        return {
+          start: c.start, end: c.end, variant: c.variant || 0, dirty: false,
+          words: c.words.map(function (w) { return { id: reviewUid++, text: w.text, start: w.start, end: w.end, accent: !!w.accent, eos: !!w.eos }; })
+        };
+      })
+    };
+    reviewSel = null;
+    reviewPast = [];
+    reviewFuture = [];
+    reviewSave();
+    renderReview();
+    status(review.caps.length + " captions transcribed -- check the text, then Create captions.", "success");
+    var box = $("cap-review");
+    if (box.scrollIntoView) { box.scrollIntoView({ block: "nearest" }); }
+  }
+
+  function closeReview() {
+    review = null;
+    reviewSel = null;
+    reviewPast = [];
+    reviewFuture = [];
+    reviewSave();
+    renderReview();
+  }
+
+  function findWord(id) {
+    if (!review) { return null; }
+    for (var ci = 0; ci < review.caps.length; ci += 1) {
+      var words = review.caps[ci].words;
+      for (var wi = 0; wi < words.length; wi += 1) {
+        if (words[wi].id === id) { return { ci: ci, wi: wi, cap: review.caps[ci], word: words[wi] }; }
+      }
+    }
+    return null;
+  }
+
+  // Undo step + change + clean up (empty captions go) + redraw.
+  function reviewChange(fn) {
+    reviewPast.push(JSON.stringify(review.caps));
+    if (reviewPast.length > 100) { reviewPast.shift(); }
+    reviewFuture = [];
+    fn();
+    review.caps = review.caps.filter(function (c) { return c.words.length; });
+    reviewCommit();
+  }
+
+  function reviewCommit() {
+    reviewSave();
+    renderReview();
+  }
+
+  function reviewUndo(redo) {
+    var from = redo ? reviewFuture : reviewPast;
+    var to = redo ? reviewPast : reviewFuture;
+    if (!review || !from.length) { return; }
+    to.push(JSON.stringify(review.caps));
+    review.caps = JSON.parse(from.pop());
+    reviewCommit();
+  }
+
+  function timecode(t) {
+    var fps = Math.max(1, Math.round((review && review.fps) || 30));
+    var frames = Math.max(0, Math.round(t * fps));
+    var sec = Math.floor(frames / fps);
+    return Math.floor(sec / 60) + ":" + ("0" + (sec % 60)).slice(-2) + ":" + ("0" + (frames % fps)).slice(-2);
+  }
+
+  function capStart(c) {
+    var t = Infinity;
+    c.words.forEach(function (w) { t = Math.min(t, w.start); });
+    return t;
+  }
+
+  function reviewButton(cls, title, svg, onClick) {
+    var b = document.createElement("button");
+    b.type = "button";
+    b.className = cls;
+    b.title = title;
+    b.innerHTML = svg;
+    b.addEventListener("click", onClick);
+    return b;
+  }
+
+  var REVIEW_ICONS = {
+    up: "<svg viewBox=\"0 0 24 24\" width=\"11\" height=\"11\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2.2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M12 19V5M5 12l7-7 7 7\"/></svg>",
+    trash: "<svg viewBox=\"0 0 24 24\" width=\"11\" height=\"11\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3\"/></svg>"
+  };
+
+  function gapEl(index) {
+    var g = document.createElement("div");
+    g.className = "cap-gap";
+    g.setAttribute("data-gap", String(index));
+    return g;
+  }
+
+  function renderReview() {
+    var open = !!review;
+    $("cap-gen-start").hidden = open;
+    $("cap-review").hidden = !open;
+    $("cap-review-toggle").classList.toggle("is-on", !!settings.review);
+    reviewKeys(open);
+    bigPreviews.forEach(function (p) { p.built = ""; });
+    if (!open) { return; }
+    var viral = isViral();
+    var box = $("cap-lines");
+    var scroll = box.scrollTop;
+    box.innerHTML = "";
+    var frag = document.createDocumentFragment();
+    frag.appendChild(gapEl(0));
+    review.caps.forEach(function (cap, ci) {
+      var row = document.createElement("div");
+      row.className = "cap-line";
+      row.setAttribute("data-ci", String(ci));
+      var start = capStart(cap);
+      var tc = document.createElement("button");
+      tc.type = "button";
+      tc.className = "cap-tc";
+      tc.textContent = timecode(start);
+      tc.title = "Jump to this caption in the timeline";
+      tc.addEventListener("click", function () { bridge.hostCall("captionsSeek", [start], function () {}); });
+      row.appendChild(tc);
+      var words = document.createElement("div");
+      words.className = "cap-words";
+      cap.words.forEach(function (w, wi) {
+        if (wi > 0) { words.appendChild(document.createTextNode(" ")); }
+        var el = document.createElement("span");
+        el.className = "cap-word" + (viral && w.accent ? " is-accent" : "") + (w.id === reviewSel ? " is-sel" : "");
+        el.textContent = w.text;
+        el.setAttribute("data-id", String(w.id));
+        words.appendChild(el);
+      });
+      row.appendChild(words);
+      var acts = document.createElement("div");
+      acts.className = "cap-line-acts";
+      if (ci > 0) {
+        acts.appendChild(reviewButton("cap-icon", "Join with the caption above", REVIEW_ICONS.up, function () {
+          reviewChange(function () {
+            var above = review.caps[ci - 1];
+            above.words = above.words.concat(review.caps[ci].words);
+            above.dirty = true;
+            review.caps.splice(ci, 1);
+          });
+        }));
+      }
+      acts.appendChild(reviewButton("cap-icon", "Delete this caption", REVIEW_ICONS.trash, function () {
+        reviewChange(function () { review.caps.splice(ci, 1); });
+      }));
+      row.appendChild(acts);
+      frag.appendChild(row);
+      frag.appendChild(gapEl(ci + 1));
+    });
+    box.appendChild(frag);
+    box.scrollTop = scroll;
+    $("cap-review-count").textContent = review.caps.length + " caption" + (review.caps.length === 1 ? "" : "s");
+    $("cap-review-undo").disabled = !reviewPast.length;
+    $("cap-review-redo").disabled = !reviewFuture.length;
+    $("cap-review-create").disabled = busy || !review.caps.length;
+  }
+
+  function selectWord(id) {
+    reviewSel = id;
+    $$("#cap-lines .cap-word.is-sel").forEach(function (el) { el.classList.remove("is-sel"); });
+    var el = id === null ? null : document.querySelector("#cap-lines .cap-word[data-id=\"" + id + "\"]");
+    if (el) { el.classList.add("is-sel"); }
+    bigPreviews.forEach(function (p) { p.built = ""; });
+  }
+
+  // Retype a word in place; spaces split it into words sharing its time.
+  function editWord(id) {
+    var el = document.querySelector("#cap-lines .cap-word[data-id=\"" + id + "\"]");
+    var hit = findWord(id);
+    if (!el || !hit) { return; }
+    var input = document.createElement("input");
+    input.className = "cap-word-input";
+    input.value = hit.word.text;
+    input.style.width = Math.max(40, el.offsetWidth + 20) + "px";
+    el.textContent = "";
+    el.appendChild(input);
+    input.focus();
+    input.select();
+    var done = false;
+    function finish(keep) {
+      if (done) { return; }
+      done = true;
+      var val = input.value.trim();
+      if (!keep || val === hit.word.text) { renderReview(); return; }
+      var parts = val ? val.split(/\s+/) : [];
+      reviewChange(function () {
+        var cur = findWord(id);
+        if (!cur) { return; }
+        var w = cur.word;
+        var dur = (w.end - w.start) / Math.max(1, parts.length);
+        var repl = parts.map(function (t, i) {
+          return { id: i === 0 ? w.id : reviewUid++, text: t, start: w.start + dur * i, end: w.start + dur * (i + 1), accent: w.accent && i === 0, eos: i === parts.length - 1 ? /[.!?…]$/.test(t) : false };
+        });
+        Array.prototype.splice.apply(cur.cap.words, [cur.wi, 1].concat(repl));
+        cur.cap.dirty = true;
+      });
+    }
+    input.addEventListener("keydown", function (e) {
+      e.stopPropagation();
+      if (e.key === "Enter" || e.key === "Tab") { e.preventDefault(); finish(true); } else if (e.key === "Escape") { finish(false); }
+    });
+    input.addEventListener("blur", function () { finish(true); });
+    input.addEventListener("input", function () { input.style.width = Math.max(40, input.value.length * 8 + 20) + "px"; });
+  }
+
+  function clearDropMarks() {
+    $$("#cap-lines .is-drop-before, #cap-lines .is-drop-after, #cap-lines .is-drop").forEach(function (el) {
+      el.classList.remove("is-drop-before", "is-drop-after", "is-drop");
+    });
+  }
+
+  function dropTargetAt(x, y) {
+    clearDropMarks();
+    var el = document.elementFromPoint(x, y);
+    if (!el || !$("cap-lines").contains(el)) { return null; }
+    var gap = el.closest(".cap-gap");
+    if (gap) {
+      gap.classList.add("is-drop");
+      return { type: "new", index: +gap.getAttribute("data-gap") };
+    }
+    var row = el.closest(".cap-line");
+    if (!row) { return null; }
+    var best = null;
+    var bestDist = Infinity;
+    $$(".cap-word", row).forEach(function (w) {
+      if (+w.getAttribute("data-id") === reviewDrag.id) { return; }
+      var r = w.getBoundingClientRect();
+      var dx = x < r.left ? r.left - x : (x > r.right ? x - r.right : 0);
+      var d = dx + Math.abs(y - (r.top + r.height / 2)) * 3;
+      if (d < bestDist) { bestDist = d; best = w; }
+    });
+    if (!best) {
+      row.classList.add("is-drop");
+      return { type: "append", ci: +row.getAttribute("data-ci") };
+    }
+    var rect = best.getBoundingClientRect();
+    var after = x > rect.left + rect.width / 2;
+    best.classList.add(after ? "is-drop-after" : "is-drop-before");
+    return { type: "word", ref: +best.getAttribute("data-id"), after: after };
+  }
+
+  function applyDrop(id, target) {
+    reviewChange(function () {
+      var src = findWord(id);
+      if (!src) { return; }
+      var word = src.cap.words.splice(src.wi, 1)[0];
+      src.cap.dirty = true;
+      if (target.type === "new") {
+        // the emptied source caption is removed after this, so the
+        // index still counts it -- splice in before the cleanup
+        review.caps.splice(target.index, 0, { start: word.start, end: word.end, variant: 0, dirty: true, words: [word] });
+      } else if (target.type === "append") {
+        review.caps[target.ci].words.push(word);
+        review.caps[target.ci].dirty = true;
+      } else {
+        var ref = findWord(target.ref);
+        if (!ref) { src.cap.words.splice(src.wi, 0, word); return; }
+        ref.cap.words.splice(ref.wi + (target.after ? 1 : 0), 0, word);
+        ref.cap.dirty = true;
+      }
+      reviewSel = id;
+    });
+  }
+
+  var dragGhost = null;
+  var scrollSpeed = 0;
+  var scrollRaf = 0;
+  function autoScroll(y) {
+    var box = $("cap-lines");
+    var r = box.getBoundingClientRect();
+    scrollSpeed = y < r.top + 24 ? -Math.ceil((r.top + 24 - y) / 4) : (y > r.bottom - 24 ? Math.ceil((y - r.bottom + 24) / 4) : 0);
+    if (scrollSpeed && !scrollRaf) {
+      var stepScroll = function () {
+        if (!scrollSpeed || !reviewDrag) { scrollRaf = 0; return; }
+        box.scrollTop += scrollSpeed;
+        scrollRaf = window.requestAnimationFrame(stepScroll);
+      };
+      scrollRaf = window.requestAnimationFrame(stepScroll);
+    }
+  }
+
+  function endDrag() {
+    clearDropMarks();
+    if (dragGhost) { dragGhost.style.display = "none"; }
+    if (reviewDrag && reviewDrag.el) { reviewDrag.el.classList.remove("is-dragging"); }
+    $("cap-lines").classList.remove("is-dragging");
+    scrollSpeed = 0;
+  }
+
+  function bindReview() {
+    var box = $("cap-lines");
+    dragGhost = document.createElement("div");
+    dragGhost.className = "cap-drag-ghost";
+    document.body.appendChild(dragGhost);
+    box.addEventListener("pointerdown", function (e) {
+      var el = e.target.closest ? e.target.closest(".cap-word") : null;
+      if (!el || e.button !== 0 || el.querySelector("input")) { return; }
+      reviewDrag = { id: +el.getAttribute("data-id"), el: el, x: e.clientX, y: e.clientY, active: false, shift: e.shiftKey, target: null };
+      box.setPointerCapture(e.pointerId);
+      e.preventDefault();
+    });
+    box.addEventListener("pointermove", function (e) {
+      var d = reviewDrag;
+      if (!d) { return; }
+      if (!d.active) {
+        if (Math.abs(e.clientX - d.x) + Math.abs(e.clientY - d.y) < 5) { return; }
+        d.active = true;
+        d.el.classList.add("is-dragging");
+        box.classList.add("is-dragging");
+        dragGhost.textContent = d.el.textContent;
+        dragGhost.style.display = "block";
+      }
+      dragGhost.style.left = e.clientX + "px";
+      dragGhost.style.top = e.clientY + "px";
+      d.target = dropTargetAt(e.clientX, e.clientY);
+      autoScroll(e.clientY);
+    });
+    box.addEventListener("pointerup", function () {
+      var d = reviewDrag;
+      if (!d) { return; }
+      endDrag();
+      reviewDrag = null;
+      if (d.active) {
+        if (d.target) { applyDrop(d.id, d.target); }
+        return;
+      }
+      var hit = findWord(d.id);
+      if (!hit) { return; }
+      if (d.shift) {
+        if (!isViral()) { status("The highlighted word is for the Reels / Viral styles.", ""); return; }
+        reviewChange(function () { hit.word.accent = !hit.word.accent; });
+        return;
+      }
+      // double-click by hand: pointer capture swallows the native dblclick
+      var now = Date.now();
+      if (reviewLastClick.id === d.id && now - reviewLastClick.t < 400) {
+        reviewLastClick = { id: null, t: 0 };
+        editWord(d.id);
+        return;
+      }
+      reviewLastClick = { id: d.id, t: now };
+      selectWord(d.id);
+    });
+    box.addEventListener("pointercancel", function () {
+      endDrag();
+      reviewDrag = null;
+    });
+    document.addEventListener("keydown", function (e) {
+      if (!review || $("page-captions").hidden || (e.target.matches && e.target.matches("input, select, textarea"))) { return; }
+      var key = e.key;
+      if ((e.ctrlKey || e.metaKey) && (key === "z" || key === "Z")) { e.preventDefault(); reviewUndo(e.shiftKey); return; }
+      if ((e.ctrlKey || e.metaKey) && (key === "y" || key === "Y")) { e.preventDefault(); reviewUndo(true); return; }
+      var hit = reviewSel === null ? null : findWord(reviewSel);
+      if (!hit) { return; }
+      if (key === "Delete" || key === "Backspace") {
+        e.preventDefault();
+        var next = hit.cap.words[hit.wi + 1] || hit.cap.words[hit.wi - 1];
+        reviewChange(function () { hit.cap.words.splice(hit.wi, 1); hit.cap.dirty = true; reviewSel = next ? next.id : null; });
+      } else if (key === "Enter") {
+        e.preventDefault();
+        if (hit.wi === 0) { return; }
+        reviewChange(function () {
+          var rest = hit.cap.words.splice(hit.wi);
+          hit.cap.dirty = true;
+          review.caps.splice(hit.ci + 1, 0, { start: rest[0].start, end: rest[rest.length - 1].end, variant: 0, dirty: true, words: rest });
+        });
+      } else if (key === "F2") {
+        editWord(reviewSel);
+      } else if (key === "ArrowRight" || key === "ArrowLeft") {
+        var all = [];
+        review.caps.forEach(function (c) { all = all.concat(c.words); });
+        var i = -1;
+        all.forEach(function (w, k) { if (w.id === reviewSel) { i = k; } });
+        var to = all[i + (key === "ArrowRight" ? 1 : -1)];
+        if (to) { selectWord(to.id); }
+      } else if (key === "Escape") {
+        selectWord(null);
+      }
+    });
+    $("cap-review-undo").addEventListener("click", function () { reviewUndo(false); });
+    $("cap-review-redo").addEventListener("click", function () { reviewUndo(true); });
+    $("cap-review-help-btn").addEventListener("click", function () { $("cap-review-help").hidden = !$("cap-review-help").hidden; });
+    $("cap-review-discard").addEventListener("click", closeReview);
+    $("cap-review-create").addEventListener("click", createFromReview);
+    $("cap-review-toggle").addEventListener("click", function () {
+      settings.review = !settings.review;
+      save();
+      renderReview();
+    });
+  }
+
+  function createFromReview() {
+    if (busy || !review || !review.caps.length) { return; }
+    var compId = review.compId;
+    var caps = core.finishEdited(review.caps, rules(), effectivePreset(), isViral());
+    showProc("Creating captions", "layers");
+    step("layers", null);
+    note(caps.length + " captions");
+    (isViral() ? ensureFonts(effectivePreset()).then(showFontsNote, fontsFailed) : Promise.resolve()).then(newJob).then(function () {
+      return createLayers(caps, compId);
+    }).then(function (r) {
+      closeReview();
+      finishOk(r);
+    }).catch(finishError);
+  }
+
+  // The caption the big previews show: the selected word's, else the
+  // first. null = no review (the style's own sample).
+  function previewCap(p) {
+    if (!review || !review.caps.length || p.opts.card) { return null; }
+    var hit = reviewSel === null ? null : findWord(reviewSel);
+    return hit ? hit.cap : review.caps[0];
+  }
+
+  function previewSig(p) {
+    var cap = previewCap(p);
+    return cap ? cap.words.map(function (w) { return w.text + (w.accent ? "*" : ""); }).join(" ") : "";
+  }
+
+  function previewWords(p) {
+    var cap = previewCap(p);
+    if (!cap) { return null; }
+    var words = cap.words.map(function (w, i) { return { text: w.text, accent: !!w.accent, start: 0.3 + i * 0.22 }; });
+    if (!words.some(function (w) { return w.accent; })) {
+      var P = effectivePreset();
+      core.pickHighlight(words, P.maxPre || 3, P.maxPost || 4).forEach(function (k) { words[k].accent = true; });
+    }
+    return words;
+  }
+
+  function previewLines(p) {
+    var cap = previewCap(p);
+    if (!cap) { return null; }
+    var texts = cap.words.map(function (w) { return w.text; });
+    var r = rules();
+    return core.wrapLines(texts, r.maxChars, r.maxLines) || [texts.join(" ")];
+  }
+
+  // ------------------------------------------------------------------ frame + drag
+  // Frame: the comp's current frame (host captionsGrabFrame, our caption
+  // layers switched off meanwhile) becomes the big previews' background,
+  // until the comp changes or × is clicked. Drag in the Adjust preview
+  // to place the caption (position Custom, X / Y in %); it snaps to the
+  // center lines, Alt turns the snap off.
+
+  var frame = { url: "", file: "", compId: null };
+
+  function applyFrame() {
+    bigPreviews.forEach(function (p) {
+      p.el.style.backgroundImage = frame.url ? "url(\"" + frame.url + "\")" : "";
+      p.el.classList.toggle("has-frame", !!frame.url);
+    });
+    $("cap-frame-clear").hidden = !frame.url;
+  }
+
+  function dropFrameFile() {
+    if (frame.file) { try { bridge.nodeRequire("fs").unlinkSync(frame.file); } catch (e) {} }
+  }
+
+  function clearFrame() {
+    dropFrameFile();
+    frame = { url: "", file: "", compId: null };
+    applyFrame();
+  }
+
+  function grabFrame() {
+    if (busy || !summary || !summary.comp) { status("Open the composition first.", "error"); return; }
+    var fs = bridge.nodeRequire("fs");
+    var path = bridge.nodeRequire("path");
+    var dir = bridge.paths().tempDir;
+    var name = "frame-" + Date.now() + ".png";
+    var compId = summary.comp.id;
+    var button = $("cap-frame");
+    try { fs.mkdirSync(dir, { recursive: true }); } catch (e) {}
+    button.disabled = true;
+    bridge.toShortPath(dir).then(function (shortDir) {
+      return hostP("captionsGrabFrame", [path.join(shortDir, name)]);
+    }).then(function () {
+      // saveFrameToPng writes after it returns: wait for a settled file
+      var file = path.join(dir, name);
+      var last = -1;
+      var tries = 0;
+      return new Promise(function (resolve, reject) {
+        (function wait() {
+          var size = -1;
+          try { size = fs.statSync(file).size; } catch (e) {}
+          if (size > 0 && size === last) { resolve(file); return; }
+          last = size;
+          tries += 1;
+          if (tries > 75) { reject(new Error("After Effects didn't save the frame.")); return; }
+          setTimeout(wait, 200);
+        }());
+      });
+    }).then(function (file) {
+      bridge.hostCall("captionsFrameDone", [], function () {});
+      dropFrameFile();
+      frame = { url: "file:///" + file.replace(/\\/g, "/").split("/").map(encodeURIComponent).join("/").replace(/^([A-Za-z])%3A/, "$1:"), file: file, compId: compId };
+      applyFrame();
+      button.disabled = false;
+    }).catch(function (error) {
+      bridge.hostCall("captionsFrameDone", [], function () {});
+      button.disabled = false;
+      status(String((error && error.message) || error), "error");
+    });
+  }
+
+  function adjustPreview() {
+    var box = $("cap-adjust-preview");
+    for (var i = 0; i < bigPreviews.length; i += 1) { if (box.contains(bigPreviews[i].el)) { return bigPreviews[i]; } }
+    return null;
+  }
+
+  function guides(p, snapX, snapY) {
+    p.snap = snapX || snapY ? { x: snapX, y: snapY } : null;
+    if (!p.guideX || !p.el.contains(p.guideX)) {
+      p.guideX = document.createElement("div");
+      p.guideX.className = "cap-guide cap-guide-x";
+      p.guideY = document.createElement("div");
+      p.guideY.className = "cap-guide cap-guide-y";
+      p.el.appendChild(p.guideX);
+      p.el.appendChild(p.guideY);
+    }
+    p.guideX.classList.toggle("is-on", !!snapX);
+    p.guideY.classList.toggle("is-on", !!snapY);
+  }
+
+  // Only what a drag changes: the position buttons and the X / Y fields.
+  function syncPosition() {
+    var m = model();
+    segmentedValue("cap-position", m.position);
+    $$("#captions-main [data-show-position]").forEach(function (el) { el.hidden = m.position !== el.getAttribute("data-show-position"); });
+    $$("#captions-main [data-num=\"posX\"], #captions-main [data-num=\"posY\"]").forEach(function (input) {
+      input.value = m[input.getAttribute("data-num")];
+    });
+  }
+
+  function bindPlacement() {
+    // frames left by an earlier session
+    try {
+      var fs = bridge.nodeRequire("fs");
+      var dir = bridge.paths().tempDir;
+      fs.readdirSync(dir).forEach(function (f) {
+        if (/^frame-\d+\.png$/.test(f)) { try { fs.unlinkSync(bridge.nodeRequire("path").join(dir, f)); } catch (e) {} }
+      });
+    } catch (e) {}
+    $("cap-frame").addEventListener("click", grabFrame);
+    $("cap-frame-clear").addEventListener("click", clearFrame);
+    var box = $("cap-adjust-preview");
+    box.addEventListener("pointerdown", function (e) {
+      var p = adjustPreview();
+      if (!p || e.button !== 0) { return; }
+      var rect = p.el.getBoundingClientRect();
+      if (!rect.width || e.clientX < rect.left || e.clientX > rect.right || e.clientY < rect.top || e.clientY > rect.bottom) { return; }
+      // where the caption's center is now, in % of the screen
+      var cx = 50;
+      var cy = 50;
+      if (isViral() && p.viral) {
+        cx = p.viral.cx / p.viral.w * 100;
+        cy = p.viral.cy / p.viral.h * 100;
+      } else if (p.sample) {
+        var r = p.sample.getBoundingClientRect();
+        cx = (r.left + r.width / 2 - rect.left) / rect.width * 100;
+        cy = (r.top + r.height / 2 - rect.top) / rect.height * 100;
+      }
+      var offX = (e.clientX - rect.left) / rect.width * 100 - cx;
+      var offY = (e.clientY - rect.top) / rect.height * 100 - cy;
+      box.setPointerCapture(e.pointerId);
+      box.classList.add("is-placing");
+      e.preventDefault();
+      function move(ev) {
+        var x = (ev.clientX - rect.left) / rect.width * 100 - offX;
+        var y = (ev.clientY - rect.top) / rect.height * 100 - offY;
+        var snapX = !ev.altKey && Math.abs(x - 50) < 2;
+        var snapY = !ev.altKey && Math.abs(y - 50) < 2;
+        if (snapX) { x = 50; }
+        if (snapY) { y = 50; }
+        var m = model();
+        m.position = "custom";
+        m.posX = Math.round(clamp(x, 0, 100) * 10) / 10;
+        m.posY = Math.round(clamp(y, 0, 100) * 10) / 10;
+        guides(p, snapX, snapY);
+        syncPosition();
+      }
+      function up() {
+        box.removeEventListener("pointermove", move);
+        box.removeEventListener("pointerup", up);
+        box.removeEventListener("pointercancel", up);
+        box.classList.remove("is-placing");
+        guides(p, false, false);
+        save();
+        renderControls();
+      }
+      box.addEventListener("pointermove", move);
+      box.addEventListener("pointerup", up);
+      box.addEventListener("pointercancel", up);
+    });
   }
 
   // ------------------------------------------------------------------ SRT
@@ -1664,9 +2323,15 @@
   bindControls();
   renderStyleGrid();
   renderBigPreviews();
+  reviewLoad();
+  bindReview();
+  bindPlacement();
+  renderReview();
   setView("style");
   poll(true);
-  setInterval(function () { poll(false); }, 1500);
+  // no host calls while the panel is blurred (see MF.panelActive, panel.js)
+  setInterval(function () { if (!(window.MF && window.MF.panelActive && !window.MF.panelActive())) { poll(false); } }, 1500);
+  if (window.MF && window.MF.onPanelBack) { window.MF.onPanelBack(function () { poll(false); }); }
   document.addEventListener("visibilitychange", startPreviews);
   $$(".page-tab").forEach(function (tab) {
     tab.addEventListener("click", function () { setTimeout(function () { poll(true); startPreviews(); }, 50); });

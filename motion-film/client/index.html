@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Mótion Film</title>
-    <link rel="stylesheet" href="styles.css?v=0154a" />
+    <link rel="stylesheet" href="styles.css?v=0170a" />
   </head>
   <body>
     <div class="app-shell">
@@ -266,6 +266,7 @@
                 <svg class="section-chevron" viewBox="0 0 12 12" width="10" height="10" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M2.5 4.5L6 8l3.5-3.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
               </div>
               <div class="section-body">
+                <div id="cap-gen-start">
                 <div class="cap-picks">
                   <button type="button" data-go="style" title="Go to 1 Style"><small>Style</small><b id="cap-pick-style"></b></button>
                   <button type="button" data-go="anim" title="Go to 2 Animation"><small>Animation</small><b id="cap-pick-anim"></b></button>
@@ -275,6 +276,34 @@
                   Generate captions
                 </button>
                 <p class="cap-hint" id="cap-hint"></p>
+                <button type="button" class="cap-toggle" id="cap-review-toggle" title="After the transcription, show the text so you can fix words and move them between captions before the layers are made">Review the text before creating</button>
+                </div>
+
+                <!-- Review (captions.js, "review"): the transcribed text,
+                     one row per caption, before any layer is made. -->
+                <div id="cap-review" class="cap-review" hidden>
+                  <div class="cap-review-head">
+                    <b>Review the text</b>
+                    <small id="cap-review-count"></small>
+                    <span class="cap-review-tools">
+                      <button type="button" class="cap-icon" id="cap-review-undo" title="Undo (Ctrl+Z)"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 14 4 9l5-5"/><path d="M4 9h10a6 6 0 0 1 0 12h-3"/></svg></button>
+                      <button type="button" class="cap-icon" id="cap-review-redo" title="Redo (Ctrl+Y)"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 14 5-5-5-5"/><path d="M20 9H10a6 6 0 0 0 0 12h3"/></svg></button>
+                      <button type="button" class="cap-icon" id="cap-review-help-btn" title="Shortcuts"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M9.5 9.5a2.5 2.5 0 1 1 3.5 2.3c-.6.3-1 .9-1 1.6V14M12 17.5v.01"/></svg></button>
+                    </span>
+                  </div>
+                  <div class="cap-review-help" id="cap-review-help" hidden>
+                    <span><kbd>Drag</kbd> a word to another place or between rows (new caption)</span>
+                    <span><kbd>Double-click</kbd> fix a word (spaces split it)</span>
+                    <span><kbd>Shift</kbd>+<kbd>Click</kbd> highlighted word (Reels / Viral)</span>
+                    <span><kbd>Enter</kbd> new caption from the selected word · <kbd>Del</kbd> remove it</span>
+                    <span>Time button: jump there in the timeline</span>
+                  </div>
+                  <div class="cap-lines" id="cap-lines"></div>
+                  <div class="cap-review-actions">
+                    <button type="button" id="cap-review-create" class="lf-tool is-primary">Create captions</button>
+                    <button type="button" id="cap-review-discard" class="lf-tool">Discard</button>
+                  </div>
+                </div>
               </div>
             </section>
 
@@ -367,8 +396,14 @@
 
                 <!-- 4 Adjust -->
                 <div class="cap-view" data-view="adjust" hidden>
-                <div class="cap-heading">Preview <small id="cap-adjust-hint"></small></div>
+                <div class="cap-heading cap-heading-row">Preview <small id="cap-adjust-hint"></small>
+                  <span class="cap-frame-tools">
+                    <button type="button" class="cap-mini" id="cap-frame" title="Show the comp's current frame behind the preview"><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="12" cy="12" r="3"/></svg>Frame</button>
+                    <button type="button" class="cap-mini" id="cap-frame-clear" title="Back to the plain background" hidden>&times;</button>
+                  </span>
+                </div>
                   <div class="cap-preview" id="cap-adjust-preview"></div>
+                  <p class="cap-help cap-center">Drag the caption to place it · it snaps to the center lines (Alt: no snap)</p>
 
                   <div class="cap-heading">Position &amp; size</div>
                   <div class="segmented" id="cap-position">
@@ -510,37 +545,40 @@
               <svg class="section-chevron" viewBox="0 0 12 12" width="10" height="10" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M2.5 4.5L6 8l3.5-3.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
             </div>
             <div class="section-body">
-              <div class="ta-stage" id="ta-stage"><div class="ta-text" id="ta-text"></div><button id="ta-fav" class="curve-fav" type="button" title="Save this animation as a favorite (02 / Favorites)" aria-label="Save this animation as a favorite"><svg viewBox="0 0 16 16" width="14" height="14"><path d="M8 1.9l1.8 3.8 4.1.5-3 2.8.8 4.1L8 11.1 4.3 13.1l.8-4.1-3-2.8 4.1-.5z"/></svg></button></div>
-              <div class="segmented ta-by" id="ta-by" role="group" aria-label="Animate by">
-                <button type="button" class="segmented-option" data-by="letter" title="Each letter after the one before">Letter by letter</button>
-                <button type="button" class="segmented-option" data-by="word" title="Each word after the one before">Word by word</button>
-                <button type="button" class="segmented-option" data-by="line" title="Each line after the one before">Line by line</button>
-              </div>
-              <div class="segmented ta-bounce" id="ta-bounce" role="group" aria-label="Bounce">
-                <button type="button" class="segmented-option" data-bounce="off" title="Eases in and stops">No bounce</button>
-                <button type="button" class="segmented-option" data-bounce="on" title="Swings past its place and back a few times before it settles">Bounce</button>
-              </div>
-              <div class="ta-styles" id="ta-styles" role="group" aria-label="Animation style">
-                <button type="button" data-style="rise">Rise</button>
-                <button type="button" data-style="drop">Drop</button>
-                <button type="button" data-style="left">From Left</button>
-                <button type="button" data-style="right">From Right</button>
-                <button type="button" data-style="fade">Fade</button>
-                <button type="button" data-style="scale">Scale Up</button>
-                <button type="button" data-style="zoomout">Zoom Out</button>
-                <button type="button" data-style="blur">Blur In</button>
-                <button type="button" data-style="rotate">Rotate In</button>
-                <button type="button" data-style="tracking">Tracking In</button>
+              <div class="ta-stage" id="ta-stage" title="Click to play again"><div class="ta-text" id="ta-text"></div><button id="ta-replay" class="curve-fav ta-replay" type="button" title="Play the preview again" aria-label="Play the preview again"><svg viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M2.8 8a5.2 5.2 0 1 0 1.6-3.8"/><path d="M2.5 2.5v3h3"/></svg></button><button id="ta-fav" class="curve-fav" type="button" title="Save this animation as a favorite (02 / Favorites)" aria-label="Save this animation as a favorite"><svg viewBox="0 0 16 16" width="14" height="14"><path d="M8 1.9l1.8 3.8 4.1.5-3 2.8.8 4.1L8 11.1 4.3 13.1l.8-4.1-3-2.8 4.1-.5z"/></svg></button></div>
+              <!-- 3 boxes: the style (list), what moves (letters / words /
+                   lines) and Bounce on / off -->
+              <div class="ta-controls">
+                <div class="ta-drop" id="ta-style-drop">
+                  <button type="button" class="ta-box" aria-haspopup="listbox" aria-expanded="false" title="How the text comes in"><small>Animation</small><b id="ta-style-label"></b><svg class="ta-chev" viewBox="0 0 12 12" width="9" height="9" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M2.5 4.5L6 8l3.5-3.5" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+                  <div class="ta-menu ta-menu-grid" id="ta-styles" role="listbox" aria-label="Animation style" hidden>
+                    <button type="button" role="option" data-style="rise">Rise</button>
+                    <button type="button" role="option" data-style="drop">Drop</button>
+                    <button type="button" role="option" data-style="left">From Left</button>
+                    <button type="button" role="option" data-style="right">From Right</button>
+                    <button type="button" role="option" data-style="fade">Fade</button>
+                    <button type="button" role="option" data-style="scale">Scale Up</button>
+                    <button type="button" role="option" data-style="zoomout">Zoom Out</button>
+                    <button type="button" role="option" data-style="blur">Blur In</button>
+                    <button type="button" role="option" data-style="rotate">Rotate In</button>
+                    <button type="button" role="option" data-style="tracking">Tracking In</button>
+                  </div>
+                </div>
+                <div class="ta-drop" id="ta-by-drop">
+                  <button type="button" class="ta-box" aria-haspopup="listbox" aria-expanded="false" title="What comes in one after the other"><small>Animate by</small><b id="ta-by-label"></b><svg class="ta-chev" viewBox="0 0 12 12" width="9" height="9" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M2.5 4.5L6 8l3.5-3.5" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+                  <div class="ta-menu" id="ta-by" role="listbox" aria-label="Animate by" hidden>
+                    <button type="button" role="option" data-by="letter" title="Each letter after the one before">Letters</button>
+                    <button type="button" role="option" data-by="word" title="Each word after the one before">Words</button>
+                    <button type="button" role="option" data-by="line" title="Each line after the one before">Lines</button>
+                  </div>
+                </div>
+                <button type="button" class="ta-box ta-bounce" id="ta-bounce" role="switch" aria-checked="false" title="Swings past its place and back a few times before it settles"><small>Bounce</small><span class="ta-switch"></span></button>
               </div>
               <div class="ta-sliders">
                 <label class="ta-slider" id="ta-amount-row"><span>Amount <output id="ta-out-amount"></output></span><input type="range" id="ta-amount" min="0" max="120" step="1" /></label>
                 <label class="ta-slider"><span><i id="ta-delay-name">Delay between letters</i> <output id="ta-out-delay"></output></span><input type="range" id="ta-delay" min="0" max="0.2" step="0.005" /></label>
                 <label class="ta-slider"><span>Duration <output id="ta-out-duration"></output></span><input type="range" id="ta-duration" min="0.2" max="2" step="0.05" /></label>
                 <label class="ta-slider"><span>Blur <output id="ta-out-blur"></output></span><input type="range" id="ta-blur" min="0" max="30" step="1" /></label>
-              </div>
-              <div class="ta-row">
-                <input type="text" id="ta-sample" class="ta-input" spellcheck="false" placeholder="Preview text" />
-                <button type="button" id="ta-replay" class="lf-tool ta-replay" title="Play the preview again"><svg viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M2.8 8a5.2 5.2 0 1 0 1.6-3.8"/><path d="M2.5 2.5v3h3"/></svg>Replay</button>
               </div>
               <div class="ta-actions">
                 <button type="button" id="ta-apply" class="lf-tool is-primary" title="Animate the selected text layers from their in point">
@@ -589,8 +627,12 @@
             <div class="section-body">
               <div class="ta-stage ct-stage" id="ct-stage"><div class="ct-num" id="ct-num">0</div></div>
               <div class="ct-row">
-                <span>Count to</span>
-                <input type="text" id="ct-to" class="ta-input ct-to" inputmode="numeric" spellcheck="false" aria-label="Count to" />
+                <span>Count</span>
+                <div class="ct-range">
+                  <label class="ct-num-box"><small>From</small><input type="text" id="ct-from" inputmode="numeric" spellcheck="false" aria-label="Count from" /></label>
+                  <svg class="ct-arrow" viewBox="0 0 16 16" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8h10M9.5 4.5 13 8l-3.5 3.5"/></svg>
+                  <label class="ct-num-box"><small>To</small><input type="text" id="ct-to" inputmode="numeric" spellcheck="false" aria-label="Count to" /></label>
+                </div>
               </div>
               <div class="ct-row">
                 <span>Currency</span>
@@ -612,7 +654,7 @@
                 <button type="button" id="ct-replay" class="lf-tool ta-remove" title="Play the preview again" aria-label="Replay"><svg viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M2.8 8a5.2 5.2 0 1 0 1.6-3.8"/><path d="M2.5 2.5v3h3"/></svg></button>
                 <button type="button" id="ct-remove" class="lf-tool ta-remove" title="Remove the counter from the selected text layers" aria-label="Remove counter"><svg viewBox="0 0 28 28" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M6 8h16M11.5 8V6.2h5V8M9.5 8l1 15h7l1-15" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
               </div>
-              <div class="lf-hint">On the selected text layer, or a new one in the middle when none is selected. Counts from the layer&#39;s in point; From / To / Duration stay on the layer (Effect Controls &#8250; MF Counter). Up to 1,000,000.</div>
+              <div class="lf-hint">On the selected text layer, or a new one in the middle when none is selected. Counts from the layer&#39;s in point with two keyframes on Effect Controls &#8250; MF Counter &#183; Value -- move them or shape the speed in the Graph Editor. Up to 1,000,000.</div>
             </div>
           </section>
         </main>
@@ -847,12 +889,12 @@
          Cache (compiled-JS bytecode) in cep_cache can otherwise serve
          stale script for a whole AE session even after the file on disk
          changed. Changing the URL forces a fresh fetch + recompile. -->
-    <script src="shared-core.js?v=0140a"></script>
-    <script src="captions-core.js?v=0140a"></script>
+    <script src="shared-core.js?v=0170a"></script>
+    <script src="captions-core.js?v=0170a"></script>
     <script src="captions-layout.js?v=0140a"></script>
     <script src="captions-styles.js?v=0140a"></script>
-    <script src="panel.js?v=0140a"></script>
-    <script src="captions.js?v=0140a"></script>
+    <script src="panel.js?v=0170a"></script>
+    <script src="captions.js?v=0170a"></script>
     <script src="folders.js?v=0140a"></script>
     <script src="scalecomp.js?v=0140a"></script>
     <script src="wheel-core.js?v=0154a"></script>
@@ -860,10 +902,10 @@
     <script src="elastic.js?v=0150a"></script>
     <script src="curve-favorites.js?v=0140a"></script>
     <script src="transitions-catalog.js?v=0140a"></script>
-    <script src="transitions.js?v=0150a"></script>
-    <script src="textanim.js?v=0154a"></script>
+    <script src="transitions.js?v=0170a"></script>
+    <script src="textanim.js?v=0170a"></script>
     <script src="textanim-favorites.js?v=0154a"></script>
-    <script src="counter.js?v=0153a"></script>
-    <script src="carousel.js?v=0153a"></script>
+    <script src="counter.js?v=0170a"></script>
+    <script src="carousel.js?v=0170a"></script>
   </body>
 </html>

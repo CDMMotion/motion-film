@@ -6014,3 +6014,105 @@ os da original, `scan` os tratava como apagados e salvava a pasta vazia.
   aparecem Outer (6) / Inner (2), abrem e fecham sem mexer na original;
   cópia "estragada" (membros vazios) recuperada, com ids só dela.
 
+
+## Changelog -- Packs: câmera 3D volta no lugar certo
+
+Bug relatado pelo usuário: pack com câmera 3D aplicava a câmera com a
+posição/rotação padrão (o resto da cena certo). Causa (reproduzida ao
+vivo): o AE recusa `applyPreset` em câmera e luz -- mostra um alerta por
+layer e não lança erro, então `kitApplyLayerFfx` dava como aplicado e o
+template JSON nunca entrava. Agora `kitFfxSkips` (host.jsx) deixa câmera
+e luz fora do .ffx ao salvar e ignora o .ffx delas ao aplicar (packs
+antigos também ficam certos); elas voltam pelo JSON (transform com
+keyframes, Point of Interest, Camera/Light Options). Conferido: câmera de
+2 nós animada, câmera de 1 nó presa num Null escalado/girado e spot light
+saem com a mesma posição e direção no mundo da original, sem alertas.
+
+## Changelog -- Texto pulando ao digitar com abas novas abertas
+
+Bug antigo de volta (relato do usuário): com a aba Text Animation
+aberta, digitar num texto no viewport fazia o cursor voltar pro começo /
+pular de caixa. A trava original só existia no poll de `panel.js`
+(nenhuma chamada ao AE com o painel sem foco e texto selecionado); os
+polls que vieram depois -- `taState` da Text Animation (lê o Source
+Text a cada 1,5 s!), `cxState` do Carousel, `getCaptionsSummary` das
+Captions e `mftInfo` das Transitions -- chamavam o AE no meio da edição.
+Agora `panel.js` expõe `MF.panelActive()` e `MF.onPanelBack(fn)`: esses
+polls não chamam o AE com o painel sem foco e atualizam uma vez quando o
+foco/mouse volta pro painel. Conferido ao vivo: painel sem foco com a
+aba Text aberta e um texto selecionado = zero chamadas em 7 s; foco de
+volta = `taState` na hora. Regra pra polls novos: sempre checar
+`MF.panelActive()`.
+
+## Changelog -- Captions: revisar o texto, Frame e arrastar a legenda
+
+Pedido do usuário: trazer pra aba Captions as três ferramentas do ReText
+(painel de teste dele, em outra pasta), sem o peso dele (6,8 GB: Python
++ CUDA + faster-whisper large-v3-turbo -- a nossa transcrição já é o
+whisper.cpp, ~600 MB com ffmpeg e modelo). Só as ideias da interface
+foram refeitas, no estilo do nosso código:
+- **Review the text before creating** (toggle em 01 Generate, ligado por
+  padrão, `settings.review`): o Generate para depois da transcrição e
+  mostra as legendas como linhas de palavras. Arrastar palavra (para
+  outro lugar, outra linha ou entre linhas = legenda nova), duplo clique
+  para corrigir (espaços dividem), Shift+clique = palavra em destaque
+  (Reels / Viral), Enter = nova legenda a partir da palavra, Del remove,
+  Ctrl+Z / Ctrl+Y, juntar com a de cima, apagar, botão de tempo pula a
+  agulha (`captionsSeek`). As teclas só vêm pro painel enquanto a revisão
+  está aberta (`registerKeyEventsInterest`). "Create captions" passa por
+  `core.finishEdited` (legenda mexida ganha tempos novos das palavras com
+  as mesmas regras do buildCaptions; destaque escolhido se faltar; linhas
+  re-quebradas nos estilos simples) e cria pelo `createCaptionSet` de
+  sempre. A revisão fica em localStorage `motionfilm-captions-review`.
+  Os previews grandes mostram a legenda selecionada.
+- **Frame** (4 Adjust): `captionsGrabFrame` salva o quadro atual da comp
+  (`saveFrameToPng`, assíncrono -- o painel espera o arquivo assentar)
+  com as nossas legendas daquele instante desligadas, `captionsFrameDone`
+  liga de volta; vira o fundo dos previews grandes até trocar de comp ou
+  clicar ×. PNGs em Mótion Film Tools/temp, apagados ao trocar/abrir.
+- **Arrastar a legenda** no preview do Adjust: posição Custom com X / Y
+  em %, réguas no centro com encaixe (Alt desliga). Viral usa o centro do
+  bloco (p.viral.cx/cy), simples o centro do texto.
+- Testado ao vivo: arrastar (linha nova / entre palavras), Shift+clique,
+  Enter, Ctrl+Z, duplo clique, Delete, Create (3 legendas com tempos
+  recalculados), Frame (sem as legendas existentes, religadas depois),
+  arraste com encaixe (viral e Classic) e Generate real -> revisão.
+
+## Changelog -- Text Animation: 3 caixas no lugar dos botões
+
+Pedido do usuário: aba mais simples. Os 10 estilos, Letter / Word / Line
+e Bounce / No bounce viraram uma linha de 3 caixas (`.ta-controls`):
+**Animation** abre a lista dos estilos (2 colunas; passar o mouse num
+estilo já mostra ele no preview, `hoverStyle`), **Animate by** abre
+Letters / Words / Lines, **Bounce** é um switch. Fecha ao escolher, ao
+clicar fora ou com Esc. Mesmo `state` / localStorage de antes, então
+favoritos e a Wheel não mudam.
+- Depois (mesmo dia): saiu a caixa de texto do preview e o botão Replay
+  embaixo -- o preview mostra sempre o texto do layer selecionado (ou
+  "Mótion Film"); clicar no preview ou no ↻ do canto dele toca de novo.
+  O `sample` salvo de antes é ignorado.
+
+## Changelog -- Sliders novos no painel todo
+
+Pedido do usuário: sliders mais bonitos. Todos os `input[type=range]` do
+painel (Home, Captions, Text Animation, Counter, Transitions...) agora
+são desenhados pelo styles.css ("Range sliders"): cinza em repouso, a
+bolinha acende verde com o mouse em cima, tudo verde (trilho preenchido
++ bolinha) enquanto arrasta. A parte preenchida vem de `--p`, mantida
+por `rangeFill` em shared-core.js (arraste, valor setado pelo código --
+o setter de `value` é embrulhado só para ranges -- e sliders nunca
+tocados). Saiu o `accent-color` nativo.
+
+## Changelog -- Counter: From / To e keyframes
+
+Pedido do usuário: escolher também o número inicial, e poder suavizar a
+subida com curvas. "Count" agora tem duas caixas lado a lado, From -> To
+(`state.from`). No AE (host/counter.jsx) o número virou um Slider
+"MF Counter · Value" com 2 keyframes (In point e In point + Duration) e o
+Source Text só formata esse valor -- dá para mover os keys e mexer na
+velocidade no Graph Editor. O padrão é ease-out cúbico de verdade
+(saída a 3x a velocidade média com influência 33,3%, chegada a 0), igual
+ao preview; os dois keys ficam selecionados. Aplicar de novo apaga o
+contador antigo, inclusive o de expressão (From / To / Duration).
+Conferido ao vivo: 100 -> 2.500 em 1 s dá R$ 1.487 em 0,25 s e R$ 2.200
+em 0,5 s, igual a 1 - (1 - t)^3.

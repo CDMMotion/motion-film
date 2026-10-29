@@ -2,12 +2,16 @@
  * Mótion Film -- Counter (aba Text Animation › 02 / COUNTER,
  * client/counter.js).
  *
- * Um número que conta até o valor escolhido, com ease-out cúbico, a
- * partir do In point da camada: Source Text por expressão lendo 3 Slider
- * Control "MF Counter · From / To / Duration" (ajustáveis depois no
- * Effect Controls). Moeda: nenhuma, $ ou € (milhar com vírgula) ou R$
- * (milhar com ponto). Sem camada de texto selecionada, cria uma no meio
- * da comp. Os sliders do AE vão até 1.000.000.
+ * Um número que conta de "From" até "To" a partir do In point da camada:
+ * um Slider Control "MF Counter · Value" com 2 keyframes (In point e In
+ * point + duração) e o Source Text por expressão mostrando esse valor
+ * arredondado e formatado. Por serem keyframes, a subida se ajusta com
+ * as curvas de velocidade do Graph Editor; o padrão é ease-out cúbico
+ * (saída rápida, chegada suave), o mesmo do preview. Moeda: nenhuma, $
+ * ou € (milhar com vírgula) ou R$ (milhar com ponto). Sem camada de texto
+ * selecionada, cria uma no meio da comp. O slider do AE vai até
+ * 1.000.000. Aplicar de novo troca o contador (inclui o antigo, de
+ * expressão com From / To / Duration).
  *
  * Carregado sob demanda via $.evalFile. Um undo por ação.
  */
@@ -50,22 +54,32 @@
   function expression(cur) {
     var c = CURRENCY[cur] || CURRENCY.none;
     return [
-      "// Mótion Film Counter -- tune in Effect Controls › " + NAME,
-      "var a = effect(\"" + knob("From") + "\")(1).value, b = effect(\"" + knob("To") + "\")(1).value;",
-      "var d = Math.max(0.01, effect(\"" + knob("Duration") + "\")(1).value);",
-      "var t = Math.min(1, Math.max(0, (time - inPoint) / d));",
-      "var n = Math.round(a + (b - a) * (1 - Math.pow(1 - t, 3)));",
+      "// Mótion Film Counter -- the number is the keyframed Effect Controls › " + knob("Value") + " (shape it with speed curves)",
+      "var n = Math.round(effect(\"" + knob("Value") + "\")(1).value);",
       "var s = String(Math.abs(n)).replace(/\\B(?=(\\d{3})+(?!\\d))/g, \"" + c.sep + "\");",
       "(n < 0 ? \"-\" : \"\") + \"" + c.prefix + "\" + s;"
     ].join("\n");
   }
 
-  // o: { to, currency, duration }
+  // Two keys from -> to over d seconds, eased like 1 - (1 - t)^3: leaves
+  // at 3x the average speed, lands at 0 (bezier handles at 1/3 and 2/3).
+  function keyframe(prop, t0, from, to, d) {
+    prop.setValueAtTime(t0, from);
+    prop.setValueAtTime(t0 + d, to);
+    for (var k = 1; k <= 2; k += 1) { prop.setInterpolationTypeAtKey(k, KeyframeInterpolationType.BEZIER, KeyframeInterpolationType.BEZIER); }
+    var flat = new KeyframeEase(0, 33.333);
+    prop.setTemporalEaseAtKey(1, [flat], [new KeyframeEase(3 * (to - from) / d, 33.333)]);
+    prop.setTemporalEaseAtKey(2, [flat], [flat]);
+  }
+
+  // o: { from, to, currency, duration }
   $.global.ctApply = function (o) {
     var comp = activeComp();
     if (!comp) { return stringify({ ok: false, error: "Open a composition first." }); }
     o = o || {};
+    var from = Math.max(-1000000, Math.min(1000000, Number(o.from) || 0));
     var to = Math.max(-1000000, Math.min(1000000, Number(o.to) || 0));
+    var duration = Math.max(0.1, Number(o.duration) || 2);
     var layers = textLayers(comp);
     app.beginUndoGroup("Mótion Film: Counter");
     try {
@@ -86,14 +100,13 @@
       for (var i = 0; i < layers.length; i += 1) {
         var layer = layers[i];
         removeOld(layer);
-        var fx = layer.property("ADBE Effect Parade");
-        var values = [["From", 0], ["To", to], ["Duration", Math.max(0.1, Number(o.duration) || 2)]];
-        for (var k = 0; k < values.length; k += 1) {
-          fx.addProperty("ADBE Slider Control").name = knob(values[k][0]);
-          layer.property("ADBE Effect Parade").property(knob(values[k][0])).property(1).setValue(values[k][1]);
-        }
+        layer.property("ADBE Effect Parade").addProperty("ADBE Slider Control").name = knob("Value");
+        var value = layer.property("ADBE Effect Parade").property(knob("Value")).property(1);
+        keyframe(value, layer.inPoint, from, to, duration);
         sourceText(layer).expression = expression(o.currency);
         layer.selected = true;
+        // the two keys selected: the Graph Editor shows them right away
+        try { value.setSelectedAtKey(1, true); value.setSelectedAtKey(2, true); } catch (selectError) {}
       }
       app.endUndoGroup();
       return stringify({ ok: true, message: made ? "Counter made in a new text layer." : (layers.length === 1 ? "Counter applied." : layers.length + " counters applied.") });
