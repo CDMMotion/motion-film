@@ -1532,6 +1532,410 @@
     }
   }
 
+  // Folders inside a topic (like the groups of Packs › Transitions):
+  // library.json keeps their order per topic -- { folders: { topic:
+  // [names] } } -- and a pack's meta.json names its own `folder` (none =
+  // loose in the topic). A folder a pack names that isn't listed (a pack
+  // folder copied in by hand) shows up too.
+  function getKitFolders(category) {
+    var lib = kitLoadLibrary();
+    var list = ((lib.folders && lib.folders[category]) || []).slice();
+    (kitPacksCache || kitRefreshPacks()).forEach(function (p) {
+      if (p.category === category && p.folder && list.indexOf(p.folder) === -1) {
+        list.push(p.folder);
+      }
+    });
+    return list;
+  }
+
+  function kitSetFolders(category, list) {
+    var lib = kitLoadLibrary();
+    if (!lib.folders || typeof lib.folders !== "object") {
+      lib.folders = {};
+    }
+    if (list.length) {
+      lib.folders[category] = list;
+    } else {
+      delete lib.folders[category];
+    }
+    kitSaveLibrary();
+  }
+
+  function kitEnsureFolder(category, folder) {
+    var list = getKitFolders(category);
+    if (folder && list.indexOf(folder) === -1) {
+      list.push(folder);
+    }
+    kitSetFolders(category, list);
+  }
+
+  function kitPacksIn(category, folder) {
+    return (kitPacksCache || kitRefreshPacks()).filter(function (p) {
+      return p.category === category && (p.folder || "") === (folder || "");
+    });
+  }
+
+  // Rewrites one pack's meta.json (moving it to another topic / folder).
+  // An empty value removes the field.
+  function kitUpdatePackMeta(id, changes) {
+    var file = nodeRequire("path").join(kitPackDir(id), "meta.json");
+    var meta = kitReadJsonFile(file, null);
+    if (!meta) {
+      return false;
+    }
+    Object.keys(changes).forEach(function (k) {
+      if (changes[k]) {
+        meta[k] = changes[k];
+      } else {
+        delete meta[k];
+      }
+    });
+    try {
+      kitWriteJsonFile(file, meta);
+      return true;
+    } catch (writeError) {
+      return false;
+    }
+  }
+
+  function kitCleanFolderName(name) {
+    return String(name || "").replace(/\s+/g, " ").trim().substring(0, 60);
+  }
+
+  function kitAddFolder(trigger) {
+    var category = kitState.category;
+    openNamePopover(trigger, "Folder name", function (raw) {
+      var name = kitCleanFolderName(raw);
+      if (!name) {
+        return;
+      }
+      if (getKitFolders(category).indexOf(name) !== -1) {
+        setStatus("“" + name + "” already exists in " + category + ".", "error");
+        return;
+      }
+      kitEnsureFolder(category, name);
+      renderKitPresets();
+      setStatus("Added the folder “" + name + "”. Drag packs onto it, or save new ones while it's open.", "success");
+    });
+  }
+
+  function kitRenameFolder(trigger, category, folder) {
+    openNamePopover(trigger, "Folder name", function (raw) {
+      var name = kitCleanFolderName(raw);
+      if (!name || name === folder) {
+        return;
+      }
+      var list = getKitFolders(category);
+      if (list.indexOf(name) !== -1) {
+        setStatus("“" + name + "” already exists in " + category + ".", "error");
+        return;
+      }
+      kitPacksIn(category, folder).forEach(function (p) {
+        kitUpdatePackMeta(p.id, { folder: name });
+      });
+      list[list.indexOf(folder)] = name;
+      kitSetFolders(category, list);
+      kitRefreshPacks();
+      if (kitState.category === category && kitState.folder === folder) {
+        kitState.folder = name;
+      }
+      renderKitPresets();
+      setStatus("Renamed “" + folder + "” to “" + name + "”.", "success");
+    }, folder);
+  }
+
+  // withPacks: deletes the packs inside too (3-second hold in delete
+  // mode); otherwise they go back loose into the topic.
+  function kitRemoveFolder(category, folder, withPacks) {
+    var packs = kitPacksIn(category, folder);
+    var failed = 0;
+    packs.forEach(function (p) {
+      if (withPacks) {
+        if (!kitDeletePackFiles(p.id)) { failed += 1; }
+      } else {
+        kitUpdatePackMeta(p.id, { folder: "" });
+      }
+    });
+    kitSetFolders(category, getKitFolders(category).filter(function (f) { return f !== folder; }));
+    kitRefreshPacks();
+    // a pack folder that couldn't be deleted still names it -- keep it listed
+    kitSetFolders(category, getKitFolders(category));
+    if (kitState.folder === folder) {
+      kitState.folder = "";
+    }
+    kitDeleteMode = false;
+    renderKitPresets();
+    if (failed) {
+      setStatus("Deleted “" + folder + "”, but " + failed + " pack folder(s) are in use -- close AE and delete them in " + kitPacksDir(), "error");
+    } else if (withPacks) {
+      setStatus("Deleted the folder “" + folder + "”" + (packs.length ? " and the " + packs.length + " pack" + (packs.length === 1 ? "" : "s") + " in it" : "") + ".", "success");
+    } else {
+      setStatus("Removed the folder “" + folder + "”" + (packs.length ? " -- its " + packs.length + " pack" + (packs.length === 1 ? " is" : "s are") + " loose in " + category + " now" : "") + ".", "success");
+    }
+  }
+
+  // Drag-and-drop target of a pack: a folder square, the folder's back
+  // button (out of the folder) or a topic in the rail.
+  function kitDropValue(el) {
+    return { category: el.getAttribute("data-category"), folder: el.getAttribute("data-folder") || "" };
+  }
+
+  function kitMovePack(meta, to) {
+    if (!kitUpdatePackMeta(meta.id, { category: to.category, folder: to.folder })) {
+      setStatus("Couldn't move “" + meta.label + "”.", "error");
+      return;
+    }
+    kitEnsureCategory(to.category);
+    kitEnsureFolder(to.category, to.folder);
+    kitRefreshPacks();
+    renderKitCategories();
+    renderKitPresets();
+    var where = to.folder ? "the folder “" + to.folder + "”" : (to.category === meta.category ? "the top of " + to.category : to.category);
+    setStatus("Moved “" + meta.label + "” to " + where + ".", "success");
+  }
+
+  // Mouse-driven (not HTML5 drag, which AE can grab): past 6px a pill
+  // follows the cursor and the target under it lights up. kitDragJustEnded
+  // eats the click that the release fires on the tile.
+  var kitDragJustEnded = false;
+
+  function kitBindPackDrag(tile, preset) {
+    tile.addEventListener("mousedown", function (event) {
+      if (kitDeleteMode || kitExportMode || !preset.custom || event.button !== 0) {
+        return;
+      }
+      var startX = event.clientX;
+      var startY = event.clientY;
+      var ghost = null;
+      var target = null;
+      function targetAt(x, y) {
+        var el = document.elementFromPoint(x, y);
+        el = el && el.closest ? el.closest("[data-kit-drop]") : null;
+        if (!el) {
+          return null;
+        }
+        var to = kitDropValue(el);
+        return to.category === preset.meta.category && to.folder === (preset.meta.folder || "") ? null : el;
+      }
+      function move(e) {
+        if (!ghost) {
+          if (Math.abs(e.clientX - startX) + Math.abs(e.clientY - startY) < 6) {
+            return;
+          }
+          ghost = document.createElement("div");
+          ghost.className = "kit-drag-ghost";
+          ghost.textContent = preset.label;
+          document.body.appendChild(ghost);
+          tile.classList.add("is-dragging");
+          document.body.classList.add("is-kit-dragging");
+        }
+        ghost.style.left = (e.clientX + 12) + "px";
+        ghost.style.top = (e.clientY + 10) + "px";
+        var t = targetAt(e.clientX, e.clientY);
+        if (t !== target) {
+          if (target) { target.classList.remove("is-drop-target"); }
+          target = t;
+          if (target) { target.classList.add("is-drop-target"); }
+        }
+      }
+      function up() {
+        document.removeEventListener("mousemove", move, true);
+        document.removeEventListener("mouseup", up, true);
+        if (!ghost) {
+          return;
+        }
+        ghost.parentNode.removeChild(ghost);
+        tile.classList.remove("is-dragging");
+        document.body.classList.remove("is-kit-dragging");
+        kitDragJustEnded = true;
+        window.setTimeout(function () { kitDragJustEnded = false; }, 0);
+        if (target) {
+          target.classList.remove("is-drop-target");
+          kitMovePack(preset.meta, kitDropValue(target));
+        }
+      }
+      document.addEventListener("mousemove", move, true);
+      document.addEventListener("mouseup", up, true);
+    });
+  }
+
+  var KIT_FOLDER_ICON = '<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linejoin="round"><path d="M3 6.5A1.5 1.5 0 0 1 4.5 5h4.6l2 2.2h8.4A1.5 1.5 0 0 1 21 8.7v9.8a1.5 1.5 0 0 1-1.5 1.5h-15A1.5 1.5 0 0 1 3 18.5z"/></svg>';
+  var KIT_BACK_ICON = '<svg viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M10 3.5 5.5 8l4.5 4.5"/></svg>';
+
+  function kitFolderMenu(trigger, category, folder) {
+    openChoicePicker(trigger, [
+      { value: "rename", label: "Rename folder" },
+      { value: "remove", label: "Remove folder (keeps its packs)" }
+    ], null, function (action) {
+      if (action === "rename") {
+        kitRenameFolder(trigger, category, folder);
+      } else if (action === "remove") {
+        kitRemoveFolder(category, folder, false);
+      }
+    });
+  }
+
+  // A folder square: the cover is its first pack's preview (plays on
+  // hover, like the Transitions groups), name + pack count underneath.
+  function kitFolderTile(category, folder) {
+    var path = nodeRequire("path");
+    var packs = kitPacksIn(category, folder);
+    var tile = document.createElement("button");
+    tile.type = "button";
+    tile.className = "kit-preset-tile kit-folder-tile";
+    tile.setAttribute("data-kit-drop", "");
+    tile.setAttribute("data-category", category);
+    tile.setAttribute("data-folder", folder);
+    tile.title = folder + " -- click to open · drop packs here · right-click: rename / remove";
+
+    var preview = document.createElement("div");
+    preview.className = "kit-preset-preview kit-folder-preview" + (packs.length ? "" : " is-empty");
+    var icon = document.createElement("span");
+    icon.className = "kit-folder-icon";
+    icon.innerHTML = KIT_FOLDER_ICON;
+    preview.appendChild(icon);
+    if (packs.length) {
+      var cover = packs[0];
+      var base = kitFileUrl(path.join(kitPackDir(cover.id), "preview"));
+      var query = "?t=" + (cover.previewAt || 0);
+      var img = document.createElement("img");
+      img.className = "kit-preset-thumb";
+      img.src = base + ".jpg" + query;
+      img.alt = "";
+      img.loading = "lazy";
+      img.addEventListener("error", function () { preview.classList.add("is-empty"); });
+      var video = document.createElement("video");
+      video.className = "kit-preset-video";
+      video.setAttribute("data-pack", cover.id);
+      video.muted = true;
+      video.loop = true;
+      video.playsInline = true;
+      video.preload = "metadata";
+      video.src = base + ".mp4" + query;
+      preview.appendChild(img);
+      preview.appendChild(video);
+      var hovering = false;
+      var startVideo = function () {
+        preview.classList.add("is-playing");
+        try { video.currentTime = 0; } catch (seekError) {}
+        var p = video.play();
+        if (p && typeof p.catch === "function") { p.catch(function () {}); }
+      };
+      video.addEventListener("canplay", function () {
+        if (hovering && video.paused) { startVideo(); }
+      });
+      tile.addEventListener("mouseenter", function () {
+        hovering = true;
+        if (video.readyState >= 3) { startVideo(); }
+      });
+      tile.addEventListener("mouseleave", function () {
+        hovering = false;
+        preview.classList.remove("is-playing");
+        try { video.pause(); } catch (pauseError) {}
+      });
+    }
+    var badge = document.createElement("span");
+    badge.className = "kit-folder-badge";
+    badge.innerHTML = KIT_FOLDER_ICON + "<b></b>";
+    badge.querySelector("b").textContent = String(packs.length);
+    preview.appendChild(badge);
+
+    var label = document.createElement("span");
+    label.className = "kit-preset-label";
+    label.textContent = folder;
+    tile.appendChild(preview);
+    tile.appendChild(label);
+
+    // delete mode: a 3-second hold deletes the folder AND its packs
+    var holdTimer = null;
+    function cancelHold() {
+      if (holdTimer) {
+        window.clearTimeout(holdTimer);
+        holdTimer = null;
+        tile.classList.remove("is-deleting-armed");
+      }
+    }
+    tile.addEventListener("mousedown", function (event) {
+      if (!kitDeleteMode || event.button !== 0) {
+        return;
+      }
+      event.preventDefault();
+      tile.classList.add("is-deleting-armed");
+      holdTimer = window.setTimeout(function () {
+        holdTimer = null;
+        kitRemoveFolder(category, folder, true);
+      }, 3000);
+    });
+    tile.addEventListener("mouseup", cancelHold);
+    tile.addEventListener("mouseleave", cancelHold);
+    tile.addEventListener("click", function () {
+      if (kitDeleteMode) {
+        return;
+      }
+      kitState.folder = folder;
+      renderKitPresets();
+    });
+    tile.addEventListener("contextmenu", function (event) {
+      event.preventDefault();
+      event.stopPropagation();
+      if (kitDeleteMode || kitExportMode) {
+        return;
+      }
+      kitFolderMenu(tile, category, folder);
+    });
+    return tile;
+  }
+
+  function kitNewFolderTile() {
+    var tile = document.createElement("button");
+    tile.type = "button";
+    tile.className = "kit-folder-new";
+    tile.title = "New folder in " + kitState.category;
+    tile.innerHTML = '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14" stroke-linecap="round"/></svg><span>New folder</span>';
+    tile.addEventListener("click", function (event) {
+      // synchronous popover: keep the document-level closer off it
+      event.stopPropagation();
+      kitAddFolder(tile);
+    });
+    return tile;
+  }
+
+  // Inside a folder: back to the topic (also a drop target -- dropping a
+  // pack on it takes the pack out of the folder), the count, and ⋯.
+  function kitFolderBar(category, folder, count) {
+    var bar = document.createElement("div");
+    bar.className = "kit-folder-bar";
+    var back = document.createElement("button");
+    back.type = "button";
+    back.className = "tr-back kit-folder-back";
+    back.setAttribute("data-kit-drop", "");
+    back.setAttribute("data-category", category);
+    back.setAttribute("data-folder", "");
+    back.title = "Back to " + category + " · drop a pack here to take it out of the folder";
+    back.innerHTML = KIT_BACK_ICON + KIT_FOLDER_ICON + "<span></span>";
+    back.querySelector("span").textContent = folder;
+    back.addEventListener("click", function () {
+      kitState.folder = "";
+      renderKitPresets();
+    });
+    bar.appendChild(back);
+    var info = document.createElement("span");
+    info.className = "kit-folder-count";
+    info.textContent = count + " pack" + (count === 1 ? "" : "s");
+    bar.appendChild(info);
+    var more = document.createElement("button");
+    more.type = "button";
+    more.className = "kit-folder-more";
+    more.title = "Rename / remove this folder";
+    more.textContent = "⋯";
+    more.addEventListener("click", function (event) {
+      event.stopPropagation();
+      kitFolderMenu(more, category, folder);
+    });
+    bar.appendChild(more);
+    return bar;
+  }
+
   // Deletes a pack's folder -- data, preview AND every copied media file
   // (user request: deleting a pack must free its media on disk too).
   // The tile's <video> may still hold preview.mp4 open, so the grid
@@ -1556,6 +1960,9 @@
   function deleteKitCategory(category) {
     var lib = kitLoadLibrary();
     lib.categories = lib.categories.filter(function (c) { return c !== category; });
+    if (lib.folders) {
+      delete lib.folders[category];
+    }
     kitSaveLibrary();
     var toRemove = (kitPacksCache || kitRefreshPacks()).filter(function (p) {
       return p.category === category;
@@ -1567,6 +1974,7 @@
     kitRefreshPacks();
     if (kitState.category === category) {
       kitState.category = KIT_TRANSITIONS;
+      kitState.folder = "";
     }
     kitDeleteMode = false;
     kitExportMode = false;
@@ -1590,7 +1998,8 @@
   // if the user already deleted "Text reveal" (any built-in topic is
   // deletable now, see deleteKitCategory), this needs to land on
   // whatever topic is ACTUALLY first, not one that's been hidden.
-  var kitState = { category: KIT_TRANSITIONS };
+  // folder: the folder open inside the topic ("" = the topic itself).
+  var kitState = { category: KIT_TRANSITIONS, folder: "" };
 
   // Armed by the footer's "Delete preset" button (see initKitSaveTools):
   // while true, tiles stop applying on click and instead delete on a
@@ -1649,6 +2058,12 @@
         btn.type = "button";
         btn.className = "kit-category" + (category === kitState.category ? " is-active" : "") + (category === KIT_TRANSITIONS ? " is-builtin" : "");
         btn.textContent = category;
+        if (category !== KIT_TRANSITIONS) {
+          // drop a dragged pack here to move it to this topic
+          btn.setAttribute("data-kit-drop", "");
+          btn.setAttribute("data-category", category);
+          btn.setAttribute("data-folder", "");
+        }
         btn.addEventListener("click", function () {
           // Picking a category from the sidebar always means "just
           // browsing" -- cancel delete/export mode (armed by the
@@ -1661,12 +2076,15 @@
           kitDeleteMode = false;
           kitExportMode = false;
           if (kitState.category === category) {
-            if (wasDeleteMode || wasExportMode) {
+            // the active topic again: back out of an open folder
+            if (wasDeleteMode || wasExportMode || kitState.folder) {
+              kitState.folder = "";
               renderKitPresets();
             }
             return;
           }
           kitState.category = category;
+          kitState.folder = "";
           renderKitCategories();
           renderKitPresets();
         });
@@ -1697,6 +2115,7 @@
         }
         kitEnsureCategory(name);
         kitState.category = name;
+        kitState.folder = "";
         renderKitCategories();
         renderKitPresets();
         setStatus("Added “" + name + "”.", "success");
@@ -1717,18 +2136,37 @@
       return;
     }
     root.innerHTML = "";
+    var folders = getKitFolders(kitState.category);
+    if (kitState.folder && folders.indexOf(kitState.folder) === -1) {
+      kitState.folder = "";
+    }
+    var folder = kitState.folder;
     var allPresets = getAllKitPresets();
     var matches = [];
     for (var i = 0; i < allPresets.length; i += 1) {
-      if (allPresets[i].category === kitState.category) {
+      if (allPresets[i].category === kitState.category && ((allPresets[i].meta && allPresets[i].meta.folder) || "") === folder) {
         matches.push(allPresets[i]);
       }
     }
+    // the topic: its folders first, then "New folder", then its loose
+    // packs; inside a folder: the back bar, then the folder's packs
+    if (folder) {
+      root.appendChild(kitFolderBar(kitState.category, folder, matches.length));
+    } else {
+      folders.forEach(function (f) {
+        root.appendChild(kitFolderTile(kitState.category, f));
+      });
+      if (!kitDeleteMode && !kitExportMode) {
+        root.appendChild(kitNewFolderTile());
+      }
+    }
     if (!matches.length) {
-      var empty = document.createElement("div");
-      empty.className = "kit-empty";
-      empty.textContent = "No presets in this category yet.";
-      root.appendChild(empty);
+      if (folder || !folders.length) {
+        var empty = document.createElement("div");
+        empty.className = "kit-empty";
+        empty.textContent = folder ? "This folder is empty. Drag packs onto its folder square, or save new ones while it's open." : "No packs in this group yet.";
+        root.appendChild(empty);
+      }
       return;
     }
     for (var j = 0; j < matches.length; j += 1) {
@@ -1924,7 +2362,12 @@
         tile.addEventListener("mouseup", cancelDeleteHold);
         tile.addEventListener("mouseleave", cancelDeleteHold);
 
+        kitBindPackDrag(tile, preset);
+
         tile.addEventListener("click", function () {
+          if (kitDragJustEnded) {
+            return;
+          }
           if (kitDeleteMode) {
             // Delete mode only ever acts on the 3-second hold above --
             // a plain click (release before the timer fires) must not
@@ -2254,14 +2697,30 @@
         options = [{ value: KIT_CATEGORIES[0], label: KIT_CATEGORIES[0] }];
       }
       openChoicePicker(trigger, options, kitState.category, function (category) {
-        openNamePopover(trigger, "Pack name", function (name) {
-          kitCreatePack(kind, category, name, tmp, res);
-        }, res.name || "");
+        kitPickFolder(trigger, category, function (folder) {
+          openNamePopover(trigger, "Pack name", function (name) {
+            kitCreatePack(kind, category, folder, name, tmp, res);
+          }, res.name || "");
+        });
       });
     });
   }
 
-  async function kitCreatePack(kind, category, label, capturePath, summary) {
+  // Second step of saving, only when the topic has folders: which one
+  // ("No folder" = loose in the topic). The open folder comes pre-picked.
+  function kitPickFolder(trigger, category, onPick) {
+    var folders = getKitFolders(category);
+    if (!folders.length) {
+      onPick("");
+      return;
+    }
+    var options = [{ value: "", label: "No folder" }].concat(folders.map(function (f) {
+      return { value: f, label: "\ud83d\udcc1 " + f };
+    }));
+    openChoicePicker(trigger, options, category === kitState.category ? kitState.folder : "", onPick);
+  }
+
+  async function kitCreatePack(kind, category, folder, label, capturePath, summary) {
     var fs = nodeRequire("fs");
     var path = nodeRequire("path");
     var id = "pack-" + Date.now();
@@ -2281,6 +2740,7 @@
         id: id,
         kind: kind,
         category: category,
+        folder: folder || undefined,
         label: label,
         createdAt: Date.now(),
         formatVersion: 2,
@@ -2297,8 +2757,10 @@
       kitWriteJsonFile(path.join(dir, "meta.json"), meta);
       try { fs.unlinkSync(capturePath); } catch (unlinkError) {}
       kitEnsureCategory(category);
+      kitEnsureFolder(category, folder);
       kitRefreshPacks();
       kitState.category = category;
+      kitState.folder = folder || "";
       renderKitCategories();
       renderKitPresets();
       var missing = summary.sources ? summary.sources.missing : 0;
@@ -2817,12 +3279,13 @@
             deleteKitCategory(category);
             return;
           }
+          if (kitState.category !== category) { kitState.folder = ""; }
           kitState.category = category;
           kitDeleteMode = true;
           kitExportMode = false;
           renderKitCategories();
           renderKitPresets();
-          setStatus("Hold a preset for 3 seconds to delete it. Built-in presets can't be deleted this way.", "success");
+          setStatus("Hold a pack (or a folder, with its packs) for 3 seconds to delete it.", "success");
         });
       });
     }
@@ -2843,12 +3306,13 @@
           return { value: c, label: c };
         });
         openChoicePicker(exportBtn, options, kitState.category, function (category) {
+          if (kitState.category !== category) { kitState.folder = ""; }
           kitState.category = category;
           kitExportMode = true;
           kitDeleteMode = false;
           renderKitCategories();
           renderKitPresets();
-          setStatus("Click a preset to export it. Built-in presets can't be exported this way.", "success");
+          setStatus("Click a pack to export it (open a folder to reach its packs).", "success");
         });
       });
     }
@@ -3166,7 +3630,7 @@
       motionFilmKitPresetFile: true,
       formatVersion: 2,
       exportedAt: new Date().toISOString(),
-      preset: { kind: meta.kind, category: meta.category, label: meta.label, compName: meta.compName || null, data: kitStripMachinePaths(meta.kind, data) }
+      preset: { kind: meta.kind, category: meta.category, folder: meta.folder || null, label: meta.label, compName: meta.compName || null, data: kitStripMachinePaths(meta.kind, data) }
     };
     var entries = [{ name: "preset.json", data: Buffer.from(JSON.stringify(envelope), "utf8") }];
     ["mp4", "jpg"].forEach(function (ext) {
@@ -3267,12 +3731,14 @@
       var label = uniqueKitPresetLabel(String(entry.label || "Imported pack"), existingLabels);
       existingLabels.push(label);
       var category = (entry.category && String(entry.category)) || getAllKitCategories()[0] || KIT_CATEGORIES[0];
+      var folder = entry.folder ? kitCleanFolderName(entry.folder) : "";
       kitWriteJsonFile(path.join(dir, "data.json"), data);
       var comp = data.comp || {};
       kitWriteJsonFile(path.join(dir, "meta.json"), {
         id: id,
         kind: entry.kind,
         category: category,
+        folder: folder || undefined,
         label: label,
         createdAt: Date.now(),
         formatVersion: 2,
@@ -3284,6 +3750,7 @@
         imported: true
       });
       kitEnsureCategory(category);
+      kitEnsureFolder(category, folder);
       return { id: id, kind: entry.kind, hasPreview: hasPreview, category: category };
     } catch (importError) {
       try { fs.rmSync(dir, { recursive: true, force: true }); } catch (cleanupError) {}

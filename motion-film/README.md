@@ -6116,3 +6116,50 @@ ao preview; os dois keys ficam selecionados. Aplicar de novo apaga o
 contador antigo, inclusive o de expressão (From / To / Duration).
 Conferido ao vivo: 100 -> 2.500 em 1 s dá R$ 1.487 em 0,25 s e R$ 2.200
 em 0,5 s, igual a 1 - (1 - t)^3.
+
+## Changelog -- Packs: pastas dentro de cada grupo
+
+Pedido do usuário: a aba Kit passa a se chamar **Packs**, e todo grupo
+criado nela pode ter pastas, como os grupos de Transitions. No grupo
+aparecem primeiro as pastas (quadrado com a prévia do 1º pack, que toca
+com o mouse em cima, e o número de packs), depois "New folder" e os
+packs soltos. Clicar numa pasta abre; a barra de cima volta para o grupo
+(clicar no grupo ativo na lateral também volta).
+
+- Arrastar um pack até uma pasta põe ele lá; até a barra de voltar tira
+  da pasta; até outro grupo na lateral muda de grupo.
+- Botão direito na pasta (ou o ⋯ dentro dela): Rename / Remove folder
+  -- remover deixa os packs soltos no grupo.
+- Delete Pack: segurar 3 s numa pasta apaga a pasta com os packs dela.
+- Salvar: quando o grupo tem pastas, aparece um 2º passo para escolher a
+  pasta ("No folder" = solto). A pasta aberta já vem marcada.
+- Dados: library.json ganhou `folders: { grupo: [nomes] }` (ordem) e o
+  meta.json do pack ganhou `folder`. Export/Import levam a pasta junto.
+  Uma pasta citada por um pack mas que não está na lista aparece
+  sozinha.
+
+## Changelog -- Text Animation: Amount e Blur iguais à prévia
+
+Bug do usuário: a prévia mostrava um movimento forte e no AE ficava bem
+fraco. A prévia desenha o texto a 34px, e Amount / Blur eram px fixos
+na camada -- num texto de 342px ficava 10x mais fraco. Agora as
+expressões do animator "MF Text" multiplicam por `fonte / 34` (lido de
+`text.sourceText.style.fontSize`), então a proporção bate com a prévia
+em qualquer tamanho de fonte, e acompanha se a fonte mudar depois. O
+Tracking passou de Amount x 4 para Amount x 10,3 (0,35 x Amount px por
+letra numa fonte de 34px, em 1/1000 em). Camadas já animadas precisam
+ser reaplicadas. Conferido no AE: fonte 340, Amount 40 -> 400 px, Blur 5
+-> 50, Tracking 412.
+
+## Changelog -- Carousel parado, Spin para animar
+
+Pedido do usuário: o carrossel não deve girar sozinho -- ele quer gerar
+estático e animar a rotação depois. Saíram o Speed (e o Offset): o null
+"MF Carousel" ganhou **Spin** (Angle Control; 360° = uma volta inteira
+ou o percurso todo no Curved Line), e as expressões usam só
+`Spin / 360` como fase, sem `time`. Para animar, keyframes no Spin. No
+painel, o slider Speed virou Spin (posição inicial) e a prévia ficou
+parada (sem botão de pausa). O link ao vivo não mexe em controle que já
+tem keyframes. Um carrossel antigo reaplicado perde Speed e Offset (o
+Offset fica se tiver keyframes). Conferido no AE: frames em 0 s e 3 s
+idênticos; Spin 0 -> 120° em 2 s move os cartões.

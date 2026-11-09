@@ -156,6 +156,34 @@ h1, p { margin: 0; }
 .kit-preset-label { padding: 6px 8px; color: var(--text); font-size: 10px; font-weight: 650; }
 .kit-empty { grid-column: 1 / -1; padding: 22px 10px; text-align: center; color: var(--muted); font-size: 10.5px; }
 
+/* Folders inside a topic (panel.js, kitFolderTile / kitFolderBar): a
+   square with its first pack as the cover (big folder icon when empty)
+   and a count badge; inside one, a back bar across the whole grid.
+   Dragging a pack lights up the folder / back bar / rail topic under it. */
+.kit-folder-tile .kit-preset-label { display: flex; align-items: center; font-weight: 750; }
+.kit-folder-icon { display: flex; color: var(--dim); }
+.kit-folder-icon svg { width: 30px; height: 30px; stroke-width: 1.4; }
+.kit-folder-preview.is-empty .kit-preset-thumb, .kit-folder-preview.is-empty .kit-preset-video { display: none; }
+.kit-folder-preview:not(.is-empty)::after { content: ""; position: absolute; inset: 0; background: linear-gradient(to top, rgba(0, 0, 0, .55), transparent 55%); pointer-events: none; }
+.kit-folder-badge { position: absolute; left: 6px; bottom: 5px; z-index: 1; display: flex; align-items: center; gap: 4px; padding: 2px 6px 2px 5px; border-radius: 6px; color: #fff; background: rgba(0, 0, 0, .55); font-size: 9px; }
+.kit-folder-badge svg { width: 11px; height: 11px; }
+.kit-folder-badge b { font-weight: 750; }
+.kit-folder-tile:hover .kit-folder-badge { color: var(--accent-bright); }
+.kit-folder-new { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 5px; min-height: 92px; padding: 0; border: 1px dashed var(--line); border-radius: 9px; color: var(--dim); background: transparent; font-size: 9.5px; font-weight: 700; }
+.kit-folder-new:hover { border-color: var(--accent); color: var(--accent-bright); background: rgba(var(--accent-rgb), .06); }
+.kit-folder-bar { grid-column: 1 / -1; display: flex; align-items: center; gap: 8px; min-width: 0; }
+.kit-folder-back { min-width: 0; }
+.kit-folder-back span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.kit-folder-back svg + svg { flex-shrink: 0; color: var(--accent-bright); }
+.kit-folder-count { margin-left: auto; color: var(--dim); font-size: 9px; white-space: nowrap; }
+.kit-folder-more { flex-shrink: 0; width: 26px; height: 24px; padding: 0; border: 1px solid var(--line); border-radius: 6px; color: var(--muted); background: var(--panel-raised); font-size: 13px; line-height: 1; }
+.kit-folder-more:hover { border-color: var(--accent); color: var(--accent-bright); }
+.kit-preset-tile.is-dragging { opacity: .4; }
+body.is-kit-dragging, body.is-kit-dragging * { cursor: grabbing !important; }
+.is-drop-target.kit-folder-tile, .is-drop-target.kit-folder-back { border-color: var(--accent); background: rgba(var(--accent-rgb), .14); box-shadow: 0 0 0 2px rgba(var(--accent-rgb), .35); }
+.kit-category.is-drop-target { color: var(--accent-bright); background: rgba(var(--accent-rgb), .22); box-shadow: inset 0 0 0 1px var(--accent); }
+.kit-drag-ghost { position: fixed; z-index: 9999; max-width: 160px; padding: 4px 9px; overflow: hidden; border: 1px solid var(--accent); border-radius: 7px; color: var(--text); background: var(--panel-raised); box-shadow: 0 6px 18px rgba(0, 0, 0, .45); font-size: 10px; font-weight: 700; text-overflow: ellipsis; white-space: nowrap; pointer-events: none; }
+
 /* Delete mode (armed by the footer's "Delete preset" button): a tile
    being held turns its border red and shakes its label the whole time
    it's held, as the wind-up before the 3-second timer actually deletes
@@ -971,10 +999,6 @@ main::-webkit-scrollbar-thumb { background: var(--panel-raised); border-radius: 
 .cx-pin { fill: var(--panel-deep); stroke: #fff; stroke-width: 2.2; cursor: grab; pointer-events: all; filter: drop-shadow(0 1px 3px rgba(0, 0, 0, .6)); }
 .cx-pin.is-mid { fill: var(--accent); }
 .cx-pin.is-drag { cursor: grabbing; }
-.cx-play { position: absolute; right: 8px; bottom: 8px; width: 26px; height: 26px; padding: 0; border: 1px solid var(--line); border-radius: 50%; color: var(--muted); background: rgba(0, 0, 0, .35); }
-.cx-play:hover { border-color: var(--accent); color: var(--accent-bright); }
-.cx-play::before { content: ""; display: block; width: 8px; height: 9px; margin: 0 auto; border-left: 2.5px solid currentColor; border-right: 2.5px solid currentColor; box-sizing: border-box; }
-.cx-play.is-paused::before { width: 0; height: 0; margin-left: 10px; border-style: solid; border-width: 5px 0 5px 8px; border-color: transparent transparent transparent currentColor; }
 .cx-styles { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-top: 12px; }
 .cx-styles button { display: flex; flex-direction: column; align-items: center; gap: 5px; padding: 9px 6px 8px; border: 1px solid var(--line); border-radius: 9px; color: var(--muted); background: var(--panel-soft); font-size: 10px; font-weight: 700; transition: border-color .15s ease, color .15s ease, background .15s ease; }
 .cx-styles button:hover { border-color: var(--accent); color: var(--accent-bright); }

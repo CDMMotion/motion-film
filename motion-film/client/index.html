@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Mótion Film</title>
-    <link rel="stylesheet" href="styles.css?v=0170a" />
+    <link rel="stylesheet" href="styles.css?v=0180a" />
   </head>
   <body>
     <div class="app-shell">
@@ -22,7 +22,7 @@
         </button>
         <button id="page-tab-kit" class="page-tab" type="button" role="tab" aria-selected="false" aria-controls="page-kit" data-page="kit">
           <svg class="page-tab-icon" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2.8 20 7.3v9.4L12 21.2 4 16.7V7.3z"/><path d="M4 7.3 12 11.8 20 7.3M12 11.8v9.4"/></svg>
-          <span class="page-tab-label"><span>Kit</span></span>
+          <span class="page-tab-label"><span>Packs</span></span>
         </button>
         <button id="page-tab-icons" class="page-tab" type="button" role="tab" aria-selected="false" aria-controls="page-icons" data-page="icons">
           <svg class="page-tab-icon" viewBox="0 0 20 20" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="10" cy="10" r="6.5"/><path d="M10 6.8v6.4M6.8 10h6.4" stroke-linecap="round"/></svg>
@@ -773,7 +773,6 @@
                   <div class="cx-cards" id="cx-cards"></div>
                   <svg class="cx-line" id="cx-line" aria-hidden="true"></svg>
                 </div>
-                <button type="button" class="cx-play" id="cx-play" title="Pause the preview" aria-label="Pause the preview"></button>
               </div>
               <div class="cx-styles" id="cx-styles" role="group" aria-label="Carousel style">
                 <button type="button" data-style="spherical"><svg viewBox="0 0 20 20" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="10" cy="10" r="7"/><ellipse cx="10" cy="10" rx="3" ry="7"/><path d="M3 10h14"/></svg>Spherical</button>
@@ -795,7 +794,7 @@
                 <label class="ta-slider" data-for="curved"><span>Middle size <output id="cx-out-middle"></output></span><input type="range" id="cx-middle" min="50" max="300" step="1" /></label>
                 <label class="ta-slider" data-for="curved"><span>Middle width <output id="cx-out-width"></output></span><input type="range" id="cx-width" min="0" max="50" step="1" /></label>
                 <label class="ta-slider" data-for="curved"><span>Softness <output id="cx-out-soft"></output></span><input type="range" id="cx-soft" min="1" max="50" step="1" /></label>
-                <label class="ta-slider"><span>Speed <output id="cx-out-speed"></output></span><input type="range" id="cx-speed" min="0" max="50" step="0.5" /></label>
+                <label class="ta-slider" title="Where the carousel sits (360° = one full turn). It never moves by itself: keyframe Spin on the MF Carousel null to animate it."><span>Spin <output id="cx-out-spin"></output></span><input type="range" id="cx-spin" min="-180" max="180" step="1" /></label>
               </div>
               <div class="cx-opt" data-for="spherical radial rectangular">
                 <span>Facing</span>
@@ -820,7 +819,7 @@
                 </button>
                 <button type="button" id="cx-remove" class="lf-tool ta-remove" title="Take the selected layers out of their carousel (select the MF Carousel null to undo the whole carousel)" aria-label="Remove carousel"><svg viewBox="0 0 28 28" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M6 8h16M11.5 8V6.2h5V8M9.5 8l1 15h7l1-15" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
               </div>
-              <div class="lf-hint">Select 2 or more layers (top layer = first card). Everything stays on the MF Carousel null (Effect Controls), plus Offset to keyframe stops. Select the carousel to change it live from here.</div>
+              <div class="lf-hint">Select 2 or more layers (top layer = first card). Everything stays on the MF Carousel null (Effect Controls), built still: keyframe Spin there to animate the turn. Select the carousel to change it live from here.</div>
             </div>
           </section>
         </main>
@@ -893,7 +892,7 @@
     <script src="captions-core.js?v=0170a"></script>
     <script src="captions-layout.js?v=0140a"></script>
     <script src="captions-styles.js?v=0140a"></script>
-    <script src="panel.js?v=0170a"></script>
+    <script src="panel.js?v=0180a"></script>
     <script src="captions.js?v=0170a"></script>
     <script src="folders.js?v=0140a"></script>
     <script src="scalecomp.js?v=0140a"></script>
@@ -906,6 +905,6 @@
     <script src="textanim.js?v=0170a"></script>
     <script src="textanim-favorites.js?v=0154a"></script>
     <script src="counter.js?v=0170a"></script>
-    <script src="carousel.js?v=0170a"></script>
+    <script src="carousel.js?v=0180b"></script>
   </body>
 </html>

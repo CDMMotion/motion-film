@@ -8,10 +8,16 @@
  *   left    -Amount em X       right    +Amount em X
  *   fade    só opacidade       scale    escala 0
  *   zoomout escala 250%        blur     desfoque forte (Blur x 3.6)
- *   rotate  -90 graus          tracking letras abertas (Amount x 4)
+ *   rotate  -90 graus          tracking letras abertas (Amount x 10.3)
  * Bounce (checkbox "MF Text · Bounce"): balanço elástico (passa ~30%,
  * volta, passa de novo) até assentar.
  * Todas começam com opacidade 0 e o Blur escolhido.
+ *
+ * Amount e Blur são px da prévia, que desenha o texto a 34px: na camada
+ * eles crescem junto com o tamanho da fonte (fonte / 34, ver FONT_K),
+ * senão um texto de 340px andava 10x menos que a prévia. Tracking é em
+ * 1/1000 em, então só converte: a prévia abre 0,35 x Amount px por letra
+ * numa fonte de 34px = Amount x 10,3.
  *
  * Na camada: um Text Animator "MF Text" com Expression Selector
  * (Based On: letras sem espaço / palavras / linhas) + 4 Slider Control "MF Text · Amount / Delay /
@@ -49,6 +55,8 @@
   }
   function knob(name) { return NAME + " · " + name; }
   function read(name) { return "effect(\"" + knob(name) + "\")(1).value"; }
+  // the preview's px -> this layer's px (the preview text is 34px)
+  var FONT_K = "var k = 1; try { k = Math.max(0.01, text.sourceText.style.fontSize / 34); } catch (err) {} ";
 
   function removeOld(layer) {
     var n = 0;
@@ -92,14 +100,14 @@
     if (MOVE[st]) {
       var p = prop("ADBE Text Position 3D");
       p.setValue([0, 0, 0]);
-      p.expression = "var A = " + read("Amount") + "; " + MOVE[st];
+      p.expression = FONT_K + "var A = " + read("Amount") + " * k; " + MOVE[st];
     }
     if (st === "scale") { prop("ADBE Text Scale 3D").setValue([0, 0, 100]); }
     if (st === "zoomout") { prop("ADBE Text Scale 3D").setValue([250, 250, 100]); }
     if (st === "rotate") { prop("ADBE Text Rotation").setValue(-90); }
     if (st === "tracking") {
       var tk = prop("ADBE Text Tracking Amount");
-      tk.expression = read("Amount") + " * 4";
+      tk.expression = read("Amount") + " * 10.3";
     }
     if (st === "scale" || st === "zoomout" || st === "rotate") {
       // scale / turn each letter / word / line from its middle, not its baseline
@@ -112,7 +120,7 @@
     prop("ADBE Text Opacity").setValue(0);
     var b = prop("ADBE Text Blur");
     b.setValue([0, 0]);
-    b.expression = "var b = " + read("Blur") + (st === "blur" ? " * 3.6" : "") + "; [b, b]";
+    b.expression = FONT_K + "var b = " + read("Blur") + (st === "blur" ? " * 3.6" : "") + " * k; [b, b]";
 
     A().property("ADBE Text Selectors").addProperty("ADBE Text Expressible Selector");
     var sel = A().property("ADBE Text Selectors").property(1);

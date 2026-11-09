@@ -1,8 +1,8 @@
 /*
  * Mótion Film -- Carousel (Tools › 05 / CAROUSEL, client/carousel.js).
  *
- * As camadas selecionadas viram cartões de um carrossel que anda sozinho,
- * em 4 estilos (Style):
+ * As camadas selecionadas viram cartões de um carrossel parado (nada anda
+ * sozinho: quem anima é você, com keyframes no Spin), em 4 estilos (Style):
  *   1 Spherical    cartões espalhados numa esfera que gira
  *   2 Radial       um anel (Spread < 360 = um arco aberto)
  *   3 Rectangular  uma parede em grade que rola de lado
@@ -13,8 +13,10 @@
  * pra tela), Screen (virados pra câmera), Center (de costas pro centro,
  * como um carrossel de verdade). A profundidade fica com a câmera do AE.
  *
- * Tudo mora num null "MF Carousel N" (Effect Controls). Speed e Offset em
- * % do percurso (Offset dá pra animar para parar e andar). Gap 0 = Auto
+ * Tudo mora num null "MF Carousel N" (Effect Controls). Spin (ângulo; 1x
+ * = uma volta inteira / o percurso todo) posiciona o carrossel e é o que
+ * se anima. Nulls antigos com Speed / Offset perdem esses dois ao serem
+ * aplicados de novo (o Offset fica se tiver keyframes). Gap 0 = Auto
  * (cartões espalhados no percurso todo). Cada camada ganha expressões em
  * Position, Scale, Opacity, Orientation e Z Rotation que leem o null e
  * vira 3D (Remove devolve 2D a quem era 2D).
@@ -63,8 +65,7 @@
   // [name, matchName, default, panel key]
   var CONTROLS = [
     ["Style", "ADBE Dropdown Control", 2, "style"],
-    ["Speed", "ADBE Slider Control", 10, "speed"],
-    ["Offset", "ADBE Slider Control", 0, null],
+    ["Spin", "ADBE Angle Control", 0, "spin"],
     ["Size", "ADBE Slider Control", 100, "size"],
     ["Spread", "ADBE Angle Control", 360, "spread"],
     ["Rotation X", "ADBE Angle Control", 22, "rotX"],
@@ -98,6 +99,16 @@
     }
   }
 
+  // older carousels spun on their own (Speed) from an Offset; called once
+  // their cards read Spin instead
+  function dropOldControls(nullLayer) {
+    var fx = nullLayer.property("ADBE Effect Parade");
+    var speed = fx.property("Speed");
+    if (speed) { speed.remove(); }
+    var off = fx.property("Offset");
+    if (off && off.property(1).numKeys === 0) { off.remove(); }
+  }
+
   // o: panel settings; pins in 0..1 of the comp
   function setControls(nullLayer, comp, o) {
     for (var i = 0; i < CONTROLS.length; i += 1) {
@@ -107,7 +118,11 @@
       if (key === "style") { v = STYLE_KEY[v] || 2; }
       if (key === "facing") { v = FACING_KEY[v] || 1; }
       if (key === "follow") { v = v ? 1 : 0; }
-      ctl(nullLayer, CONTROLS[i][0]).setValue(v);
+      var fxp = nullLayer.property("ADBE Effect Parade").property(CONTROLS[i][0]);
+      if (!fxp) { continue; } // an older null without this control
+      var prop = fxp.property(1);
+      if (prop.numKeys > 0) { continue; } // keyframed in AE: leave it to the keys
+      prop.setValue(v);
     }
     if (o.pins) {
       var names = { s: "Start", m: "Middle", e: "End" };
@@ -121,7 +136,7 @@
     var o = {};
     for (var i = 0; i < CONTROLS.length; i += 1) {
       var key = CONTROLS[i][3];
-      if (!key) { continue; }
+      if (!key || !nullLayer.property("ADBE Effect Parade").property(CONTROLS[i][0])) { continue; }
       var v = ctl(nullLayer, CONTROLS[i][0]).value;
       if (key === "style") { v = ["spherical", "radial", "rectangular", "curved"][Math.max(0, Math.min(3, v - 1))]; }
       if (key === "facing") { v = ["forward", "screen", "center"][Math.max(0, Math.min(2, v - 1))]; }
@@ -145,7 +160,7 @@
       "function f(n) { return c.effect(n)(1).value; }",
       "function frac(x) { return x - Math.floor(x); }",
       "var st = Math.round(f(\"Style\"));",
-      "var ph = (f(\"Offset\") + (time - c.inPoint) * f(\"Speed\")) / 100;",
+      "var ph = f(\"Spin\") / 360;",
       "var o0 = c.transform.position, ctr = [o0[0], o0[1], 0];",
       "var R = thisComp.width * 0.32 * f(\"Size\") / 100;",
       "var rx = degreesToRadians(f(\"Rotation X\")), ry = degreesToRadians(f(\"Rotation Y\"));",
@@ -155,7 +170,7 @@
       "}",
       "var P, k = 1, op = 1, rz = 0, out = null;",
       "if (st == 1) {",
-      "  // spherical: even points on a sphere, spinning around its axis",
+      "  // spherical: even points on a sphere, turned around its axis by Spin",
       "  var y = 1 - 2 * (i + 0.5) / N, r = Math.sqrt(Math.max(0, 1 - y * y)), a = i * 2.39996 + ph * 2 * Math.PI;",
       "  var Rs = Math.min(thisComp.width, thisComp.height) * 0.36 * f(\"Size\") / 100;",
       "  P = turn([Rs * r * Math.sin(a), Rs * y, -Rs * r * Math.cos(a)]);",
@@ -277,8 +292,8 @@
         ctrl.label = 9;
         tr(ctrl).property("ADBE Position").setValue([comp.width / 2, comp.height / 2]);
         ctrl.moveBefore(layers[0]);
-        addControls(ctrl);
       }
+      addControls(ctrl);
       setControls(ctrl, comp, o || {});
       for (var j = 0; j < layers.length; j += 1) {
         var was = membership(layers[j]);
@@ -287,6 +302,7 @@
         if (!layers[j].threeDLayer) { layers[j].threeDLayer = true; }
         drive(layers[j], ctrl.name, j, layers.length, was2d);
       }
+      dropOldControls(ctrl);
       // a carousel left with no cards loses its null
       for (var name in olds) {
         if (!stillUsed(comp, name)) { var dead = byName(comp, name); if (dead) { dead.remove(); } }

@@ -6,7 +6,9 @@
  * sideways) and Curved Line (cards along a curve through 3 pins you drag,
  * bigger at the Middle pin: Side / Middle size, Middle width, Softness,
  * Gap, Follow curve). Size, Rotation X / Y and Facing (Forward, Screen,
- * Center) shape the first three; Speed (% of the path per second) all.
+ * Center) shape the first three; Spin (degrees, 360 = one full turn / the
+ * whole path) all. Nothing moves by itself: the carousel is built still
+ * and Spin is what you keyframe in AE.
  * The preview runs the same math as the expressions host/carousel.jsx
  * writes, in a frame with the active comp's proportions, so the pins land
  * on the same spots of the comp.
@@ -25,9 +27,9 @@
   var PINS = { s: [0.12, 0.25], m: [0.5, 0.72], e: [0.88, 0.25] };
   var DEFAULTS = {
     style: "radial", size: 100, spread: 360, rotX: 22, rotY: 0, facing: "forward",
-    gap: 0, side: 70, middle: 200, width: 5, soft: 15, follow: false, speed: 10
+    gap: 0, side: 70, middle: 200, width: 5, soft: 15, follow: false, spin: 0
   };
-  var NUMS = ["size", "spread", "rotX", "rotY", "gap", "side", "middle", "width", "soft", "speed"];
+  var NUMS = ["size", "spread", "rotX", "rotY", "gap", "side", "middle", "width", "soft", "spin"];
   var STYLES = { spherical: 1, radial: 1, rectangular: 1, curved: 1 };
   var FACINGS = { forward: 1, screen: 1, center: 1 };
   var state = { pins: clonePins(PINS) };
@@ -41,7 +43,6 @@
     NUMS.forEach(function (n) { if (typeof saved[n] === "number") { state[n] = saved[n]; } });
     if (saved.pins && saved.pins.s && saved.pins.m && saved.pins.e) { state.pins = clonePins(saved.pins); }
     if (saved.mode && !saved.style) { state.style = saved.mode === "curved" ? "curved" : "radial"; } // first version
-    if (state.speed < 5 && !saved.style) { state.speed = DEFAULTS.speed; }
   } catch (e) {}
   function save() {
     try { window.localStorage.setItem(KEY, JSON.stringify(state)); } catch (e) {}
@@ -61,7 +62,6 @@
   var comp = null;      // { w, h } of the active comp
   var selected = 0;     // usable layers in the selection
   var link = null;      // the carousel in the selection (cxState)
-  var paused = false;
 
   // ------------------------------------------------------------------ host
 
@@ -258,22 +258,13 @@
     });
   }
 
-  var phase = 0;
-  var last = 0;
-  function frameLoop(now) {
-    var dt = last ? Math.min(0.1, (now - last) / 1000) : 0;
-    last = now;
-    var shown = !$("page-effects").hidden;
-    if (!paused && shown) { phase += dt * state.speed / 100; }
-    if (shown) { drawCards(phase); }
-    window.requestAnimationFrame(frameLoop);
-  }
+  function phase() { return state.spin / 360; }
 
   function refresh() {
     layout();
     buildCards();
     drawLine();
-    drawCards(phase);
+    drawCards(phase());
   }
 
   // ------------------------------------------------------------------ controls
@@ -288,7 +279,7 @@
     middle: function (v) { return Math.round(v) + "%"; },
     width: function (v) { return Math.round(v) + "%"; },
     soft: function (v) { return Math.round(v) + "%"; },
-    speed: function (v) { return (Math.round(v * 10) / 10) + " %/s"; }
+    spin: function (v) { return Math.round(v) + "°"; }
   };
 
   function render() {
@@ -310,10 +301,6 @@
     Array.prototype.forEach.call(document.querySelectorAll("#cx-follow button"), function (b) {
       b.classList.toggle("is-active", (b.getAttribute("data-follow") === "on") === state.follow);
     });
-    var play = $("cx-play");
-    play.classList.toggle("is-paused", paused);
-    play.title = paused ? "Play the preview" : "Pause the preview";
-    play.setAttribute("aria-label", play.title);
     var linkBox = $("cx-link");
     linkBox.hidden = !link;
     if (link) { linkBox.textContent = "Linked to “" + link.name + "” (" + link.cards + " cards) — changes here go live in After Effects."; }
@@ -350,7 +337,7 @@
       input.addEventListener("input", function () {
         state[n] = parseFloat(input.value);
         $("cx-out-" + n).textContent = FORMAT[n](state[n]);
-        drawCards(phase);
+        drawCards(phase());
       });
       input.addEventListener("change", push);
     });
@@ -358,7 +345,7 @@
       b.addEventListener("click", function () {
         state.facing = b.getAttribute("data-facing");
         render();
-        drawCards(phase);
+        drawCards(phase());
         push();
       });
     });
@@ -366,7 +353,7 @@
       b.addEventListener("click", function () {
         state.follow = b.getAttribute("data-follow") === "on";
         render();
-        drawCards(phase);
+        drawCards(phase());
         push();
       });
     });
@@ -374,10 +361,6 @@
       state.pins = clonePins(PINS);
       refresh();
       push();
-    });
-    $("cx-play").addEventListener("click", function () {
-      paused = !paused;
-      render();
     });
 
     // dragging the pins
@@ -398,7 +381,7 @@
       var y = Math.min(1, Math.max(0, (e.clientY - r.top) / r.height));
       state.pins[drag.pin] = [Math.round(x * 1000) / 1000, Math.round(y * 1000) / 1000];
       drawLine();
-      drawCards(phase);
+      drawCards(phase());
     });
     function end() {
       if (!drag) { return; }
@@ -458,7 +441,6 @@
   bind();
   render();
   refresh();
-  window.requestAnimationFrame(frameLoop);
   setInterval(function () { poll(false); }, 1500);
   if (window.MF && window.MF.onPanelBack) { window.MF.onPanelBack(function () { poll(true); }); }
 }());
