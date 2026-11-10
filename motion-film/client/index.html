@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Mótion Film</title>
-    <link rel="stylesheet" href="styles.css?v=0180a" />
+    <link rel="stylesheet" href="styles.css?v=0191a" />
   </head>
   <body>
     <div class="app-shell">
@@ -612,13 +612,79 @@
               </div>
             </div>
           </section>
+          <!-- Typewriter (typewriter.js + host/typewriter.jsx): the text typed
+               out by letter / word / line, with a blinking cursor. -->
+          <section class="section" data-section-id="ta-typewriter">
+            <div class="section-tab" role="button" tabindex="0" aria-expanded="true">
+              <div class="section-heading compact">
+                <div>
+                  <div class="section-kicker">03 / TYPEWRITER</div>
+                </div>
+                <span class="ta-live"><i></i>Live preview</span>
+              </div>
+              <svg class="section-chevron" viewBox="0 0 12 12" width="10" height="10" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M2.5 4.5L6 8l3.5-3.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </div>
+            <div class="section-body">
+              <div class="ta-stage tw-stage" id="tw-stage"><div class="tw-text" id="tw-text"></div></div>
+              <div class="segmented ta-by" id="tw-by" role="group" aria-label="Type by">
+                <button type="button" class="segmented-option" data-by="letter">Letter by letter</button>
+                <button type="button" class="segmented-option" data-by="word">Word by word</button>
+                <button type="button" class="segmented-option" data-by="line">Line by line</button>
+              </div>
+              <div class="ta-sliders">
+                <label class="ta-slider" id="tw-blink-row"><span>Cursor blink <output id="tw-out-blink"></output></span><input type="range" id="tw-blink" min="0.5" max="6" step="0.5" /></label>
+              </div>
+              <div class="ct-row">
+                <span>Timing</span>
+                <div class="segmented" id="tw-ease" role="group" aria-label="Timing">
+                  <button type="button" class="segmented-option" data-ease="off" title="Steady speed">Linear</button>
+                  <button type="button" class="segmented-option" data-ease="on" title="Starts and ends slower">Ease</button>
+                </div>
+              </div>
+              <div class="ct-row">
+                <span>Cursor</span>
+                <div class="segmented" id="tw-cursor" role="group" aria-label="Cursor">
+                  <button type="button" class="segmented-option" data-cursor="none">None</button>
+                  <button type="button" class="segmented-option" data-cursor="bar" title="Bar">|</button>
+                  <button type="button" class="segmented-option" data-cursor="block" title="Block">&#9608;</button>
+                  <button type="button" class="segmented-option" data-cursor="line" title="Underscore">_</button>
+                </div>
+              </div>
+              <div class="ct-row" id="tw-hide-row">
+                <span>When done</span>
+                <div class="segmented" id="tw-hide" role="group" aria-label="Cursor when done">
+                  <button type="button" class="segmented-option" data-hide="off">Keep blinking</button>
+                  <button type="button" class="segmented-option" data-hide="on">Hide cursor</button>
+                </div>
+              </div>
+              <div class="ct-row">
+                <span>Erase</span>
+                <div class="segmented" id="tw-erase" role="group" aria-label="Erase">
+                  <button type="button" class="segmented-option" data-erase="off">No</button>
+                  <button type="button" class="segmented-option" data-erase="on" title="Types, waits, then deletes it">Erase after</button>
+                </div>
+              </div>
+              <div class="ta-sliders" id="tw-hold-row">
+                <label class="ta-slider"><span>Wait before erasing <output id="tw-out-hold"></output></span><input type="range" id="tw-hold" min="0" max="5" step="0.1" /></label>
+              </div>
+              <div class="ta-actions">
+                <button type="button" id="tw-apply" class="lf-tool is-primary" title="Type out the selected text layers, from their in point">
+                  <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h11M9.5 7v11"/><path d="M18 5v14"/></svg>
+                  Apply typewriter
+                </button>
+                <button type="button" id="tw-replay" class="lf-tool ta-remove" title="Play the preview again" aria-label="Replay"><svg viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M2.8 8a5.2 5.2 0 1 0 1.6-3.8"/><path d="M2.5 2.5v3h3"/></svg></button>
+                <button type="button" id="tw-remove" class="lf-tool ta-remove" title="Remove the typewriter from the selected text layers" aria-label="Remove typewriter"><svg viewBox="0 0 28 28" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M6 8h16M11.5 8V6.2h5V8M9.5 8l1 15h7l1-15" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+              </div>
+              <div class="lf-hint">Starts at the layer&#39;s in point, timed by the length of the text. Make it faster or slower by moving the Progress keyframes in the timeline; Blink, Cursor and Hide At End stay on the layer (Effect Controls &#8250; MF Type).</div>
+            </div>
+          </section>
           <!-- Counter (counter.js + host/counter.jsx): a number counting up on
                a text layer (Source Text expression + 3 sliders). -->
           <section class="section" data-section-id="ta-counter">
             <div class="section-tab" role="button" tabindex="0" aria-expanded="true">
               <div class="section-heading compact">
                 <div>
-                  <div class="section-kicker">03 / COUNTER</div>
+                  <div class="section-kicker">04 / COUNTER</div>
                 </div>
                 <span class="ta-live"><i></i>Live preview</span>
               </div>
@@ -643,6 +709,23 @@
                   <button type="button" class="segmented-option" data-currency="brl">R$</button>
                 </div>
               </div>
+              <div class="ct-row">
+                <span>Format</span>
+                <div class="segmented" id="ct-format" role="group" aria-label="Number format">
+                  <button type="button" class="segmented-option" data-format="dot" title="Dots first: thousands with a dot, decimals with a comma">1.000,00</button>
+                  <button type="button" class="segmented-option" data-format="comma" title="Commas first: thousands with a comma, decimals with a dot">1,000.00</button>
+                </div>
+              </div>
+              <div class="ct-row">
+                <span>Decimals</span>
+                <div class="segmented" id="ct-decimals" role="group" aria-label="Decimal places">
+                  <button type="button" class="segmented-option" data-decimals="0">0</button>
+                  <button type="button" class="segmented-option" data-decimals="1">1</button>
+                  <button type="button" class="segmented-option" data-decimals="2">2</button>
+                  <button type="button" class="segmented-option" data-decimals="3">3</button>
+                  <button type="button" class="segmented-option" data-decimals="4">4</button>
+                </div>
+              </div>
               <div class="ta-sliders">
                 <label class="ta-slider"><span>Duration <output id="ct-out-duration"></output></span><input type="range" id="ct-duration" min="0.5" max="10" step="0.1" /></label>
               </div>
@@ -654,15 +737,22 @@
                 <button type="button" id="ct-replay" class="lf-tool ta-remove" title="Play the preview again" aria-label="Replay"><svg viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M2.8 8a5.2 5.2 0 1 0 1.6-3.8"/><path d="M2.5 2.5v3h3"/></svg></button>
                 <button type="button" id="ct-remove" class="lf-tool ta-remove" title="Remove the counter from the selected text layers" aria-label="Remove counter"><svg viewBox="0 0 28 28" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M6 8h16M11.5 8V6.2h5V8M9.5 8l1 15h7l1-15" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
               </div>
-              <div class="lf-hint">On the selected text layer, or a new one in the middle when none is selected. Counts from the layer&#39;s in point with two keyframes on Effect Controls &#8250; MF Counter &#183; Value -- move them or shape the speed in the Graph Editor. Up to 1,000,000.</div>
+              <div class="lf-hint">On the selected text layer, or a new one in the middle when none is selected. Counts from the layer&#39;s in point with two keyframes on Effect Controls &#8250; MF Counter &#183; Value -- move them or shape the speed in the Graph Editor. Format, Decimals and the currency symbol stay on the layer (MF Counter &#183; Decimals / Format / Symbol) to change later. Up to 1,000,000.</div>
             </div>
           </section>
         </main>
       </div>
 
       <div id="page-effects" class="page" hidden>
+        <!-- Search over the Tools (tools-search.js): by number or name. -->
+        <div class="tools-search">
+          <svg class="tools-search-icon" viewBox="0 0 20 20" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="8.5" cy="8.5" r="5.5"/><path d="M13 13l4 4"/></svg>
+          <input type="search" id="tools-search" placeholder="Search tools: name or number" spellcheck="false" autocomplete="off" aria-label="Search tools by name or number" />
+          <button type="button" id="tools-search-clear" class="tools-search-clear" aria-label="Clear the search" hidden>&times;</button>
+        </div>
         <main>
-          <section class="section" data-section-id="effects-manager">
+          <div class="tools-search-empty" id="tools-search-empty" hidden>No tool matches.</div>
+          <section class="section" data-section-id="effects-manager" data-tool-keys="effects control efeitos efeito toggle ligar desligar fx">
             <div class="section-tab" role="button" tabindex="0" aria-expanded="true">
               <div class="section-heading">
                 <div>
@@ -684,7 +774,7 @@
               </div>
             </div>
           </section>
-          <section class="section" data-section-id="layer-folders">
+          <section class="section" data-section-id="layer-folders" data-tool-keys="folders pastas pasta group agrupar organizar accordion">
             <div class="section-tab" role="button" tabindex="0" aria-expanded="true">
               <div class="section-heading">
                 <div>
@@ -704,7 +794,7 @@
               <div class="lf-hint">Click a folder to select and open it · Click it again or the arrow: fold · Shift: only this one · Alt: with subfolders · Double-click: rename · Right-click: more</div>
             </div>
           </section>
-          <section class="section" data-section-id="scale-comp">
+          <section class="section" data-section-id="scale-comp" data-tool-keys="scale comp escala escalar composicao resize tamanho resolucao">
             <div class="section-tab" role="button" tabindex="0" aria-expanded="true">
               <div class="section-heading">
                 <div>
@@ -730,7 +820,7 @@
           </section>
           <!-- Elastic (elastic.js + host/elastic.jsx): the same buttons as the
                shortcut popup, and the shortcut itself. -->
-          <section class="section" data-section-id="elastic">
+          <section class="section" data-section-id="elastic" data-tool-keys="elastic elastico bounce mola overshoot wheel roda atalho shortcut">
             <div class="section-tab" role="button" tabindex="0" aria-expanded="true">
               <div class="section-heading">
                 <div>
@@ -757,7 +847,7 @@
           <!-- Carousel (carousel.js + host/carousel.jsx): the selected layers
                become the cards of a Radial or Curved Line carousel driven
                by an "MF Carousel" null. -->
-          <section class="section" data-section-id="carousel">
+          <section class="section" data-section-id="carousel" data-tool-keys="carousel carrossel cards cartoes 3d spin girar">
             <div class="section-tab" role="button" tabindex="0" aria-expanded="true">
               <div class="section-heading compact">
                 <div>
@@ -820,6 +910,89 @@
                 <button type="button" id="cx-remove" class="lf-tool ta-remove" title="Take the selected layers out of their carousel (select the MF Carousel null to undo the whole carousel)" aria-label="Remove carousel"><svg viewBox="0 0 28 28" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M6 8h16M11.5 8V6.2h5V8M9.5 8l1 15h7l1-15" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
               </div>
               <div class="lf-hint">Select 2 or more layers (top layer = first card). Everything stays on the MF Carousel null (Effect Controls), built still: keyframe Spin there to animate the turn. Select the carousel to change it live from here.</div>
+            </div>
+          </section>
+          <!-- Grid (grid.js + host/grid.jsx): a grid of lines on the comp,
+               layers masked into its cells and rigged to its lines, all
+               on an "MF Grid" null. -->
+          <section class="section" data-section-id="grid" data-tool-keys="grid grade liner grade de linhas mask mascara cells celulas layout colagem collage split tela dividida">
+            <div class="section-tab" role="button" tabindex="0" aria-expanded="true">
+              <div class="section-heading compact">
+                <div>
+                  <div class="section-kicker">06 / GRID</div>
+                </div>
+                <span class="ta-live"><i></i>Live preview</span>
+              </div>
+              <svg class="section-chevron" viewBox="0 0 12 12" width="10" height="10" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M2.5 4.5L6 8l3.5-3.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </div>
+            <div class="section-body">
+              <div class="gd-stage" id="gd-stage">
+                <div class="gd-frame" id="gd-frame">
+                  <svg class="gd-svg" id="gd-svg" aria-label="Grid preview: drag the lines, click a cell"></svg>
+                </div>
+              </div>
+              <div class="gd-counts">
+                <div class="gd-count"><span>Columns</span><button type="button" id="gd-cols-minus" aria-label="One column less">&minus;</button><b id="gd-cols">2</b><button type="button" id="gd-cols-plus" aria-label="One column more">+</button></div>
+                <div class="gd-count"><span>Rows</span><button type="button" id="gd-rows-minus" aria-label="One row less">&minus;</button><b id="gd-rows">2</b><button type="button" id="gd-rows-plus" aria-label="One row more">+</button></div>
+              </div>
+              <div class="cx-link" id="gd-link" hidden></div>
+              <button type="button" id="gd-create" class="lf-tool is-primary gd-wide" title="Make the grid in the active comp: an MF Grid null, its lines and its points">
+                <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M4 9h16M4 15h16M9 4v16M15 4v16" stroke-dasharray="2.4 2.2"/></svg>
+                <span>Make grid</span>
+              </button>
+              <div class="gd-live" id="gd-live" hidden>
+                <button type="button" id="gd-key" class="lf-tool" title="A keyframe on every grid line at the current time. Then move the time and drag the lines: each drag keys them there."><svg viewBox="0 0 16 16" width="12" height="12" fill="currentColor"><path d="M8 1.5 14.5 8 8 14.5 1.5 8z"/></svg>Key lines</button>
+                <button type="button" id="gd-even" class="lf-tool" title="Space the lines evenly between the outer ones (at the current time)">Even</button>
+              </div>
+              <div class="gd-sub">Cells</div>
+              <div class="cx-opt">
+                <span>Fit</span>
+                <div class="segmented" id="gd-mode" role="group" aria-label="How the layer fits its cell">
+                  <button type="button" class="segmented-option" data-value="cover" title="The layer is moved and scaled to fill the cell, and follows it">Cover</button>
+                  <button type="button" class="segmented-option" data-value="mask" title="The layer stays where it is; the cell only crops it">Mask only</button>
+                </div>
+              </div>
+              <div class="ta-sliders gd-sliders">
+                <label class="ta-slider" id="gd-zoom-row"><span>Zoom <output id="gd-out-zoom"></output></span><input type="range" id="gd-zoom" min="50" max="250" step="1" /></label>
+                <label class="ta-slider"><span>Padding <output id="gd-out-padding"></output></span><input type="range" id="gd-padding" min="0" max="80" step="1" /></label>
+                <label class="ta-slider"><span>Roundness <output id="gd-out-round"></output></span><input type="range" id="gd-round" min="0" max="200" step="1" /></label>
+              </div>
+              <div class="ta-actions">
+                <button type="button" id="gd-attach" class="lf-tool is-primary" title="Mask the selected layers into the cell(s) picked in the preview and rig them to the grid">
+                  <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="16" height="16" rx="2"/><path d="M12 4v16M4 12h16"/><rect x="5.5" y="5.5" width="5" height="5" fill="currentColor" stroke="none"/></svg>
+                  <span id="gd-attach-label">Make the grid first</span>
+                </button>
+                <button type="button" id="gd-release" class="lf-tool ta-remove" title="Take the selected layers out of their cells (select the MF Grid null, its Lines or Points to remove the whole grid)" aria-label="Release"><svg viewBox="0 0 28 28" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M6 8h16M11.5 8V6.2h5V8M9.5 8l1 15h7l1-15" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+              </div>
+              <div class="gd-sub">Look</div>
+              <div class="cx-opt">
+                <span>Lines</span>
+                <div class="segmented" id="gd-lines" role="group" aria-label="Lines">
+                  <button type="button" class="segmented-option" data-value="full" title="Lines cross the whole comp">Full</button>
+                  <button type="button" class="segmented-option" data-value="grid" title="Lines only inside the grid">Grid</button>
+                  <button type="button" class="segmented-option" data-value="off">Off</button>
+                </div>
+              </div>
+              <div class="cx-opt">
+                <span>Points</span>
+                <div class="segmented" id="gd-points" role="group" aria-label="Points">
+                  <button type="button" class="segmented-option" data-value="every" title="A mark on every crossing">Every cross</button>
+                  <button type="button" class="segmented-option" data-value="corners" title="Only the 4 outer corners">Corners</button>
+                  <button type="button" class="segmented-option" data-value="off">Off</button>
+                </div>
+              </div>
+              <div class="gd-shapes" id="gd-shapes" role="group" aria-label="Point shape">
+                <button type="button" data-value="dot" title="Dot"><svg viewBox="0 0 16 16" width="12" height="12"><circle cx="8" cy="8" r="5" fill="currentColor"/></svg></button>
+                <button type="button" data-value="square" title="Square"><svg viewBox="0 0 16 16" width="12" height="12"><rect x="3" y="3" width="10" height="10" fill="currentColor"/></svg></button>
+                <button type="button" data-value="plus" title="Plus"><svg viewBox="0 0 16 16" width="12" height="12"><path d="M6.4 2h3.2v4.4H14v3.2H9.6V14H6.4V9.6H2V6.4h4.4z" fill="currentColor"/></svg></button>
+                <button type="button" data-value="cross" title="Cross"><svg viewBox="0 0 16 16" width="12" height="12"><path d="M6.4 2h3.2v4.4H14v3.2H9.6V14H6.4V9.6H2V6.4h4.4z" fill="currentColor" transform="rotate(45 8 8)"/></svg></button>
+                <button type="button" data-value="diamond" title="Diamond"><svg viewBox="0 0 16 16" width="12" height="12"><path d="M8 2l6 6-6 6-6-6z" fill="currentColor"/></svg></button>
+              </div>
+              <div class="ta-sliders gd-sliders">
+                <label class="ta-slider"><span>Point size <output id="gd-out-size"></output></span><input type="range" id="gd-size" min="2" max="60" step="1" /></label>
+                <label class="ta-slider"><span>Dash <output id="gd-out-dash"></output></span><input type="range" id="gd-dash" min="0" max="40" step="1" /></label>
+              </div>
+              <div class="lf-hint">Make the grid, then select layers in the timeline, click a cell in the preview (Shift + click: a block of cells) and put them there. Drag the lines or a cross to reshape it. To animate: Key lines, move the time, drag again. Colors, line width and the rest are on the MF Grid null (Effect Controls).</div>
             </div>
           </section>
         </main>
@@ -904,7 +1077,10 @@
     <script src="transitions.js?v=0170a"></script>
     <script src="textanim.js?v=0170a"></script>
     <script src="textanim-favorites.js?v=0154a"></script>
-    <script src="counter.js?v=0170a"></script>
+    <script src="typewriter.js?v=0191b"></script>
+    <script src="counter.js?v=0190b"></script>
     <script src="carousel.js?v=0180b"></script>
+    <script src="grid.js?v=0190b"></script>
+    <script src="tools-search.js?v=0190a"></script>
   </body>
 </html>

@@ -199,20 +199,17 @@
   //   onLabel   called when the label was filled in from the action
   function actionEditor(item, onLabel) {
     var box = el("div", "wh-action");
-    var select = el("select", "wh-select");
-    CHOICES.forEach(function (g) {
-      var og = el("optgroup");
-      og.label = g.group;
-      g.items.forEach(function (it) {
-        var o = el("option", null, it.label);
-        o.value = it.key;
-        og.appendChild(o);
-      });
-      select.appendChild(og);
+    var picker = actionPicker(keyOf(item.action), function (key) {
+      var prev = item.action;
+      var c = BY_KEY[key];
+      item.action = c.make ? c.make() : JSON.parse(JSON.stringify(c.action));
+      relabel(prev);
+      save();
+      render();
     });
     var extra = el("div", "wh-extra");
     var note = el("p", "wh-hint");
-    box.appendChild(select);
+    box.appendChild(picker);
     box.appendChild(extra);
     box.appendChild(note);
 
@@ -293,18 +290,89 @@
       }
     }
 
-    select.value = keyOf(item.action);
-    if (!select.value) { select.selectedIndex = -1; }
-    select.addEventListener("change", function () {
-      var prev = item.action;
-      var c = BY_KEY[select.value];
-      item.action = c.make ? c.make() : JSON.parse(JSON.stringify(c.action));
-      relabel(prev);
-      save();
-      render();
-    });
     drawExtra();
     return box;
+  }
+
+  // The list of actions: a button showing the current one that opens the
+  // groups below it, each folded until its title is clicked (the window is
+  // small and the full list is long). The current action's group starts
+  // open; typing in the search shows every match, groups unfolded.
+  function actionPicker(current, onPick) {
+    var root = el("div", "wh-pick");
+    var button = el("button", "wh-pick-btn");
+    button.type = "button";
+    var now = BY_KEY[current];
+    var group = "";
+    CHOICES.forEach(function (g) { g.items.forEach(function (it) { if (it.key === current) { group = g.group; } }); });
+    button.appendChild(el("span", "wh-pick-label", now ? now.label : "Choose an action\u2026"));
+    if (group) { button.appendChild(el("span", "wh-pick-group", group)); }
+    root.appendChild(button);
+
+    var panel = el("div", "wh-pick-panel");
+    panel.hidden = true;
+    var search = el("input", "wh-input wh-pick-search");
+    search.placeholder = "Search actions";
+    panel.appendChild(search);
+    var lists = el("div", "wh-pick-lists");
+    panel.appendChild(lists);
+    root.appendChild(panel);
+
+    var groups = CHOICES.map(function (g) {
+      var wrap = el("div", "wh-grp" + (g.group === group ? " is-open" : ""));
+      var head = el("button", "wh-grp-head");
+      head.type = "button";
+      head.appendChild(el("span", null, g.group));
+      head.appendChild(el("b", null, String(g.items.length)));
+      head.addEventListener("click", function () { wrap.classList.toggle("is-open"); });
+      var body = el("div", "wh-grp-items");
+      var opts = g.items.map(function (it) {
+        var o = el("button", "wh-opt" + (it.key === current ? " is-on" : ""), it.label);
+        o.type = "button";
+        o.addEventListener("click", function () { close(); onPick(it.key); });
+        body.appendChild(o);
+        return { el: o, text: (it.label + " " + g.group).toLowerCase() };
+      });
+      wrap.appendChild(head);
+      wrap.appendChild(body);
+      lists.appendChild(wrap);
+      return { wrap: wrap, opts: opts };
+    });
+
+    search.addEventListener("input", function () {
+      var q = search.value.trim().toLowerCase();
+      panel.classList.toggle("is-search", !!q);
+      groups.forEach(function (g) {
+        var any = false;
+        g.opts.forEach(function (o) {
+          var hit = !q || o.text.indexOf(q) >= 0;
+          o.el.hidden = !hit;
+          any = any || hit;
+        });
+        g.wrap.hidden = !any;
+      });
+    });
+
+    function outside(e) { if (!root.contains(e.target)) { close(); } }
+    function key(e) { if (e.key === "Escape") { close(); button.focus(); } }
+    function open() {
+      panel.hidden = false;
+      root.classList.add("is-open");
+      document.addEventListener("mousedown", outside, true);
+      document.addEventListener("keydown", key, true);
+      var on = lists.querySelector(".wh-opt.is-on");
+      if (on) { lists.scrollTop = Math.max(0, on.offsetTop - lists.offsetTop - 60); }
+      search.focus();
+      panel.scrollIntoView({ block: "nearest" });
+    }
+    function close() {
+      panel.hidden = true;
+      root.classList.remove("is-open");
+      document.removeEventListener("mousedown", outside, true);
+      document.removeEventListener("keydown", key, true);
+    }
+    button.addEventListener("click", function () { if (panel.hidden) { open(); } else { close(); } });
+    return root;
   }
 
   // ------------------------------------------------------------------ preview (same layout as the helper's wheel)

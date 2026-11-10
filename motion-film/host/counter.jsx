@@ -7,8 +7,11 @@
  * point + duração) e o Source Text por expressão mostrando esse valor
  * arredondado e formatado. Por serem keyframes, a subida se ajusta com
  * as curvas de velocidade do Graph Editor; o padrão é ease-out cúbico
- * (saída rápida, chegada suave), o mesmo do preview. Moeda: nenhuma, $
- * ou € (milhar com vírgula) ou R$ (milhar com ponto). Sem camada de texto
+ * (saída rápida, chegada suave), o mesmo do preview. Moeda: nenhuma, $,
+ * € ou R$ (prefixo). Formato 1.000,00 (pontos primeiro) ou 1,000.00
+ * (vírgulas primeiro) e 0..4 casas decimais. Moeda, formato e casas
+ * ficam na camada como controles (MF Counter · Symbol / Format /
+ * Decimals), para trocar depois no Effect Controls. Sem camada de texto
  * selecionada, cria uma no meio da comp. O slider do AE vai até
  * 1.000.000. Aplicar de novo troca o contador (inclui o antigo, de
  * expressão com From / To / Duration).
@@ -17,12 +20,9 @@
  */
 (function () {
   var NAME = "MF Counter";
-  var CURRENCY = {
-    none: { prefix: "", sep: "," },
-    usd: { prefix: "$", sep: "," },
-    eur: { prefix: "€", sep: "," },
-    brl: { prefix: "R$ ", sep: "." }
-  };
+  var SYMBOLS = ["None", "$", "€", "R$"];
+  var SYMBOL_KEY = { none: 1, usd: 2, eur: 3, brl: 4 };
+  var FORMATS = ["1.000,00", "1,000.00"];
 
   function stringify(v) {
     try { return JSON.stringify(v); } catch (e) { return '{"ok":false,"error":"serialize"}'; }
@@ -51,14 +51,29 @@
     return n;
   }
 
-  function expression(cur) {
-    var c = CURRENCY[cur] || CURRENCY.none;
+  // reads the layer's MF Counter controls
+  function expression() {
+    function fx(n) { return "effect(\"" + knob(n) + "\")(1).value"; }
     return [
-      "// Mótion Film Counter -- the number is the keyframed Effect Controls › " + knob("Value") + " (shape it with speed curves)",
-      "var n = Math.round(effect(\"" + knob("Value") + "\")(1).value);",
-      "var s = String(Math.abs(n)).replace(/\\B(?=(\\d{3})+(?!\\d))/g, \"" + c.sep + "\");",
-      "(n < 0 ? \"-\" : \"\") + \"" + c.prefix + "\" + s;"
+      "// Mótion Film Counter -- the number is the keyframed Effect Controls › " + knob("Value") + " (shape it with speed curves); " + knob("Decimals") + " / Format / Symbol shape the text",
+      "var n = " + fx("Value") + ";",
+      "var d = Math.max(0, Math.min(6, Math.round(" + fx("Decimals") + ")));",
+      "var comma = Math.round(" + fx("Format") + ") == 2, th = comma ? \",\" : \".\", dec = comma ? \".\" : \",\";",
+      "var sym = [\"\", \"$\", \"€\", \"R$ \"][Math.max(0, Math.min(3, Math.round(" + fx("Symbol") + ") - 1))];",
+      "var parts = Math.abs(n).toFixed(d).split(\".\");",
+      "var s = parts[0].replace(/\\B(?=(\\d{3})+(?!\\d))/g, th) + (d > 0 ? dec + parts[1] : \"\");",
+      "(n < 0 && Number(Math.abs(n).toFixed(d)) != 0 ? \"-\" : \"\") + sym + s;"
     ].join("\n");
+  }
+
+  // a control on the layer: [name, matchName, value, dropdown items]
+  function addKnob(layer, name, matchName, value, items) {
+    var fx = layer.property("ADBE Effect Parade");
+    var idx = fx.addProperty(matchName).propertyIndex;
+    if (items) { fx.property(idx).property(1).setPropertyParameters(items); }
+    fx = layer.property("ADBE Effect Parade");
+    fx.property(idx).name = knob(name);
+    fx.property(idx).property(1).setValue(value);
   }
 
   // Two keys from -> to over d seconds, eased like 1 - (1 - t)^3: leaves
@@ -101,9 +116,12 @@
         var layer = layers[i];
         removeOld(layer);
         layer.property("ADBE Effect Parade").addProperty("ADBE Slider Control").name = knob("Value");
+        addKnob(layer, "Decimals", "ADBE Slider Control", Math.max(0, Math.min(4, Math.round(Number(o.decimals) || 0))));
+        addKnob(layer, "Format", "ADBE Dropdown Control", o.format === "comma" ? 2 : 1, FORMATS);
+        addKnob(layer, "Symbol", "ADBE Dropdown Control", SYMBOL_KEY[o.currency] || 1, SYMBOLS);
         var value = layer.property("ADBE Effect Parade").property(knob("Value")).property(1);
         keyframe(value, layer.inPoint, from, to, duration);
-        sourceText(layer).expression = expression(o.currency);
+        sourceText(layer).expression = expression();
         layer.selected = true;
         // the two keys selected: the Graph Editor shows them right away
         try { value.setSelectedAtKey(1, true); value.setSelectedAtKey(2, true); } catch (selectError) {}

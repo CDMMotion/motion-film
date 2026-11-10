@@ -6163,3 +6163,97 @@ parada (sem botão de pausa). O link ao vivo não mexe em controle que já
 tem keyframes. Um carrossel antigo reaplicado perde Speed e Offset (o
 Offset fica se tiver keyframes). Conferido no AE: frames em 0 s e 3 s
 idênticos; Spin 0 -> 120° em 2 s move os cartões.
+
+## Changelog -- Wheel: lista de ações em grupos que abrem
+
+Pedido do usuário: no MF - Wheel a lista de ações (um `<select>` com
+optgroups) ficava toda aberta e difícil de ler na janela pequena. Agora
+é um seletor próprio (`actionPicker` em `client/wheel.js`): o botão
+mostra a ação atual e o grupo dela; ao clicar abre embaixo uma busca e
+os grupos fechados (título + quantidade), que abrem/fecham ao clicar no
+título. O grupo da ação atual já vem aberto; digitar na busca mostra
+todos os resultados com os grupos abertos. Esc ou clique fora fecha.
+
+## Changelog -- Tools: busca + 06 / GRID
+
+**Busca** (`client/tools-search.js`): barra fixa no topo da aba Tools.
+Acha a ferramenta pelo número ("6", "06") ou pelo nome -- as palavras
+do kicker mais `data-tool-keys` de cada seção (nomes em inglês e
+português, sem acento). Toda palavra digitada precisa bater. Seções que
+não batem somem; as que batem abrem mesmo se estavam fechadas e voltam
+a fechar quando a busca limpa. Enter rola até a primeira; Esc limpa.
+Ferramenta nova = seção com `data-tool-keys`.
+
+**Grid** (`host/grid.jsx`, `client/grid.js`), pedido do usuário a
+partir de um reel do "Grid Liner" (VenmoFX) -- comportamento copiado,
+código nosso:
+- Null "MF Grid N": cada linha da grade é um Slider (X 0..X C
+  verticais, Y 0..Y R horizontais, px da comp) + estilo (Lines
+  Full/Grid only/Off, cor, largura, Dash, Points Every cross/Corners/Off,
+  Point Shape Dot/Square/Plus/Cross/Diamond, Point Size/Color, Padding,
+  Roundness, Zoom). Até 8 x 8.
+- Shape layers "MF Grid N Lines" (um path por linha + um Stroke
+  tracejado) e "MF Grid N Points" (uma marca por cruzamento), tudo por
+  expressão lendo o null.
+- Camadas presas a uma célula ou bloco ganham a máscara "MF Grid Cell"
+  (Intersect se a camada já tinha máscaras) que segue a célula, com
+  Padding e Roundness. Cover: Position/Scale por expressão cobrem a
+  célula (sourceRectAtTime, respeita anchor e parent). Mask only: só
+  recorta. A tag `// MF Grid: <null>, cells c0,r0-c1,r1 <modo>` na
+  máscara identifica a célula.
+- Painel: prévia com a proporção da comp; arrastar linha ou cruzamento,
+  clique escolhe célula, Shift+clique um bloco. Ligado à grade da
+  seleção (ou a primeira da comp): mostra as linhas no tempo atual e
+  grava ao vivo -- linha animada ganha keyframe no tempo atual. Key
+  lines põe keyframe em todas; Even reespaça; Columns/Rows refazem a
+  grade (células que somem soltam suas camadas). Lixeira solta as
+  camadas selecionadas; com o null/Lines/Points selecionado apaga a
+  grade toda.
+- Conferido no AE 26.5: Cover e Mask, 2x2 -> 3x2, keyframes 0 s/2 s,
+  estilos, arrastar no painel grava no AE, Make grid pelo painel.
+
+## Changelog -- Counter: decimais e formato
+
+Bug do usuário: digitar "5,60" no To virava 560 (o campo só aceitava
+ponto e arredondava para inteiro), então a prévia não batia com o
+número digitado. Depois ele pediu algo mais simples, como o plugin Num
+(AE Screens): escolher as casas decimais e só o que vem primeiro.
+- Format: 1.000,00 (pontos primeiro) ou 1,000.00 (vírgulas primeiro).
+  R$ escolhe 1.000,00, $ escolhe 1,000.00; € e None não mexem.
+- Decimals: 0 a 4. Digitar mais casas do que o escolhido sobe o valor.
+- O número digitado é lido pelo sentido: os dois separadores = o último
+  é o decimal; um só seguido de algo diferente de 3 dígitos = decimal.
+- Na camada ficam controles para trocar depois: MF Counter · Value
+  (keyframes), · Decimals (slider), · Format e · Symbol (dropdowns). A
+  expressão do Source Text lê os quatro. Conferido no AE: 12.50 ->
+  Decimals 3 = 12.500, 1 = 12.5, Format/Symbol = R$ 12,5.
+
+## Changelog -- Text Animation › 03 / TYPEWRITER
+
+Pedido do usuário: um efeito de máquina de escrever, versão nossa do que
+ele usava na timeline. Estudado só o comportamento da referência (um
+pseudo-efeito com "Animation" 0-100 % keyframed + "Based On" letra /
+palavra / linha cortando o Source Text, e um cursor numa shape layer à
+parte que acha o fim do texto com sourceRectAtTime e pisca). Código nosso.
+
+- `host/typewriter.jsx` (`twApply / twRemove`): Source Text por expressão
+  mostra o texto até "MF Type · Progress" (por letra, palavra -- a palavra
+  leva o espaço / quebra que vem depois -- ou linha). Progress ganha
+  keyframes do In point até In point + Duration (Linear ou Ease); com
+  Erase, segura e apaga em 0.6 x Duration. Mover os keyframes muda o tempo.
+- Cursor ( | █ _ ) é um caractere no fim do próprio texto, escondido por um
+  Text Animator "MF Type Cursor" (Opacity 0, Expression Selector só no
+  último caractere): ocupa o lugar sempre, então nada pula ao piscar, e
+  segue linhas / alinhamento / fonte sem conta de posição. Sólido enquanto
+  digita, pisca parado ("MF Type · Blink" por segundo), "Cursor" liga /
+  desliga, "Hide At End" some 0.4 s depois do último keyframe.
+- `client/typewriter.js`: seção 03 / TYPEWRITER (Counter virou 04) com
+  prévia ao vivo pelas mesmas regras; texto da prévia = o da 01. Estado em
+  `motionfilm-typewriter`.
+- Testado ao vivo: os 3 modos, os 3 cursores, Erase + Ease (texto certo em
+  cada tempo), piscada conferida em frames renderizados, Apply pelo
+  painel, Remove limpa tudo.- Sem Duration no painel (pedido do usuário: o tempo se ajusta nos
+  keyframes da timeline). O Progress ganha um tempo inicial pelo tamanho do
+  texto (`autoDuration`, igual na prévia): 0.06 s por caractere, 0.3 s por
+  palavra ou 0.6 s por linha, entre 0.4 e 4 s.
+
