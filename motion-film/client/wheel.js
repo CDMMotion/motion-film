@@ -644,10 +644,11 @@
       clearTimeout(resetArmed);
       resetArmed = null;
       b.textContent = "Back to the default wheel";
-      var keep = { enabled: cfg.enabled, hotkey: cfg.hotkey };
+      var keep = { enabled: cfg.enabled, hotkey: cfg.hotkey, trigger: cfg.trigger };
       cfg = W.defaults();
       cfg.enabled = keep.enabled;
       cfg.hotkey = keep.hotkey;
+      cfg.trigger = keep.trigger;
       sel = 0;
       save(); render();
       setStatus("Default wheel back.", "success");
@@ -686,6 +687,10 @@
     if (!capturing) { field.value = cfg.hotkey.label; }
     $("wh-enabled").setAttribute("aria-checked", cfg.enabled ? "true" : "false");
     field.disabled = !cfg.enabled;
+    Array.prototype.forEach.call($("wh-trigger").children, function (b) {
+      b.classList.toggle("is-active", b.getAttribute("data-trigger") === cfg.trigger);
+    });
+    $("wh-key-row").hidden = cfg.trigger !== "key";
   }
 
   function bindShortcut() {
@@ -693,6 +698,14 @@
     $("wh-enabled").addEventListener("click", function () {
       cfg.enabled = !cfg.enabled;
       save(); drawShortcut(); readState();
+    });
+    Array.prototype.forEach.call($("wh-trigger").children, function (b) {
+      b.addEventListener("click", function () {
+        var t = b.getAttribute("data-trigger");
+        if (t === cfg.trigger) { return; }
+        cfg.trigger = t;
+        save(); drawShortcut(); readState();
+      });
     });
     field.addEventListener("focus", function () {
       capturing = true;
@@ -737,20 +750,26 @@
     try { st = JSON.parse(req("fs").readFileSync(sideFile("wheel-status.json"), "utf8")); } catch (e) {}
     var text;
     var warn = false;
+    var mouse = cfg.trigger !== "key";
     if (!cfg.enabled) {
-      text = "The shortcut is off. The Wheel only opens again when you turn it on.";
+      text = "The Wheel is off. It only opens again when you turn it on.";
     } else if (!/^Win/i.test(navigator.platform)) {
-      text = "The Wheel shortcut is Windows-only for now.";
+      text = "The Wheel is Windows-only for now.";
       warn = true;
     } else if (!st || Date.now() - st.at > 30000) {
       text = "The main Mótion Film panel runs the Wheel -- keep it open (it can stay docked out of the way).";
       warn = true;
-    } else if (st.helper === "busy") {
+    } else if (mouse && st.helper === "fail") {
+      text = "Windows didn't let the Wheel watch the right button -- reopen the main panel, or use a shortcut.";
+      warn = true;
+    } else if (!mouse && st.helper === "busy") {
       text = cfg.hotkey.label + " is taken by another program. Pick another shortcut.";
       warn = true;
     } else if (st.helper === "missing" || st.helper === "error") {
       text = st.helper === "missing" ? "The shortcut program is missing -- reinstall Mótion Film." : "The shortcut program keeps stopping -- reopen the main panel.";
       warn = true;
+    } else if (mouse) {
+      text = "Hold the right mouse button over After Effects: the Wheel opens there. Move to a slice and let go to run it; let go on the middle or outside and nothing happens. A quick right click still opens the menus, and with Ctrl, Alt or Shift held the right button is left alone.";
     } else {
       text = "Press " + cfg.hotkey.label + " with After Effects in front. Hover a slice and click, or press 1–" + cfg.slices.length + ". Esc closes it.";
     }

@@ -2,8 +2,8 @@
  * Mótion Film -- the Wheel, main panel side (Windows).
  *
  * Starts bin/win/MFHelper.exe (source: installer/helper/MFHelper.cs),
- * which holds the shortcut (default Ctrl + Tab) while After Effects is in
- * front and draws the wheel at the mouse. This file sends it the slices
+ * which opens the wheel at the mouse when the right button is held over
+ * After Effects (or, with trigger "key", on a shortcut like Ctrl + Tab). This file sends it the slices
  * from Documents/Mótion Film Packs/wheel.json (wheel-core.js) -- again
  * whenever the "MF - Wheel" settings window saves that file -- and runs
  * what comes back as "pick <id>":
@@ -154,32 +154,46 @@
     sendHotkey();
   }
 
+  // the Wheel opens by holding the right button (trigger "mouse") or by
+  // the keyboard shortcut (trigger "key"), never both
   function sendHotkey() {
-    send(cfg.enabled && !paused ? "hotkey " + cfg.hotkey.mods + " " + cfg.hotkey.vk : "hotkey off");
+    var mouse = cfg.enabled && cfg.trigger !== "key";
+    send(cfg.enabled && !mouse && !paused ? "hotkey " + cfg.hotkey.mods + " " + cfg.hotkey.vk : "hotkey off");
+    send(mouse ? "mouse on " + HOLD_MS : "mouse off");
+  }
+  var HOLD_MS = 200; // how long the right button is held before the Wheel opens
+
+  function triggerLabel() {
+    if (!cfg) { return ""; }
+    return cfg.trigger === "key" ? cfg.hotkey.label : "Hold right click";
   }
 
   function writeStatus() {
     try {
       var fs = nodeRequire("fs");
       var path = nodeRequire("path");
-      fs.writeFileSync(path.join(path.dirname(W.file()), "wheel-status.json"), JSON.stringify({ helper: helperState, label: cfg ? cfg.hotkey.label : "", enabled: cfg ? cfg.enabled : true, at: Date.now() }), "utf8");
+      fs.writeFileSync(path.join(path.dirname(W.file()), "wheel-status.json"), JSON.stringify({ helper: helperState, label: cfg ? cfg.hotkey.label : "", trigger: cfg ? cfg.trigger : "mouse", enabled: cfg ? cfg.enabled : true, at: Date.now() }), "utf8");
     } catch (e) {}
     var note = $("wheel-note");
     if (note) {
       var label = cfg ? cfg.hotkey.label : "";
+      var mouse = !cfg || cfg.trigger !== "key";
       var text = {
-        ok: "Press " + label + " with After Effects in front to open the Wheel (Elastic is in it).",
+        ok: mouse
+          ? "Hold the right mouse button over After Effects, move to a slice and let go (Elastic is in it). A quick right click still opens the menus."
+          : "Press " + label + " with After Effects in front to open the Wheel (Elastic is in it).",
         busy: label + " is taken by another program -- pick another shortcut in MF - Wheel.",
+        fail: "Windows didn't let the Wheel watch the right button -- reopen the panel or use a shortcut in MF - Wheel.",
         missing: "The shortcut program is missing -- reinstall Mótion Film.",
         mac: "The Wheel shortcut is Windows-only for now.",
         error: "The shortcut program stopped several times -- close and reopen the panel.",
         off: "The Wheel shortcut is off (MF - Wheel)."
       }[helperState] || "Starting the Wheel…";
       note.textContent = text;
-      note.classList.toggle("is-warn", helperState === "busy" || helperState === "missing" || helperState === "error");
+      note.classList.toggle("is-warn", helperState === "busy" || helperState === "fail" || helperState === "missing" || helperState === "error");
     }
     var key = $("wheel-key");
-    if (key) { key.textContent = cfg ? cfg.hotkey.label : ""; }
+    if (key) { key.textContent = triggerLabel(); }
   }
 
   function openSettings() {
@@ -195,7 +209,14 @@
       sendTheme(true);
       sendConfig();
     } else if (cmd === "hotkey") {
-      helperState = /^ok/.test(rest) ? "ok" : (/^busy/.test(rest) ? "busy" : "off");
+      // the "off" that comes with the mouse trigger doesn't count
+      if (!(cfg && cfg.enabled && cfg.trigger !== "key")) {
+        helperState = /^ok/.test(rest) ? "ok" : (/^busy/.test(rest) ? "busy" : "off");
+      }
+    } else if (cmd === "mouse") {
+      if (cfg && cfg.enabled && cfg.trigger !== "key") {
+        helperState = rest === "ok" ? "ok" : (rest === "fail" ? "fail" : "off");
+      }
     } else if (cmd === "pick") {
       var item = find(rest);
       if (item) { run(item); } else { send("error Unknown slice"); }
@@ -275,7 +296,7 @@
   window.MF.wheel = {
     open: function () { send("show"); },
     openSettings: openSettings,
-    state: function () { return { helper: helperState, label: cfg ? cfg.hotkey.label : "" }; }
+    state: function () { return { helper: helperState, label: triggerLabel(), trigger: cfg ? cfg.trigger : "" }; }
   };
 
   var open = $("wheel-open");

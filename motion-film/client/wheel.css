@@ -67,3 +67,7 @@
 .wh-kid > i { padding-top: 7px; color: var(--dim); font-size: 9px; font-style: normal; font-weight: 700; }
 .wh-kid .wh-action { margin-top: 6px; }
 .wh-key { flex: 1 1 auto; width: auto; }
+.wh-trigger-row { align-items: center; }
+.wh-trigger { flex: 1 1 auto; min-width: 0; }
+.wh-key-row { margin-top: 8px; }
+.wh-key-row[hidden] { display: none; }

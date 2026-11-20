@@ -653,14 +653,13 @@
       duration: active ? active.duration : 10
     };
 
-    var rootName = payload.mode === "raster" ? "Figma PNG" : "Figma Layers";
+    // Everything (PNGs, precomps, comps) goes loose into one project folder
+    // "Mótion Figma Layers" -- no subfolder per import (the user didn't want
+    // thousands of folders). The PNGs on disk sit loose in the matching
+    // <project>/Mótion Figma Layers/ with unique names (client/figma.js).
     ctx.rootFolder = findOrCreateFolder("Mótion Figma Layers");
-    // data.batchName comes from mflBatchName: unique, and the same name as
-    // the folder on disk that holds this import's PNGs
-    var batchName = String(data.batchName || groups[0].name || (groups[0].container && groups[0].container.name) || rootName);
-    ctx.batchFolder = findOrCreateFolder(batchName, ctx.rootFolder);
-    ctx.assetFolder = ctx.batchFolder;
-    ctx.precompFolder = ctx.batchFolder;
+    ctx.assetFolder = ctx.rootFolder;
+    ctx.precompFolder = ctx.rootFolder;
 
     // Frames importados como comp: caixa total por frame de topo (ou página)
     // de onde vieram, pra manter o layout do Figma (ver placeOffset).
@@ -799,11 +798,11 @@
     return stringify({ ok: true, dir: "", name: "" });
   }
 
+  // Not used since imports stopped getting their own folder (kept so an
+  // older figma.js still loaded in a panel keeps working).
   // Name for one import: the project folder "Mótion Figma Layers › <name>"
   // and the disk folder "<diskRoot>/<name>" share it. A name already used
-  // by either gets " 2", " 3"... so a re-import never mixes with (or
-  // overwrites) an earlier one -- Collect Files mirrors the project folders,
-  // and two PNGs with the same name in one folder would collide there.
+  // by either gets " 2", " 3"...
   function mflBatchName(base, diskRoot) {
     base = String(base || "Figma");
     var taken = {};

@@ -2,14 +2,23 @@
 //
 // Started by the main panel (client/wheel-runner.js) with Node, talks
 // over stdin / stdout, one command per line:
-//   in:  hotkey <mods> <vk> | hotkey off | theme <accent #hex> <panel #hex>
+//   in:  hotkey <mods> <vk> | hotkey off | mouse on [hold ms] | mouse off
+//        theme <accent #hex> <panel #hex>
 //        wheel <json {slices:[{id,label,group,children:[{id,label}]}]}>
 //        show | done <message> | error <message> | quit
-//   out: ready | hotkey ok|busy <mods> <vk> | hotkey off | pick <id>
-//        config | closed
+//   out: ready | hotkey ok|busy <mods> <vk> | hotkey off | mouse ok|fail|off
+//        pick <id> | config | closed
 // The shortcut (RegisterHotKey, mods: 1 Alt, 2 Ctrl, 4 Shift, 8 Win) is
 // only held while After Effects is the foreground app, so it never
 // steals the keys from other programs.
+//
+// "mouse on": holding the right button over After Effects opens the
+// Wheel where it was pressed (a low-level mouse hook). While it's held
+// the mouse picks a slice; letting go runs it, or just closes the Wheel
+// over the hub / outside. A quick right click (let go before the hold
+// time) and a right drag (moved first) are given back to After Effects
+// as they were, so context menus and the camera tools keep working.
+// With Ctrl, Alt, Shift or Win held the right button is left alone.
 //
 // The Wheel opens centered on the mouse: 2..8 slices around a hub (top
 // first, clockwise). Hovering a group slice opens its own 2..8 slices in
@@ -43,6 +52,19 @@ static class Native
     [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr hWnd);
     [DllImport("user32.dll")] public static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint pid);
     [DllImport("user32.dll")] public static extern bool SetProcessDPIAware();
+    [DllImport("user32.dll")] public static extern IntPtr WindowFromPoint(POINT p);
+    [DllImport("user32.dll")] public static extern short GetAsyncKeyState(int vk);
+
+    public delegate IntPtr HookProc(int code, IntPtr wParam, IntPtr lParam);
+    [DllImport("user32.dll", SetLastError = true)] public static extern IntPtr SetWindowsHookEx(int idHook, HookProc fn, IntPtr hMod, uint threadId);
+    [DllImport("user32.dll")] public static extern bool UnhookWindowsHookEx(IntPtr hook);
+    [DllImport("user32.dll")] public static extern IntPtr CallNextHookEx(IntPtr hook, int code, IntPtr wParam, IntPtr lParam);
+    [DllImport("kernel32.dll")] public static extern IntPtr GetModuleHandle(string name);
+    [StructLayout(LayoutKind.Sequential)] public struct MSLLHOOKSTRUCT { public POINT pt; public uint mouseData, flags, time; public IntPtr dwExtraInfo; }
+
+    [StructLayout(LayoutKind.Sequential)] public struct MOUSEINPUT { public int dx, dy; public uint mouseData, dwFlags, time; public IntPtr dwExtraInfo; }
+    [StructLayout(LayoutKind.Sequential)] public struct INPUT { public uint type; public MOUSEINPUT mi; }
+    [DllImport("user32.dll", SetLastError = true)] public static extern uint SendInput(uint n, INPUT[] inputs, int size);
 
     [StructLayout(LayoutKind.Sequential)] public struct POINT { public int X, Y; public POINT(int x, int y) { X = x; Y = y; } }
     [StructLayout(LayoutKind.Sequential)] public struct SIZE { public int CX, CY; public SIZE(int x, int y) { CX = x; CY = y; } }
@@ -78,6 +100,21 @@ class Host : Form
     Wheel wheel;
     readonly System.Windows.Forms.Timer watch = new System.Windows.Forms.Timer();
 
+    // the right button (mouse on)
+    const int WH_MOUSE_LL = 14;
+    const int WM_MOUSEMOVE = 0x200, WM_RBUTTONDOWN = 0x204, WM_RBUTTONUP = 0x205;
+    const uint MOUSEEVENTF_RIGHTDOWN = 0x8, MOUSEEVENTF_RIGHTUP = 0x10;
+    static readonly IntPtr OURS = new IntPtr(0x4D46574C); // marks the clicks given back
+    Native.HookProc hookProc;      // kept alive while hooked
+    IntPtr hook = IntPtr.Zero;
+    bool pressed;                  // right button down, swallowed, deciding
+    bool holding;                  // ...and the Wheel opened for it
+    Point pressAt;
+    int holdMs = 200;
+    float dpiScale = 1f;
+    readonly System.Windows.Forms.Timer holdTimer = new System.Windows.Forms.Timer();
+    readonly Dictionary<uint, bool> aePids = new Dictionary<uint, bool>();
+
     public Host()
     {
         ShowInTaskbar = false;
@@ -88,6 +125,8 @@ class Host : Form
         Location = new Point(-32000, -32000);
         watch.Interval = 150;
         watch.Tick += delegate { Follow(); };
+        holdTimer.Tick += delegate { holdTimer.Stop(); if (pressed && !holding) { OpenHold(); } };
+        using (var g = CreateGraphics()) { dpiScale = g.DpiX / 96f; }
         // never shown: create the window handle now (hotkey messages,
         // BeginInvoke from the stdin thread)
         IntPtr handle = Handle;
@@ -146,6 +185,13 @@ class Host : Form
                 if (ok) { held = true; }
                 Send("hotkey " + (ok ? "ok" : "busy") + " " + mods + " " + vk);
                 Follow();
+                break;
+            case "mouse":
+                if (rest.StartsWith("off")) { Unhook(); Send("mouse off"); return; }
+                int ms;
+                var mp = rest.Split(' ');
+                if (mp.Length >= 2 && int.TryParse(mp[1], out ms)) { holdMs = Math.Max(80, Math.Min(1000, ms)); }
+                Send(Hook() ? "mouse ok" : "mouse fail");
                 break;
             case "theme":
                 var t = rest.Split(' ');
@@ -211,6 +257,134 @@ class Host : Form
         catch { return false; }
     }
 
+    bool IsAE(uint pid)
+    {
+        bool ae;
+        if (aePids.TryGetValue(pid, out ae)) { return ae; }
+        try { ae = Process.GetProcessById((int)pid).ProcessName.Equals("AfterFX", StringComparison.OrdinalIgnoreCase); }
+        catch { ae = false; }
+        if (aePids.Count > 64) { aePids.Clear(); }
+        aePids[pid] = ae;
+        return ae;
+    }
+
+    // After Effects in front and one of its windows under the mouse
+    bool OverAfterEffects(Native.POINT p)
+    {
+        uint fg, under;
+        Native.GetWindowThreadProcessId(Native.GetForegroundWindow(), out fg);
+        if (!IsAE(fg)) { return false; }
+        Native.GetWindowThreadProcessId(Native.WindowFromPoint(p), out under);
+        return under == fg;
+    }
+
+    static bool ModifierDown()
+    {
+        int[] keys = { 0x10, 0x11, 0x12, 0x5B, 0x5C };
+        foreach (int k in keys) { if ((Native.GetAsyncKeyState(k) & 0x8000) != 0) { return true; } }
+        return false;
+    }
+
+    bool Hook()
+    {
+        if (hook != IntPtr.Zero) { return true; }
+        hookProc = OnMouse;
+        hook = Native.SetWindowsHookEx(WH_MOUSE_LL, hookProc, Native.GetModuleHandle(null), 0);
+        return hook != IntPtr.Zero;
+    }
+
+    void Unhook()
+    {
+        if (hook != IntPtr.Zero) { Native.UnhookWindowsHookEx(hook); hook = IntPtr.Zero; }
+        if (pressed && !holding) { Replay(true); }
+        pressed = false;
+        holdTimer.Stop();
+        if (holding && wheel != null) { wheel.Close(); }
+        holding = false;
+    }
+
+    // Runs for every mouse event of the system: it stays short, the real
+    // work is posted to the window's queue.
+    IntPtr OnMouse(int code, IntPtr wParam, IntPtr lParam)
+    {
+        if (code >= 0)
+        {
+            int msg = (int)wParam;
+            var info = (Native.MSLLHOOKSTRUCT)Marshal.PtrToStructure(lParam, typeof(Native.MSLLHOOKSTRUCT));
+            if (info.dwExtraInfo == OURS) { return Native.CallNextHookEx(hook, code, wParam, lParam); }
+            var pt = new Point(info.pt.X, info.pt.Y);
+            if (msg == WM_RBUTTONDOWN)
+            {
+                if (!pressed && wheel == null && !ModifierDown() && OverAfterEffects(info.pt))
+                {
+                    pressed = true;
+                    holding = false;
+                    pressAt = pt;
+                    holdTimer.Interval = holdMs;
+                    holdTimer.Start();
+                    return new IntPtr(1);
+                }
+            }
+            else if (msg == WM_RBUTTONUP)
+            {
+                if (pressed)
+                {
+                    pressed = false;
+                    holdTimer.Stop();
+                    if (holding)
+                    {
+                        holding = false;
+                        BeginInvoke(new Action(() => { if (wheel != null) { wheel.Release(pt); } }));
+                    }
+                    else { BeginInvoke(new Action(() => Replay(false))); } // a plain right click
+                    return new IntPtr(1);
+                }
+            }
+            else if (msg == WM_MOUSEMOVE && pressed)
+            {
+                if (holding) { BeginInvoke(new Action(() => { if (wheel != null) { wheel.Track(pt); } })); }
+                else
+                {
+                    // moved before the hold time: a right drag, give it back
+                    int dx = pt.X - pressAt.X, dy = pt.Y - pressAt.Y;
+                    int far = (int)(12 * dpiScale);
+                    if (dx * dx + dy * dy > far * far)
+                    {
+                        pressed = false;
+                        holdTimer.Stop();
+                        BeginInvoke(new Action(() => Replay(true)));
+                    }
+                }
+            }
+        }
+        return Native.CallNextHookEx(hook, code, wParam, lParam);
+    }
+
+    // the swallowed right button, given back to After Effects: a whole
+    // click, or only the press (a drag goes on with the button still down)
+    void Replay(bool downOnly)
+    {
+        var list = new List<Native.INPUT>();
+        list.Add(new Native.INPUT { type = 0, mi = new Native.MOUSEINPUT { dwFlags = MOUSEEVENTF_RIGHTDOWN, dwExtraInfo = OURS } });
+        if (!downOnly) { list.Add(new Native.INPUT { type = 0, mi = new Native.MOUSEINPUT { dwFlags = MOUSEEVENTF_RIGHTUP, dwExtraInfo = OURS } }); }
+        Native.SendInput((uint)list.Count, list.ToArray(), Marshal.SizeOf(typeof(Native.INPUT)));
+    }
+
+    void OpenHold()
+    {
+        if (wheel != null) { return; }
+        holding = true;
+        var w = new Wheel(this, Native.GetForegroundWindow(), pressAt, true);
+        wheel = w;
+        w.FormClosed += delegate
+        {
+            wheel = null;
+            Send("closed");
+        };
+        w.Show(); // without taking the focus: After Effects keeps it
+        w.Track(Cursor.Position);
+    }
+
     // Hold the shortcut only while After Effects is in front.
     void Follow()
     {
@@ -234,7 +408,7 @@ class Host : Form
     {
         if (wheel != null) { wheel.Activate(); return; }
         IntPtr back = Native.GetForegroundWindow();
-        var w = new Wheel(this, back);
+        var w = new Wheel(this, back, Cursor.Position, false);
         w.Pinned = pin;
         wheel = w;
         w.FormClosed += delegate
@@ -251,6 +425,7 @@ class Host : Form
     void Quit()
     {
         Release();
+        Unhook();
         if (wheel != null) { wheel.Close(); }
         Application.Exit();
     }
@@ -279,8 +454,12 @@ class Wheel : Form
     string status = "";
     readonly System.Windows.Forms.Timer closer = new System.Windows.Forms.Timer();
 
-    public Wheel(Host host, IntPtr back)
+    readonly bool held;    // opened by holding the right button: no focus, letting go picks
+
+    public Wheel(Host host, IntPtr back, Point at, bool held)
     {
+        this.held = held;
+        quiet = held;
         this.host = host;
         this.back = back;
         slices = host.Slices;
@@ -294,8 +473,8 @@ class Wheel : Form
         KeyPreview = true;
         StartPosition = FormStartPosition.Manual;
         Size = new Size(size, size);
-        // centered on the mouse, kept on the screen
-        Point c = Cursor.Position;
+        // centered on the mouse (where the button went down), kept on the screen
+        Point c = at;
         Rectangle area = Screen.FromPoint(c).WorkingArea;
         int x = Math.Max(area.Left, Math.Min(c.X - size / 2, area.Right - size));
         int y = Math.Max(area.Top, Math.Min(c.Y - size / 2, area.Bottom - size));
@@ -315,7 +494,7 @@ class Wheel : Form
     protected override void OnDeactivate(EventArgs e)
     {
         base.OnDeactivate(e);
-        if (!waiting && !closer.Enabled && !Pinned) { Close(); }
+        if (!waiting && !closer.Enabled && !Pinned && !held) { Close(); }
     }
 
     // ------------------------------------------------------------ geometry
@@ -406,13 +585,36 @@ class Wheel : Form
         if (slices[n].Group) { open = n; hover = n; Render(); } else { Pick(slices[n]); }
     }
 
+    // held: the mouse, in screen coordinates, from the hook
+    public void Track(Point screen)
+    {
+        if (waiting) { return; }
+        int h = hover, o = open, c = child;
+        bool gh = gearHover;
+        HitTest(new Point(screen.X - Left, screen.Y - Top));
+        if (h != hover || o != open || c != child || gh != gearHover) { Render(); }
+    }
+
+    // held: the right button let go -- run what's under it, or just close
+    public void Release(Point screen)
+    {
+        if (waiting) { return; }
+        HitTest(new Point(screen.X - Left, screen.Y - Top));
+        if (gearHover) { Host.Send("config"); Close(); return; }
+        if (child >= 0 && open >= 0) { Pick(slices[open].Kids[child]); return; }
+        if (hover >= 0 && !slices[hover].Group) { Pick(slices[hover]); return; }
+        Close();
+    }
+
     void Pick(WItem it)
     {
         waiting = true;
         Host.Send("pick " + it.Id);
         // give After Effects the focus back while this process still owns
         // the foreground: the timeline is live again without a click
-        if (back != IntPtr.Zero) { HandedBack = Native.SetForegroundWindow(back); }
+        // (held: it never lost it)
+        if (held) { HandedBack = true; }
+        else if (back != IntPtr.Zero) { HandedBack = Native.SetForegroundWindow(back); }
         Hide();
         closer.Interval = 5000; // the panel never answered: just go
         closer.Start();

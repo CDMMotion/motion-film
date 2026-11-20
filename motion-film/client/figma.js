@@ -457,12 +457,13 @@
       var loaded = await ensureHostScript();
       if (!loaded) { throw new Error("Não consegui carregar host/figma.jsx."); }
 
-      // PNGs live next to the project, in folders that mirror the project
-      // panel: <pasta>/Mótion Figma Layers/<lote>/ = "Mótion Figma Layers ›
-      // <lote>" in AE. Unsaved project: the person picks <pasta> once per
-      // session (until the project is saved).
+      // PNGs live next to the project, loose in one folder that mirrors the
+      // project panel: <pasta>/Mótion Figma Layers/ = "Mótion Figma Layers"
+      // in AE (no folder per import -- the user didn't want one). Unsaved
+      // project: the person picks <pasta> once per session (until the
+      // project is saved). A file name already used gets " 2", " 3"... so a
+      // re-import never overwrites the PNG an earlier one still uses.
       var assets = body.assets || [];
-      var batch = "";
       var dir = "";
       if (mode !== "comp") {
         var proj = await hostCallAsync("mflProjectDir", []);
@@ -483,11 +484,7 @@
           }
           root = path.join(session.imagesDir, ROOT_FOLDER);
         }
-        var first = (payload.groups && payload.groups[0]) || {};
-        var base = sanitize(first.name || (first.container && first.container.name) || payload.fileName || (mode === "raster" ? "Figma PNG" : "Figma Layers"));
-        var named = await hostCallAsync("mflBatchName", [base, root.replace(/\\/g, "/")]);
-        batch = (named && named.name) || base;
-        dir = root ? path.join(root, batch) : "";
+        dir = root;
       }
 
       var assetPaths = {};
@@ -495,14 +492,16 @@
         fs.mkdirSync(dir, { recursive: true });
         for (var i = 0; i < assets.length; i += 1) {
           var a = assets[i];
-          var file = path.join(dir, sanitize(a.name) + "_" + a.id + ".png");
+          var stem = sanitize(a.name) + "_" + a.id;
+          var file = path.join(dir, stem + ".png");
+          for (var n = 2; fs.existsSync(file) && n < 10000; n += 1) { file = path.join(dir, stem + " " + n + ".png"); }
           fs.writeFileSync(file, Buffer.from(String(a.data || ""), "base64"));
           assetPaths[a.id] = file.replace(/\\/g, "/");
         }
       }
 
       var tmp = path.join(os.tmpdir(), "mfl_payload_" + Date.now() + ".json");
-      fs.writeFileSync(tmp, JSON.stringify({ payload: payload, assetPaths: assetPaths, batchName: batch }), "utf8");
+      fs.writeFileSync(tmp, JSON.stringify({ payload: payload, assetPaths: assetPaths }), "utf8");
       var result = await hostCallAsync("mflBuild", [tmp.replace(/\\/g, "/")]);
       // Fica uma cópia do que o Figma mandou (só o JSON, sem os PNGs) para
       // diagnosticar uma importação que saiu diferente do Figma.

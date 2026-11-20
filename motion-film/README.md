@@ -6257,3 +6257,61 @@ parte que acha o fim do texto com sourceRectAtTime e pisca). Código nosso.
   texto (`autoDuration`, igual na prévia): 0.06 s por caractere, 0.3 s por
   palavra ou 0.6 s por linha, entre 0.4 e 4 s.
 
+
+## Changelog -- Wheel: abre segurando o botão direito
+
+Pedido do usuário: o atalho de teclado custava tempo (tirar a mão do
+mouse). Agora o padrão (`trigger: "mouse"` no wheel.json; arquivos
+antigos sem o campo também caem nele) é segurar o botão direito sobre o
+After Effects: o Wheel abre onde o botão desceu, o mouse escolhe a fatia
+com o botão ainda apertado e soltar roda a ação. Soltar no centro ou
+fora de qualquer fatia (ou numa fatia de grupo) só fecha; soltar na
+engrenagem abre o MF - Wheel.
+
+Como funciona (`installer/helper/MFHelper.cs`, comando `mouse on <ms>`
+/ `mouse off`, respostas `mouse ok|fail|off`): um hook de mouse global
+(WH_MOUSE_LL) engole o botão direito quando o AE está na frente e uma
+janela dele está sob o mouse, sem Ctrl/Alt/Shift/Win. Se o botão
+continua apertado por 200 ms o Wheel abre sem tirar o foco do AE e
+segue o mouse pelo hook. Clique rápido (soltou antes) e arrasto
+(andou mais de 12 px antes) são devolvidos ao AE com SendInput
+(marcados para o hook ignorar), então menus de contexto e o dolly da
+câmera continuam iguais. Com o modificador apertado o botão direito
+passa direto.
+
+O atalho de teclado continua como opção: MF - Wheel › OPEN WITH ›
+Shortcut (aí vale o campo de atalho de antes). Um modo de cada vez.
+Conferido no AE com mouse sintético: segurar abre, soltar no centro
+não roda nada, soltar na fatia roda uma vez, clique rápido no painel
+Project abre o menu do AE, arrasto com o direito não abre o Wheel.
+
+Proteção do wheel do usuário (`wheel-core.js`): o wheel.json fica em
+Documentos\Mótion Film Packs (o instalador não toca). Agora o save
+grava num .tmp e troca o arquivo de uma vez, e o último wheel.json bom
+vira wheel.backup.json. Se o wheel.json não puder ser lido (queda no
+meio de um save, arquivo cortado), o load usa o backup em vez do wheel
+padrão -- antes um save seguinte gravaria o padrão por cima das fatias
+do usuário.
+
+## Changelog -- Mótion Figma Layers: sem pasta por importação
+
+Pedido do usuário: cada importação criava uma subpasta com o nome do
+item ("Mótion Figma Layers › <nome>", e o mesmo no disco), e isso virava
+milhares de pastas. Agora tudo entra solto na pasta "Mótion Figma
+Layers" do Project (PNGs, precomps e comps) e os PNGs ficam soltos em
+`<pasta do projeto>/Mótion Figma Layers/`. Para uma reimportação não
+sobrescrever o PNG que uma importação anterior ainda usa (e o Collect
+Files não ter dois arquivos com o mesmo nome na mesma pasta), um nome
+de arquivo já existente ganha " 2", " 3"... (`client/figma.js`).
+`mflBatchName` ficou no host só por compatibilidade, sem uso.
+Importações antigas, já com subpastas, não são mexidas.
+
+## Changelog -- .rar da Release sem instalador
+
+Pedido do usuário: o .exe acusa vírus em alguns computadores. A partir
+da 0.20.0 o `motion-film-v<v>.rar` (installer\package.ps1) traz a pasta
+pronta para copiar, sem instalador: `motion-film\` (vai em
+`%APPDATA%\Adobe\CEP\extensions`, o mesmo lugar do .exe, então os dois
+jeitos se substituem sem duplicar), `Plugin Figma\`,
+`habilitar-extensoes.reg` (PlayerDebugMode) e `INSTALAR.txt` com o passo
+a passo. O .exe continua anexado à Release como alternativa.

@@ -7,6 +7,7 @@
  *   Documents/Mótion Film Packs/wheel.json
  *   {
  *     v: 1, enabled, hotkey: { mods, vk, label },
+ *     trigger: "mouse" (hold the right button, the default) | "key" (hotkey),
  *     slices: [ 2..8 of
  *       { id, label, action }                       one action
  *       { id, label, group: true, children: [...] } opens 2..8 more on hover
@@ -102,6 +103,7 @@
     return {
       v: 1,
       enabled: true,
+      trigger: "mouse",
       hotkey: { mods: 2, vk: 9, label: "Ctrl + Tab" },
       slices: [
         { id: uid(), label: "Elastic", group: true, children: [
@@ -132,6 +134,7 @@
     var out = {
       v: 1,
       enabled: cfg.enabled !== false,
+      trigger: cfg.trigger === "key" ? "key" : "mouse",
       hotkey: cfg.hotkey && cfg.hotkey.vk > 0 ? { mods: cfg.hotkey.mods | 0, vk: cfg.hotkey.vk | 0, label: String(cfg.hotkey.label || "") } : d.hotkey,
       slices: []
     };
@@ -167,14 +170,30 @@
     if (!/^[A-Za-z]:/.test(docs) && docs.charAt(0) !== "/") { docs = "/" + docs; }
     return path.join(path.normalize(docs), "Mótion Film Packs", "wheel.json");
   }
+  // The user's wheel must survive anything (updates, a crash mid-save):
+  // saves go to a temp file that then replaces wheel.json, and the last
+  // good wheel.json is kept as wheel.backup.json. A wheel.json that can't
+  // be read falls back to that backup, not to the default wheel -- so a
+  // later save never writes the defaults over the user's slices.
+  function readGood(f) {
+    var raw = JSON.parse(req("fs").readFileSync(f, "utf8"));
+    if (!raw || !Array.isArray(raw.slices) || raw.slices.length < MIN) { throw new Error("not a wheel"); }
+    return raw;
+  }
+  function backupFile() { return file().replace(/wheel\.json$/, "wheel.backup.json"); }
   function load() {
-    try { return clean(JSON.parse(req("fs").readFileSync(file(), "utf8"))); } catch (e) { return defaults(); }
+    try { return clean(readGood(file())); } catch (e) {}
+    try { return clean(readGood(backupFile())); } catch (e2) {}
+    return defaults();
   }
   function save(cfg) {
     var fs = req("fs");
     var f = file();
     fs.mkdirSync(req("path").dirname(f), { recursive: true });
-    fs.writeFileSync(f, JSON.stringify(clean(cfg), null, 1), "utf8");
+    var tmp = f + ".tmp";
+    fs.writeFileSync(tmp, JSON.stringify(clean(cfg), null, 1), "utf8");
+    try { readGood(f); fs.copyFileSync(f, backupFile()); } catch (e) {} // only a good one becomes the backup
+    fs.renameSync(tmp, f);
   }
   function mtime() {
     try { return req("fs").statSync(file()).mtimeMs; } catch (e) { return 0; }

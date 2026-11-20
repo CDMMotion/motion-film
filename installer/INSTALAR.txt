@@ -1,41 +1,46 @@
-MÓTION FILM v__VERSION__ — extensão para After Effects + plugin do Figma
+﻿MÓTION FILM v__VERSION__ — extensão para After Effects + plugin do Figma
 =======================================================================
 
-INSTALAR OU ATUALIZAR (é o mesmo arquivo)
------------------------------------------
+INSTALAR OU ATUALIZAR (sem instalador: é só copiar a pasta)
+-----------------------------------------------------------
 1. Feche o After Effects.
-2. Dê dois cliques em "Motion-Film-Setup-__VERSION__.exe".
-   >> Se o Windows mostrar "O Windows protegeu o computador", clique em
-      "Mais informações" > "Executar assim mesmo" (o instalador não é
-      assinado digitalmente, por isso o aviso).
-3. Clique em "Instalar" (ou "Atualizar", se já tiver uma versão).
+2. Aperte Windows + R, cole o caminho abaixo e dê Enter:
+      %APPDATA%\Adobe\CEP\extensions
+   (Se aparecer "não encontrado": abra %APPDATA%\Adobe, crie a pasta
+   CEP e dentro dela a pasta extensions.)
+3. Copie a pasta "motion-film" deste .rar para dentro dessa pasta.
+   Atualizando: apague antes a pasta "motion-film" antiga que está lá
+   (ou deixe o Windows substituir tudo).
+4. Só na PRIMEIRA vez: dê dois cliques em "habilitar-extensoes.reg" e
+   confirme. Ele libera extensões não assinadas no After Effects (sem
+   isso a extensão não aparece no menu).
+5. Abra o After Effects: Window > Extensions > Mótion Film.
 
-O instalador faz tudo sozinho, sem copiar pastas:
-- instala ou atualiza a extensão Mótion Film no After Effects, com todas
-  as janelas (Mótion Film, MF - Paleta de Cores, MF - Camadas e
-  Mótion Figma Layers);
-- se existir uma cópia antiga instalada à mão em
-  C:\Program Files (x86)\Common Files\Adobe\CEP\extensions\motion-film,
-  ele remove (o Windows pede permissão de administrador uma vez);
-- libera extensões não assinadas no After Effects;
-- copia o plugin do Figma para Documentos\Mótion Figma Layers\Plugin Figma.
+Plugin do Figma: copie a pasta "Plugin Figma" para
+   Documentos\Mótion Figma Layers
+e importe ele no Figma uma vez (veja "Depois de instalar").
+
+Prefere instalador? Na mesma página do GitHub tem o
+Motion-Film-Setup-__VERSION__.exe, que faz esses passos sozinho (o mesmo
+lugar e os mesmos dados; dá para alternar entre os dois jeitos).
 
 Atualizar NÃO apaga nada seu. Tudo fica em Documentos\Mótion Film Packs:
    packs\           -> seus Packs (com as mídias)
    settings.json    -> cores, paletas, presets de legenda e de estilo,
                        tamanho do Null e layout das abas
+   wheel.json       -> as fatias e grupos do seu Wheel
 Trocando de computador: copie essa pasta inteira para o computador novo
 (antes de abrir o After Effects lá) e tudo vem junto.
 
-Para remover: rode o .exe de novo e clique em "Desinstalar" (seus Packs,
-cores e presets em Documentos continuam lá).
+Para remover: apague a pasta motion-film de %APPDATA%\Adobe\CEP\extensions
+(seus Packs, cores e presets em Documentos continuam lá).
 
 
 DEPOIS DE INSTALAR
 ------------------
 After Effects:
    Window > Extensions > Mótion Film
-   (As janelas "MF - Paleta de Cores", "MF - Camadas" e
+   (As janelas "MF - Paleta de Cores", "MF - Camadas", "MF - Wheel" e
    "Mótion Figma Layers" ficam no mesmo menu.)
 
 Figma — precisa do aplicativo FIGMA DESKTOP (pelo navegador não funciona).
@@ -43,8 +48,8 @@ Só na PRIMEIRA instalação, importe o plugin:
    Com um arquivo de design aberto: botão direito no canvas > Plugins >
    Development > Import plugin from manifest...
    e escolha Documentos\Mótion Figma Layers\Plugin Figma\manifest.json
-   (o instalador tem os botões "Abrir pasta do plugin" e "Copiar caminho").
-Nas atualizações não precisa importar de novo.
+Nas atualizações não precisa importar de novo (só copie a pasta
+"Plugin Figma" nova por cima da antiga).
 
 
 ABA PACKS — COMO USAR

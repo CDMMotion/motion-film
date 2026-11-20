@@ -3,6 +3,7 @@
 #   powershell -ExecutionPolicy Bypass -File installer\release.ps1 [-Notes "o que mudou"]
 #
 #   1. package.ps1 -> installer\dist\Motion-Film-Setup-<v>.exe + motion-film-v<v>.rar
+#      (o .rar é a pasta da extensão para copiar à mão, sem instalador)
 #   2. commit de tudo que mudou + tag v<v> + push
 #   3. gh release create v<v> com o .exe e o .rar anexados
 #
@@ -42,7 +43,7 @@ try {
   $exe = Join-Path $here "dist\Motion-Film-Setup-$version.exe"
   $rarFile = Join-Path $root "motion-film-v$version.rar"
   if (-not $Notes) { $Notes = "Feche o After Effects antes. Instala ou atualiza; Packs, cores e presets são mantidos." }
-  $Notes += "`n`n**Windows:** baixe ``Motion-Film-Setup-$version.exe`` e rode.`n**Mac:** baixe ``Motion-Film-Mac-$version.zip`` e abra o ``Instalar-Motion-Film-$version.pkg`` (instruções no INSTALAR-MAC.txt dentro do zip). O zip do Mac aparece aqui ~15 min depois da publicação, após passar no teste em Mac Apple Silicon e Intel."
+  $Notes += "`n`n**Windows (recomendado):** baixe ``motion-film-v$version.rar`` e copie a pasta ``motion-film`` para ``%APPDATA%\Adobe\CEP\extensions`` (passo a passo no INSTALAR.txt dentro do .rar; sem instalador).`n**Windows (instalador):** ``Motion-Film-Setup-$version.exe`` faz o mesmo sozinho (alguns antivírus acusam por não ser assinado).`n**Mac:** baixe ``Motion-Film-Mac-$version.zip`` e abra o ``Instalar-Motion-Film-$version.pkg`` (instruções no INSTALAR-MAC.txt dentro do zip). O zip do Mac aparece aqui ~15 min depois da publicação, após passar no teste em Mac Apple Silicon e Intel."
   & $gh release create $tag $exe $rarFile --title "Mótion Film $version" --notes $Notes
   if ($LASTEXITCODE -ne 0) { throw "gh release create falhou" }
   Write-Host "OK: release $tag publicada. O instalador Mac é montado e anexado pelo GitHub Actions (workflow 'Instalador Mac')."

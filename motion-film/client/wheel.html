@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>MF - Wheel</title>
     <link rel="stylesheet" href="styles.css?v=0150b" />
-    <link rel="stylesheet" href="wheel.css?v=0190b" />
+    <link rel="stylesheet" href="wheel.css?v=0200a" />
   </head>
   <body>
     <!-- Settings of the Wheel (wheel.js). Same minimal shell as the other
@@ -51,12 +51,18 @@
 
         <section class="section">
           <div class="section-tab wh-tab">
-            <div class="section-heading compact"><div><div class="section-kicker">SHORTCUT</div></div></div>
+            <div class="section-heading compact"><div><div class="section-kicker">OPEN WITH</div></div></div>
           </div>
           <div class="section-body">
-            <div class="wh-row">
+            <div class="wh-row wh-trigger-row">
+              <div class="segmented wh-trigger" id="wh-trigger">
+                <button type="button" class="segmented-option" data-trigger="mouse" title="Hold the right mouse button over After Effects, move to a slice, let go">Hold right click</button>
+                <button type="button" class="segmented-option" data-trigger="key" title="A keyboard shortcut opens the Wheel; click to pick">Shortcut</button>
+              </div>
+              <button id="wh-enabled" class="mf-switch" type="button" role="switch" aria-checked="true" aria-label="Turn the Wheel on or off"><span class="mf-switch-thumb"></span></button>
+            </div>
+            <div class="wh-row wh-key-row" id="wh-key-row">
               <input id="wh-hotkey" class="settings-key-input wh-key" type="text" readonly spellcheck="false" title="Click, then press the new shortcut" aria-label="Wheel shortcut" />
-              <button id="wh-enabled" class="mf-switch" type="button" role="switch" aria-checked="true" aria-label="Turn the Wheel shortcut on or off"><span class="mf-switch-thumb"></span></button>
             </div>
             <p class="wh-hint" id="wh-state"></p>
             <button type="button" class="cap-link" id="wh-reset">Back to the default wheel</button>
@@ -65,8 +71,8 @@
       </main>
     </div>
     <script src="shared-core.js?v=0150a"></script>
-    <script src="wheel-core.js?v=0154a"></script>
+    <script src="wheel-core.js?v=0200b"></script>
     <script src="transitions-catalog.js?v=0150a"></script>
-    <script src="wheel.js?v=0190b"></script>
+    <script src="wheel.js?v=0200a"></script>
   </body>
 </html>
