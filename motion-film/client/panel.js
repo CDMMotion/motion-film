@@ -1505,9 +1505,9 @@
   // any category a pack names that isn't in it (e.g. a pack folder copied
   // in by hand) -- a pack always has somewhere visible to live.
   function getAllKitCategories() {
-    var categories = kitLoadLibrary().categories.filter(function (c) { return c !== KIT_TRANSITIONS; });
+    var categories = kitLoadLibrary().categories.filter(function (c) { return KIT_BUILTINS.indexOf(c) === -1; });
     (kitPacksCache || kitRefreshPacks()).forEach(function (p) {
-      if (p.category && p.category !== KIT_TRANSITIONS && categories.indexOf(p.category) === -1) {
+      if (p.category && KIT_BUILTINS.indexOf(p.category) === -1 && categories.indexOf(p.category) === -1) {
         categories.push(p.category);
       }
     });
@@ -1520,8 +1520,12 @@
   // by the save / delete / export pickers). A user topic with the same
   // name is hidden behind it.
   var KIT_TRANSITIONS = "Transitions";
+  // Packs › Gradients (client/gradients.js): built in the same way, right
+  // under Transitions.
+  var KIT_GRADIENTS = "Gradients";
+  var KIT_BUILTINS = [KIT_TRANSITIONS, KIT_GRADIENTS];
   function getKitRailCategories() {
-    return [KIT_TRANSITIONS].concat(getAllKitCategories());
+    return KIT_BUILTINS.concat(getAllKitCategories());
   }
 
   function kitEnsureCategory(category) {
@@ -2056,9 +2060,9 @@
       (function (category) {
         var btn = document.createElement("button");
         btn.type = "button";
-        btn.className = "kit-category" + (category === kitState.category ? " is-active" : "") + (category === KIT_TRANSITIONS ? " is-builtin" : "");
+        btn.className = "kit-category" + (category === kitState.category ? " is-active" : "") + (KIT_BUILTINS.indexOf(category) !== -1 ? " is-builtin" : "");
         btn.textContent = category;
-        if (category !== KIT_TRANSITIONS) {
+        if (KIT_BUILTINS.indexOf(category) === -1) {
           // drop a dragged pack here to move it to this topic
           btn.setAttribute("data-kit-drop", "");
           btn.setAttribute("data-category", category);
@@ -2109,7 +2113,7 @@
       // click" listener would immediately close the one this click just opened.
       event.stopPropagation();
       openNamePopover(addBtn, "Group name", function (name) {
-        if (name === KIT_TRANSITIONS || getAllKitCategories().indexOf(name) !== -1) {
+        if (KIT_BUILTINS.indexOf(name) !== -1 || getAllKitCategories().indexOf(name) !== -1) {
           setStatus("“" + name + "” already exists.", "error");
           return;
         }
@@ -2130,9 +2134,15 @@
       return;
     }
     var builtin = kitState.category === KIT_TRANSITIONS && window.MF.transitions;
+    var gradients = kitState.category === KIT_GRADIENTS && window.MF.gradients;
     root.classList.toggle("is-transitions", !!builtin);
+    root.classList.toggle("is-gradients", !!gradients);
     if (builtin) {
       window.MF.transitions.render(root);
+      return;
+    }
+    if (gradients) {
+      window.MF.gradients.render(root);
       return;
     }
     root.innerHTML = "";

@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Mótion Film</title>
-    <link rel="stylesheet" href="styles.css?v=0191a" />
+    <link rel="stylesheet" href="styles.css?v=0210c" />
   </head>
   <body>
     <div class="app-shell">
@@ -700,13 +700,15 @@
                   <label class="ct-num-box"><small>To</small><input type="text" id="ct-to" inputmode="numeric" spellcheck="false" aria-label="Count to" /></label>
                 </div>
               </div>
+              <div class="ct-row" id="ct-custom-row">
+                <span>Symbol</span>
+                <label class="ct-num-box ct-text-box"><input type="text" id="ct-symbol" maxlength="24" spellcheck="false" placeholder="R$ , US$ , % , kg , + ..." title="Any text next to the number (empty = just the number)" aria-label="Text next to the number" /></label>
+              </div>
               <div class="ct-row">
-                <span>Currency</span>
-                <div class="segmented" id="ct-currency" role="group" aria-label="Currency">
-                  <button type="button" class="segmented-option" data-currency="none">None</button>
-                  <button type="button" class="segmented-option" data-currency="usd">$</button>
-                  <button type="button" class="segmented-option" data-currency="eur">&#8364;</button>
-                  <button type="button" class="segmented-option" data-currency="brl">R$</button>
+                <span>Position</span>
+                <div class="segmented" id="ct-side" role="group" aria-label="Symbol position">
+                  <button type="button" class="segmented-option" data-side="before" title="The symbol before the number: R$ 12,50">Before</button>
+                  <button type="button" class="segmented-option" data-side="after" title="The symbol after the number: 50%">After</button>
                 </div>
               </div>
               <div class="ct-row">
@@ -737,7 +739,7 @@
                 <button type="button" id="ct-replay" class="lf-tool ta-remove" title="Play the preview again" aria-label="Replay"><svg viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M2.8 8a5.2 5.2 0 1 0 1.6-3.8"/><path d="M2.5 2.5v3h3"/></svg></button>
                 <button type="button" id="ct-remove" class="lf-tool ta-remove" title="Remove the counter from the selected text layers" aria-label="Remove counter"><svg viewBox="0 0 28 28" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M6 8h16M11.5 8V6.2h5V8M9.5 8l1 15h7l1-15" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
               </div>
-              <div class="lf-hint">On the selected text layer, or a new one in the middle when none is selected. Counts from the layer&#39;s in point with two keyframes on Effect Controls &#8250; MF Counter &#183; Value -- move them or shape the speed in the Graph Editor. Format, Decimals and the currency symbol stay on the layer (MF Counter &#183; Decimals / Format / Symbol) to change later. Up to 1,000,000.</div>
+              <div class="lf-hint">On the selected text layer, or a new one in the middle when none is selected. Counts from the layer&#39;s in point with two keyframes on Effect Controls &#8250; MF Counter &#183; Value -- move them or shape the speed in the Graph Editor. Format, Decimals and the symbol&#39;s side stay on the layer (MF Counter &#183; Decimals / Format / Symbol After) to change later; the symbol&#39;s text is the first line of the Source Text expression. Up to 1,000,000.</div>
             </div>
           </section>
         </main>
@@ -1065,7 +1067,7 @@
     <script src="captions-core.js?v=0170a"></script>
     <script src="captions-layout.js?v=0140a"></script>
     <script src="captions-styles.js?v=0140a"></script>
-    <script src="panel.js?v=0180a"></script>
+    <script src="panel.js?v=0210a"></script>
     <script src="captions.js?v=0170a"></script>
     <script src="folders.js?v=0140a"></script>
     <script src="scalecomp.js?v=0140a"></script>
@@ -1074,11 +1076,13 @@
     <script src="elastic.js?v=0150a"></script>
     <script src="curve-favorites.js?v=0140a"></script>
     <script src="transitions-catalog.js?v=0140a"></script>
-    <script src="transitions.js?v=0170a"></script>
+    <script src="transitions.js?v=0210a"></script>
+    <script src="gradients-catalog.js?v=0210a"></script>
+    <script src="gradients.js?v=0210d"></script>
     <script src="textanim.js?v=0170a"></script>
     <script src="textanim-favorites.js?v=0154a"></script>
     <script src="typewriter.js?v=0191b"></script>
-    <script src="counter.js?v=0190b"></script>
+    <script src="counter.js?v=0210b"></script>
     <script src="carousel.js?v=0180b"></script>
     <script src="grid.js?v=0190b"></script>
     <script src="tools-search.js?v=0190a"></script>

@@ -6315,3 +6315,73 @@ pronta para copiar, sem instalador: `motion-film\` (vai em
 jeitos se substituem sem duplicar), `Plugin Figma\`,
 `habilitar-extensoes.reg` (PlayerDebugMode) e `INSTALAR.txt` com o passo
 a passo. O .exe continua anexado à Release como alternativa.
+
+## Changelog -- Packs › Gradients (gradientes com quantos pontos quiser)
+
+Pedido do usuário: o AE só tem Gradient Ramp (2 cores) e 4-Color
+Gradient; ele queria uma biblioteca de gradientes com vários pontos,
+numa aba dentro de Packs. Categoria embutida "Gradients", logo abaixo de
+Transitions (`client/gradients-catalog.js`, `client/gradients.js`,
+`host/gradients.jsx`, `client/assets/gradients/gradient-overlay.ffx`).
+
+Como funciona: as cores de um gradiente do AE (Gradient Overlay, e
+também o Gradient Fill de shape) são CUSTOM_VALUE -- script não escreve.
+Mas num preset (.ffx) o gradiente é XML ("Gradient Color Data", cada
+ponto = posição, meio, R, G, B, A). O painel copia o modelo
+`gradient-overlay.ffx` (salvo com `layer.savePreset`, só com Layer
+Styles › Gradient Overlay) trocando o XML e reescrevendo os tamanhos dos
+chunks RIFX (o XMP depois do RIFX é mantido), e o host aplica com
+`layer.applyPreset`. O resultado é um Gradient Overlay normal, editável
+no editor de gradiente do AE; os outros estilos da camada (Drop Shadow,
+Stroke...) continuam.
+
+- Clique numa barra: aplica nas camadas selecionadas da comp aberta;
+  sem seleção cria uma camada "Gradient · <nome>" do tamanho da comp.
+- Style (Linear/Radial/Angle/Reflected/Diamond), Angle, Scale, Reverse:
+  valem para o próximo clique e mudam ao vivo as camadas selecionadas
+  que já têm gradiente (sem passo de undo vazio quando não há nenhuma).
+- 98 gradientes nossos em 12 grupos (Sunset, Gold, Silver, Pastel,
+  Chroma, Heatmap, Retro, Neon, Ocean, Nature, Duotone, Mono).
+- Editor (New, ou o lápis numa barra): clique na barra adiciona um
+  ponto com a cor daquele lugar, arrastar move, arrastar para baixo
+  remove, o quadrado de cor abre o seletor do AE, hex e posição à mão,
+  Reverse / Even. "Save to Mine" guarda em `motionfilm-gradients`
+  (espelhado no settings.json -- atualizações não apagam).
+Conferido no AE: texto com 4 e 5 cores, Drop Shadow mantida, Diamond ao
+vivo (type 5), camada nova sem seleção, salvar/apagar no Mine.
+
+**Points (arrastar o gradiente no viewer).** Pedido do usuário: mover o
+gradiente arrastando pontos na preview do AE. Botão "Points" (ligado por
+padrão): a camada ganha dois Point Controls, "Gradient Start" e
+"Gradient End" (as miras do viewer), e expressões no Angle, Scale,
+Offset e Align with Layer do Gradient Overlay. Medido no AE 26.5 com
+renders de uma rampa: Offset = % da caixa de referência a partir do
+centro; Scale 100 = a corda da caixa pelo centro naquele ângulo
+(Radial/Reflected/Diamond: metade, a partir do centro); Scale só vai de
+10 a 150 %. Com Align desligado a referência é a comp (em coordenadas
+da comp) -- exato com a camada movida, girada, escalada ou com parent
+(os pontos passam por toComp). Com Align ligado numa camada girada o AE
+mede pela caixa girada, então a camada só é usada para gradientes curtos
+demais para a comp. Linear: o Start é a 1ª cor e o End a última; nos
+outros estilos o Start é o centro e o End dá o raio. Reaplicar outro
+gradiente numa camada com Points mantém os pontos onde estão. Style /
+Angle / Scale do painel numa camada com Points movem os pontos.
+Pegadinhas de script achadas: ler `.value` do Offset do overlay, ler o
+resultado de expressão (valueAtTime) logo depois de criá-la e
+`setValue` fora de 10..150 no Scale abortam o script sem catch; nas
+expressões `propertyGroup(1).property` não existe (usar
+`propertyGroup(1)("gradientFill/type")`); `saveFrameToPng` é assíncrono
+(um render por chamada nos testes).
+
+## Changelog -- Counter: símbolo livre, antes ou depois
+
+Pedido do usuário: em vez de Currency (None/$/€/R$), um campo
+**Symbol** onde se digita qualquer texto (R$, US$, %, kg, +...) e um
+seletor **Position** (Before / After) para o lado dele. (Uma versão com
+um botão % separado foi descartada a pedido -- o campo já cobre.)
+Vazio = só o número; o texto é usado como digitado (inclusive espaços). Na camada:
+o checkbox "MF Counter · Symbol After" troca o lado depois, e o texto
+do símbolo é a 1ª linha da expressão do Source Text (`var sym = "...";`,
+escapado com JSON) -- controle de efeito não guarda texto. Quem tinha
+uma moeda salva no painel passa a ter o mesmo símbolo como Custom.
+Conferido no AE: `R$ 12,50`, `87%`, `1,500 kg "x"`.

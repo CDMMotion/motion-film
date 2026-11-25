@@ -343,7 +343,8 @@
   // when Transitions is the open category
   (function () {
     var area = document.getElementById("kit-presets");
-    if (area && document.querySelector(".kit-category.is-active.is-builtin")) {
+    var active = document.querySelector(".kit-category.is-active.is-builtin");
+    if (area && active && active.textContent === "Transitions") {
       area.classList.add("is-transitions");
       window.MF.transitions.render(area);
     }

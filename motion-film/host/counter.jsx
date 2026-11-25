@@ -7,11 +7,13 @@
  * point + duração) e o Source Text por expressão mostrando esse valor
  * arredondado e formatado. Por serem keyframes, a subida se ajusta com
  * as curvas de velocidade do Graph Editor; o padrão é ease-out cúbico
- * (saída rápida, chegada suave), o mesmo do preview. Moeda: nenhuma, $,
- * € ou R$ (prefixo). Formato 1.000,00 (pontos primeiro) ou 1,000.00
- * (vírgulas primeiro) e 0..4 casas decimais. Moeda, formato e casas
- * ficam na camada como controles (MF Counter · Symbol / Format /
- * Decimals), para trocar depois no Effect Controls. Sem camada de texto
+ * (saída rápida, chegada suave), o mesmo do preview. Símbolo: % ou
+ * qualquer texto (Custom), antes ou depois do número. Formato 1.000,00
+ * (pontos primeiro) ou 1,000.00 (vírgulas primeiro) e 0..4 casas
+ * decimais. Lado do símbolo, formato e casas ficam na camada como
+ * controles (MF Counter · Symbol After / Format / Decimals), para trocar
+ * depois no Effect Controls; o texto do símbolo é a 1a linha da
+ * expressão do Source Text (controle de efeito não guarda texto). Sem camada de texto
  * selecionada, cria uma no meio da comp. O slider do AE vai até
  * 1.000.000. Aplicar de novo troca o contador (inclui o antigo, de
  * expressão com From / To / Duration).
@@ -20,8 +22,6 @@
  */
 (function () {
   var NAME = "MF Counter";
-  var SYMBOLS = ["None", "$", "€", "R$"];
-  var SYMBOL_KEY = { none: 1, usd: 2, eur: 3, brl: 4 };
   var FORMATS = ["1.000,00", "1,000.00"];
 
   function stringify(v) {
@@ -51,18 +51,24 @@
     return n;
   }
 
-  // reads the layer's MF Counter controls
-  function expression() {
+  // the symbol the user typed as a JS string literal for the expression
+  // (line breaks become spaces; JSON escapes quotes and backslashes)
+  function literal(text) {
+    return JSON.stringify(String(text).replace(/[\r\n\u2028\u2029]+/g, " "));
+  }
+  // reads the layer's MF Counter controls; the symbol text is its 1st line
+  function expression(symbol) {
     function fx(n) { return "effect(\"" + knob(n) + "\")(1).value"; }
     return [
-      "// Mótion Film Counter -- the number is the keyframed Effect Controls › " + knob("Value") + " (shape it with speed curves); " + knob("Decimals") + " / Format / Symbol shape the text",
+      "var sym = " + literal(symbol) + "; // the symbol next to the number: edit it here",
+      "// Mótion Film Counter -- the number is the keyframed Effect Controls › " + knob("Value") + " (shape it with speed curves); " + knob("Decimals") + " / Format / Symbol After shape the text",
       "var n = " + fx("Value") + ";",
       "var d = Math.max(0, Math.min(6, Math.round(" + fx("Decimals") + ")));",
       "var comma = Math.round(" + fx("Format") + ") == 2, th = comma ? \",\" : \".\", dec = comma ? \".\" : \",\";",
-      "var sym = [\"\", \"$\", \"€\", \"R$ \"][Math.max(0, Math.min(3, Math.round(" + fx("Symbol") + ") - 1))];",
+      "var after = " + fx("Symbol After") + " == 1;",
       "var parts = Math.abs(n).toFixed(d).split(\".\");",
       "var s = parts[0].replace(/\\B(?=(\\d{3})+(?!\\d))/g, th) + (d > 0 ? dec + parts[1] : \"\");",
-      "(n < 0 && Number(Math.abs(n).toFixed(d)) != 0 ? \"-\" : \"\") + sym + s;"
+      "(n < 0 && Number(Math.abs(n).toFixed(d)) != 0 ? \"-\" : \"\") + (after ? s + sym : sym + s);"
     ].join("\n");
   }
 
@@ -87,7 +93,7 @@
     prop.setTemporalEaseAtKey(2, [flat], [flat]);
   }
 
-  // o: { from, to, currency, duration }
+  // o: { from, to, decimals, format, symbol (text), after, duration }
   $.global.ctApply = function (o) {
     var comp = activeComp();
     if (!comp) { return stringify({ ok: false, error: "Open a composition first." }); }
@@ -118,10 +124,10 @@
         layer.property("ADBE Effect Parade").addProperty("ADBE Slider Control").name = knob("Value");
         addKnob(layer, "Decimals", "ADBE Slider Control", Math.max(0, Math.min(4, Math.round(Number(o.decimals) || 0))));
         addKnob(layer, "Format", "ADBE Dropdown Control", o.format === "comma" ? 2 : 1, FORMATS);
-        addKnob(layer, "Symbol", "ADBE Dropdown Control", SYMBOL_KEY[o.currency] || 1, SYMBOLS);
+        addKnob(layer, "Symbol After", "ADBE Checkbox Control", o.after ? 1 : 0);
         var value = layer.property("ADBE Effect Parade").property(knob("Value")).property(1);
         keyframe(value, layer.inPoint, from, to, duration);
-        sourceText(layer).expression = expression();
+        sourceText(layer).expression = expression(o.symbol || "");
         layer.selected = true;
         // the two keys selected: the Graph Editor shows them right away
         try { value.setSelectedAtKey(1, true); value.setSelectedAtKey(2, true); } catch (selectError) {}

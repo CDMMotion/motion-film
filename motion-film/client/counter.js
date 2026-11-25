@@ -1,8 +1,9 @@
 /*
  * Mótion Film -- Text Animation tab › 02 / COUNTER.
  *
- * A number counting From -> To over Duration (cubic ease-out), with an
- * optional currency ($, € or R$), a Format (1.000,00 = dots first, or
+ * A number counting From -> To over Duration (cubic ease-out), with a
+ * symbol -- any text typed (R$, US$, %, kg, +...) -- before or after the
+ * number (Position), a Format (1.000,00 = dots first, or
  * 1,000.00 = commas first) and the Decimals chosen (0..4; typing more
  * decimals than that raises it). A typed separator is read by sense: a
  * lone one followed by other than 3 digits is the decimal point, both
@@ -18,22 +19,19 @@
   if (!document.getElementById("ct-stage")) { return; }
 
   var KEY = "motionfilm-counter";
-  // the currency picks its usual format (it can be changed after)
-  var CURRENCY = {
-    none: { prefix: "" },
-    usd: { prefix: "$", format: "comma" },
-    eur: { prefix: "€" },
-    brl: { prefix: "R$ ", format: "dot" }
-  };
+  // the old currency choice (before 0.21) -> the symbol text
+  var OLD_CURRENCY = { none: "", usd: "$", eur: "€", brl: "R$ " };
   // dot = 1.000,00 (dots first), comma = 1,000.00 (commas first)
   var FORMATS = { dot: { thousands: ".", decimal: "," }, comma: { thousands: ",", decimal: "." } };
-  var state = { from: 0, to: 1000, decimals: 0, currency: "none", format: "dot", duration: 2 };
+  // custom: the symbol text; after: it goes after the number
+  var state = { from: 0, to: 1000, decimals: 0, custom: "", after: false, format: "dot", duration: 2 };
   try {
     var saved = JSON.parse(window.localStorage.getItem(KEY) || "{}");
     if (typeof saved.from === "number") { state.from = saved.from; }
     if (typeof saved.to === "number") { state.to = saved.to; }
     if (typeof saved.decimals === "number") { state.decimals = Math.max(0, Math.min(4, saved.decimals)); }
-    if (CURRENCY[saved.currency]) { state.currency = saved.currency; }
+    if (typeof saved.custom === "string") { state.custom = saved.custom; } else if (OLD_CURRENCY[saved.currency] !== undefined) { state.custom = OLD_CURRENCY[saved.currency]; }
+    if (typeof saved.after === "boolean") { state.after = saved.after; }
     if (FORMATS[saved.format]) { state.format = saved.format; } else if (saved.decimal === ".") { state.format = "comma"; }
     if (typeof saved.duration === "number") { state.duration = saved.duration; }
   } catch (e) {}
@@ -53,10 +51,12 @@
     var s = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, f.thousands);
     return (n < 0 && Number(Math.abs(n).toFixed(state.decimals)) !== 0 ? "-" : "") + s + (parts[1] ? f.decimal + parts[1] : "");
   }
+  function symbol() { return state.custom; }
   function format(n) {
     var s = plain(n);
     var neg = s.charAt(0) === "-";
-    return (neg ? "-" : "") + CURRENCY[state.currency].prefix + (neg ? s.slice(1) : s);
+    var body = neg ? s.slice(1) : s;
+    return (neg ? "-" : "") + (state.after ? body + symbol() : symbol() + body);
   }
 
   // what the user typed -> { value, places } (null when it isn't a number)
@@ -140,13 +140,15 @@
       var input = $("ct-" + n);
       if (document.activeElement !== input) { input.value = plain(state[n]); }
     });
-    [["ct-currency", "data-currency", "currency"], ["ct-format", "data-format", "format"], ["ct-decimals", "data-decimals", "decimals"]].forEach(function (g) {
+    var side = state.after ? "after" : "before";
+    [["ct-side", "data-side", side], ["ct-format", "data-format", state.format], ["ct-decimals", "data-decimals", state.decimals]].forEach(function (g) {
       Array.prototype.forEach.call(document.querySelectorAll("#" + g[0] + " button"), function (b) {
-        var on = b.getAttribute(g[1]) === String(state[g[2]]);
+        var on = b.getAttribute(g[1]) === String(g[2]);
         b.classList.toggle("is-active", on);
         b.setAttribute("aria-pressed", on ? "true" : "false");
       });
     });
+    if (document.activeElement !== $("ct-symbol")) { $("ct-symbol").value = state.custom; }
     $("ct-duration").value = state.duration;
     $("ct-out-duration").textContent = (Math.round(state.duration * 10) / 10) + " s";
   }
@@ -175,9 +177,12 @@
         });
       });
     }
-    choose("ct-currency", "data-currency", function (v) {
-      state.currency = v;
-      if (CURRENCY[v].format) { state.format = CURRENCY[v].format; }
+    choose("ct-side", "data-side", function (v) { state.after = v === "after"; });
+    $("ct-symbol").addEventListener("input", function () {
+      state.custom = $("ct-symbol").value;
+      save();
+      $("ct-num").textContent = format(state.to);
+      fit();
     });
     choose("ct-format", "data-format", function (v) { state.format = v; });
     choose("ct-decimals", "data-decimals", function (v) { state.decimals = Number(v); });
@@ -191,7 +196,7 @@
       var button = $("ct-apply");
       if (button.disabled) { return; }
       button.disabled = true;
-      call("ctApply", { from: state.from, to: state.to, decimals: state.decimals, currency: state.currency, format: state.format, duration: state.duration }, function (res) {
+      call("ctApply", { from: state.from, to: state.to, decimals: state.decimals, symbol: symbol(), after: state.after, format: state.format, duration: state.duration }, function (res) {
         button.disabled = false;
         status(res.ok ? res.message : res.error, res.ok ? "success" : "error");
       });
